@@ -1,0 +1,18 @@
+Scene Text Recognition Model Hub
+Copyright 2022 Darwin Bautista
+
+The Initial Developer of strhub/models/abinet (sans system.py) is
+Fang et al. (https://github.com/FangShancheng/ABINet).
+Copyright 2021-2022 USTC
+
+The Initial Developer of strhub/models/crnn (sans system.py) is
+Jieru Mei (https://github.com/meijieru/crnn.pytorch).
+Copyright 2017-2022 Jieru Mei
+
+The Initial Developer of strhub/models/trba (sans system.py) is
+Jeonghun Baek (https://github.com/clovaai/deep-text-recognition-benchmark).
+Copyright 2019-2022 NAVER Corp.
+
+The Initial Developer of strhub/models/vitstr (sans system.py) is
+Rowel Atienza (https://github.com/roatienza/deep-text-recognition-benchmark).
+Copyright 2021-2022 Rowel Atienza

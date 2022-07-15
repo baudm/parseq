@@ -1,0 +1,10 @@
+name: trba
+_target_: strhub.models.trba.system.TRBA
+
+# Architecture
+num_fiducial: 20
+output_channel: 512
+hidden_size: 256
+
+# Training
+lr: 6.9e-4

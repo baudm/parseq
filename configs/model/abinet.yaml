@@ -1,0 +1,26 @@
+name: abinet
+_target_: strhub.models.abinet.system.ABINet
+
+# Shared Transformer configuration
+d_model: 512
+nhead: 8
+d_inner: 2048
+activation: relu
+dropout: 0.1
+
+# Architecture
+v_backbone: transformer
+v_num_layers: 3
+v_attention: position
+v_attention_mode: nearest
+l_num_layers: 4
+l_use_self_attn: false
+
+# Training
+lr: 3.4e-4
+l_lr: 3e-4
+iter_size: 3
+a_loss_weight: 1.
+v_loss_weight: 1.
+l_loss_weight: 1.
+l_detach: true

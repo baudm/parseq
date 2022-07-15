@@ -1,0 +1,10 @@
+defaults:
+  - main
+  - _self_
+
+trainer:
+  gpus: 1  # tuning with DDP is not yet supported.
+
+hydra:
+  run:
+    dir: ray_results/${model.name}/${now:%Y-%m-%d}_${now:%H-%M-%S}

@@ -1,0 +1,7 @@
+# @package _global_
+data:
+  train_dir: synth
+  num_workers: 3
+
+trainer:
+  limit_train_batches: 0.20496  # to match the steps per epoch of `real`

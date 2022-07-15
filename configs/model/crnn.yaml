@@ -1,0 +1,9 @@
+name: crnn
+_target_: strhub.models.crnn.system.CRNN
+
+# Architecture
+hidden_size: 256
+leaky_relu: false
+
+# Training
+lr: 5.1e-4

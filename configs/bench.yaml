@@ -1,0 +1,10 @@
+# Disable any logging or output
+defaults:
+  - main
+  - _self_
+  - override hydra/job_logging: disabled
+
+hydra:
+  output_subdir: null
+  run:
+    dir: .

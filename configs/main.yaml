@@ -1,0 +1,47 @@
+defaults:
+  - _self_
+  - model: parseq
+  - charset: 94_full
+  - train_set: real
+
+model:
+  _convert_: all
+  img_size: [ 32, 128 ]  # [ height, width ]
+  max_label_length: 25
+  # The ordering in charset_train matters. It determines the token IDs assigned to each character.
+  charset_train: ???
+  # For charset_test, ordering doesn't matter.
+  charset_test: "0123456789abcdefghijklmnopqrstuvwxyz"
+  batch_size: 384
+  weight_decay: 0.0
+  warmup_pct: 0.075  # equivalent to 1.5 epochs of warm up
+
+data:
+  _target_: strhub.data.module.SceneTextDataModule
+  root_dir: data
+  train_dir: ???
+  img_size: ${model.img_size}
+  charset_train: ${model.charset_train}
+  charset_test: ${model.charset_test}
+  max_label_length: ${model.max_label_length}
+  batch_size: ${model.batch_size}
+  num_workers: 2
+  augment: true
+
+trainer:
+  _target_: pytorch_lightning.Trainer
+  _convert_: all
+  val_check_interval: 1000
+  #max_steps: 169680  # 20 epochs x 8484 steps (for batch size = 384, real data)
+  max_epochs: 20
+  terminate_on_nan: true
+  gradient_clip_val: 20
+  gpus: 2
+
+hydra:
+  output_subdir: config
+  run:
+    dir: outputs/${model.name}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+  sweep:
+    dir: multirun/${model.name}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+    subdir: ${hydra.job.override_dirname}

@@ -1,0 +1,17 @@
+# @package _global_
+defaults:
+  - override /model: abinet
+
+model:
+  name: abinet-lm
+  lm_only: true
+
+data:
+  augment: false
+  num_workers: 3
+
+tune:
+  gpus_per_trial: 0.5
+  lr:
+    min: 1e-5
+    max: 1e-3

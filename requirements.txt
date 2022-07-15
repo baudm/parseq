@@ -1,0 +1,15 @@
+torch==1.10.2
+torchtext==0.11.2
+torchvision==0.11.3
+pytorch-lightning==1.4.9
+torchmetrics==0.6.2
+timm==0.4.12
+nltk==3.6.5
+lmdb==1.2.1
+opencv-python==4.5.4.58
+imgaug==0.4.0
+hydra-core==1.1.1
+fvcore==0.1.5.post20211023
+ray==1.7.1
+ax-platform==0.2.2
+SQLAlchemy==1.4.26
