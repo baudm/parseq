@@ -1,9 +1,10 @@
 <div align="center">
 
 # Scene Text Recognition with<br/>Permuted Autoregressive Sequence Models
-[![Apache License 2.0](https://img.shields.io/badge/license-Apache&#32;2.0-blue.svg)](https://github.com/baudm/parseq/blob/main/LICENSE)
+[![Apache License 2.0](https://img.shields.io/github/license/baudm/parseq)](https://github.com/baudm/parseq/blob/main/LICENSE)
 [![arXiv preprint](http://img.shields.io/badge/arXiv-2207.06966-B31B1B.svg)](https://arxiv.org/abs/2207.06966)
 [![In Proc. ECCV 2022](http://img.shields.io/badge/ECCV-2022-4b44ce.svg)](https://eccv2022.ecva.net/)
+[![Hugging Face Space](https://img.shields.io/badge/demo-huggingface-yellow)](https://huggingface.co/spaces/baudm/PARSeq-OCR)
 
 [**Darwin Bautista**](https://github.com/baudm) and [**Rowel Atienza**](https://github.com/roatienza)
 
@@ -48,6 +49,9 @@ The dynamic nature of attention masking in Transformers allows us to control and
 This repository contains the reference implementation for PARSeq and reproduced models (collectively referred to as _Scene Text Recognition Model Hub_). See `NOTICE` for copyright information.
 Majority of the code is licensed under the Apache License v2.0 (see `LICENSE`) while ABINet and CRNN sources are
 released under the BSD and MIT licenses, respectively (see corresponding `LICENSE` files for details).
+
+### Demo
+An [interactive demo](https://huggingface.co/spaces/baudm/PARSeq-OCR) hosted at Hugging Face is available. The pretrained weights released here are used for the demo.
 
 ### Installation
 Tested on Python 3.9. Requires PyTorch >= 1.10.
