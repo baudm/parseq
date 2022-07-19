@@ -60,7 +60,7 @@ class BaseSystem(pl.LightningModule, ABC):
         """Inference
 
         Args:
-            images: Batch of images. Shape: N, C, H, W
+            images: Batch of images. Shape: N, Ch, H, W
             max_length: Max sequence length of the output. If None, will use default.
 
         Returns:
@@ -73,7 +73,7 @@ class BaseSystem(pl.LightningModule, ABC):
         """Like forward(), but also computes the loss (calls forward() internally).
 
         Args:
-            images: Batch of images. Shape: N, C, H, W
+            images: Batch of images. Shape: N, Ch, H, W
             labels: Text labels of the images
 
         Returns:

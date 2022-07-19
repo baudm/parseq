@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='strhub',
-    version='0.1.0',
+    version='1.0.0',
     description='Scene Text Recognition Model Hub: A collection of deep learning models for Scene Text Recognition',
     author='Darwin Bautista',
     author_email='baudm@users.noreply.github.com',

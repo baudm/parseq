@@ -102,7 +102,7 @@ def vitstr(pretrained: bool = False, **kwargs):
     @param pretrained: (bool) Use pretrained weights
     """
     from strhub.models.vitstr.system import ViTSTR
-    config = _get_config('vitstr', **kwargs)
+    config = _get_config('vitstr', 'vitstr', **kwargs)
     model = ViTSTR(**config)
     if pretrained:
         checkpoint = torch.hub.load_state_dict_from_url(
