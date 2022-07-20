@@ -54,8 +54,9 @@ class BaseTokenizer(ABC):
     def _tok2ids(self, tokens: str) -> List[int]:
         return [self._stoi[s] for s in tokens]
 
-    def _ids2tok(self, token_ids: List[int]) -> str:
-        return ''.join([self._itos[i] for i in token_ids])
+    def _ids2tok(self, token_ids: List[int], join: bool = True) -> str:
+        tokens = [self._itos[i] for i in token_ids]
+        return ''.join(tokens) if join else tokens
 
     @abstractmethod
     def encode(self, labels: List[str], device: Optional[torch.device] = None) -> Tensor:
@@ -80,7 +81,7 @@ class BaseTokenizer(ABC):
 
         Args:
             token_dists: softmax probabilities over the token distribution. Shape: N, L, C
-            raw: return unfiltered labels
+            raw: return unprocessed labels (will return list of list of strings)
 
         Returns:
             list of string labels (arbitrary length) and
@@ -92,7 +93,7 @@ class BaseTokenizer(ABC):
             probs, ids = dist.max(-1)  # greedy selection
             if not raw:
                 probs, ids = self._filter(probs, ids)
-            tokens = self._ids2tok(ids)
+            tokens = self._ids2tok(ids, not raw)
             batch_tokens.append(tokens)
             batch_probs.append(probs)
         return batch_tokens, batch_probs
