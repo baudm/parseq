@@ -20,7 +20,6 @@ import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 from torchvision import transforms as T
 
-from .augment import rand_augment_transform
 from .dataset import build_tree_dataset, LmdbDataset
 
 
@@ -53,6 +52,7 @@ class SceneTextDataModule(pl.LightningDataModule):
     def get_transform(img_size: tuple[int], augment: bool = False, rotation: int = 0):
         transforms = []
         if augment:
+            from .augment import rand_augment_transform
             transforms.append(rand_augment_transform())
         if rotation:
             transforms.append(lambda img: img.rotate(rotation, expand=True))
