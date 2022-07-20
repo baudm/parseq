@@ -4,7 +4,7 @@
 [![Apache License 2.0](https://img.shields.io/github/license/baudm/parseq)](https://github.com/baudm/parseq/blob/main/LICENSE)
 [![arXiv preprint](http://img.shields.io/badge/arXiv-2207.06966-B31B1B.svg)](https://arxiv.org/abs/2207.06966)
 [![In Proc. ECCV 2022](http://img.shields.io/badge/ECCV-2022-4b44ce.svg)](https://eccv2022.ecva.net/)
-[![Hugging Face Space](https://img.shields.io/badge/demo-huggingface-yellow)](https://huggingface.co/spaces/baudm/PARSeq-OCR)
+[![Hugging Face Space](https://img.shields.io/badge/demo-Gradio-orange)](https://huggingface.co/spaces/baudm/PARSeq-OCR)
 
 [**Darwin Bautista**](https://github.com/baudm) and [**Rowel Atienza**](https://github.com/roatienza)
 
@@ -51,7 +51,7 @@ Majority of the code is licensed under the Apache License v2.0 (see `LICENSE`) w
 released under the BSD and MIT licenses, respectively (see corresponding `LICENSE` files for details).
 
 ### Demo
-An [interactive demo](https://huggingface.co/spaces/baudm/PARSeq-OCR) hosted at Hugging Face is available. The pretrained weights released here are used for the demo.
+An [interactive Gradio demo](https://huggingface.co/spaces/baudm/PARSeq-OCR) hosted at Hugging Face is available. The pretrained weights released here are used for the demo.
 
 ### Installation
 Tested on Python 3.9. Requires PyTorch >= 1.10.
