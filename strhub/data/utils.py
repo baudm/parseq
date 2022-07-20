@@ -75,11 +75,12 @@ class BaseTokenizer(ABC):
         """Internal method which performs the necessary filtering prior to decoding."""
         raise NotImplementedError
 
-    def decode(self, token_dists: Tensor) -> tuple[list[str], list[Tensor]]:
+    def decode(self, token_dists: Tensor, raw: bool = False) -> tuple[list[str], list[Tensor]]:
         """Decode a batch of token distributions.
 
         Args:
             token_dists: softmax probabilities over the token distribution. Shape: N, L, C
+            raw: return unfiltered labels
 
         Returns:
             list of string labels (arbitrary length) and
@@ -89,7 +90,8 @@ class BaseTokenizer(ABC):
         batch_probs = []
         for dist in token_dists:
             probs, ids = dist.max(-1)  # greedy selection
-            probs, ids = self._filter(probs, ids)
+            if not raw:
+                probs, ids = self._filter(probs, ids)
             tokens = self._ids2tok(ids)
             batch_tokens.append(tokens)
             batch_probs.append(probs)
@@ -97,9 +99,9 @@ class BaseTokenizer(ABC):
 
 
 class Tokenizer(BaseTokenizer):
-    BOS = '<bos>'
-    EOS = '<eos>'
-    PAD = '<pad>'
+    BOS = '[B]'
+    EOS = '[E]'
+    PAD = '[P]'
 
     def __init__(self, charset: str) -> None:
         specials_first = (self.EOS,)
@@ -125,7 +127,7 @@ class Tokenizer(BaseTokenizer):
 
 
 class CTCTokenizer(BaseTokenizer):
-    BLANK = '<blank>'
+    BLANK = '[B]'
 
     def __init__(self, charset: str) -> None:
         # BLANK uses index == 0 by default
