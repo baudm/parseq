@@ -34,7 +34,6 @@ from ray.tune.suggest.ax import AxSearch
 
 from strhub.data.module import SceneTextDataModule
 from strhub.models.base import BaseSystem
-from tests.test_tune import test_train
 
 log = logging.getLogger(__name__)
 
@@ -139,7 +138,6 @@ def main(config: DictConfig):
         # Resolve absolute path to data.root_dir
         config.data.root_dir = hydra.utils.to_absolute_path(config.data.root_dir)
 
-    test = config.get('test', False)
     tune_config = config.get('tune', {})
     lr = tune_config.get('lr', {})
     # wd = tune_config.get('wd', {})
@@ -148,7 +146,7 @@ def main(config: DictConfig):
         # 'wd': tune.loguniform(wd.get('min', 1e-4), wd.get('max', 1e-1)),
     }
 
-    steps_per_epoch = int(3e6) if test else len(hydra.utils.instantiate(config.data).train_dataloader())
+    steps_per_epoch = len(hydra.utils.instantiate(config.data).train_dataloader())
     val_steps = steps_per_epoch * config.trainer.max_epochs / config.trainer.val_check_interval
     max_t = round(0.75 * val_steps)
     warmup_t = round(config.model.warmup_pct * val_steps)
@@ -166,9 +164,8 @@ def main(config: DictConfig):
         parameter_columns=['lr'],
         metric_columns=['loss', 'accuracy', 'training_iteration'])
 
-    train_fn = test_train if test else train
     analysis = tune.run(
-        tune.with_parameters(train_fn, config=config),
+        tune.with_parameters(train, config=config),
         name='trials',  # required. otherwise some of Ray's checks will fail.
         metric='NED',
         mode='max',
