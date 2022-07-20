@@ -63,7 +63,8 @@ class ABINet(CrossEntropySystem):
     @property
     def _pretraining(self):
         # In the original work, VM was pretrained for 8 epochs while full model was trained for an additional 10 epochs.
-        return self.global_step < (8 / 18) * self.num_training_steps
+        total_steps = self.trainer.estimated_stepping_batches * self.trainer.accumulate_grad_batches
+        return self.global_step < (8 / (8 + 10)) * total_steps
 
     @torch.jit.ignore
     def no_weight_decay(self):
@@ -78,7 +79,7 @@ class ABINet(CrossEntropySystem):
     def configure_optimizers(self):
         agb = self.trainer.accumulate_grad_batches
         # Linear scaling so that the effective learning rate is constant regardless of the number of GPUs used with DDP.
-        lr_scale = agb * math.sqrt(self.trainer.devices) * self.batch_size / 256.
+        lr_scale = agb * math.sqrt(self.trainer.num_devices) * self.batch_size / 256.
         lr = lr_scale * self.lr
         l_lr = lr_scale * self.l_lr
         params = []
@@ -90,7 +91,7 @@ class ABINet(CrossEntropySystem):
             params.append(p)
         max_lr = [p.get('lr', lr) for p in params]
         optim = AdamW(params, lr)
-        self.scheduler = OneCycleLR(optim, max_lr, math.ceil(self.num_training_steps / agb),
+        self.scheduler = OneCycleLR(optim, max_lr, self.trainer.estimated_stepping_batches,
                                     pct_start=self.warmup_pct, cycle_momentum=False)
         return {'optimizer': optim, 'lr_scheduler': {'scheduler': self.scheduler, 'interval': 'step'}}
 
@@ -113,7 +114,7 @@ class ABINet(CrossEntropySystem):
             total_loss += res_list[0]['loss_weight'] * loss
         return total_loss
 
-    def on_train_batch_start(self, batch: Any, batch_idx: int, dataloader_idx: int) -> None:
+    def on_train_batch_start(self, batch: Any, batch_idx: int) -> None:
         if not self._pretraining and self._reset_optimizers:
             log.info('Pretraining ends. Updating base LRs.')
             self._reset_optimizers = False

@@ -1,7 +1,7 @@
 torch==1.10.2
 torchtext==0.11.2
 torchvision==0.11.3
-pytorch-lightning==1.4.9
+pytorch-lightning==1.6.5
 torchmetrics==0.6.2
 timm==0.4.12
 nltk==3.7.0

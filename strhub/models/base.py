@@ -53,7 +53,6 @@ class BaseSystem(pl.LightningModule, ABC):
         self.lr = lr
         self.warmup_pct = warmup_pct
         self.weight_decay = weight_decay
-        self._num_training_steps = None
 
     @abstractmethod
     def forward(self, images: Tensor, max_length: int = None) -> Tensor:
@@ -83,31 +82,13 @@ class BaseSystem(pl.LightningModule, ABC):
         """
         raise NotImplementedError
 
-    @property
-    def num_training_steps(self) -> int:
-        """Total training steps inferred from datamodule and devices."""
-        if self._num_training_steps is None:
-            if self.trainer.max_steps is not None:
-                max_steps = self.trainer.max_steps
-            else:
-                loader = self.train_dataloader()
-                # We have no access to the actual DistributedSampler instance, but the default is drop_last == False
-                samples_per_replica = math.ceil(len(loader.dataset) / self.trainer.devices)
-                epoch_steps = samples_per_replica / loader.batch_size
-                epoch_steps = int(epoch_steps) if loader.drop_last else math.ceil(epoch_steps)
-                limit = self.trainer.limit_train_batches
-                epoch_steps = min(epoch_steps, limit) if isinstance(limit, int) else int(limit * epoch_steps)
-                max_steps = epoch_steps * self.trainer.max_epochs
-            self._num_training_steps = max_steps
-        return self._num_training_steps
-
     def configure_optimizers(self):
         agb = self.trainer.accumulate_grad_batches
         # Linear scaling so that the effective learning rate is constant regardless of the number of GPUs used with DDP.
-        lr_scale = agb * math.sqrt(self.trainer.devices) * self.batch_size / 256.
+        lr_scale = agb * math.sqrt(self.trainer.num_devices) * self.batch_size / 256.
         lr = lr_scale * self.lr
         optim = create_optimizer_v2(self, 'adamw', lr, self.weight_decay)
-        sched = OneCycleLR(optim, lr, math.ceil(self.num_training_steps / agb), pct_start=self.warmup_pct,
+        sched = OneCycleLR(optim, lr, self.trainer.estimated_stepping_batches, pct_start=self.warmup_pct,
                            cycle_momentum=False)
         return {'optimizer': optim, 'lr_scheduler': {'scheduler': sched, 'interval': 'step'}}
 

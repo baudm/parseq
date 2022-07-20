@@ -116,7 +116,7 @@ def train(hparams, config, checkpoint_dir=None):
         'NED': 'val_NED',
         'accuracy': 'val_accuracy'
     })
-    trainer: Trainer = hydra.utils.instantiate(config.trainer, progress_bar_refresh_rate=0, checkpoint_callback=False,
+    trainer: Trainer = hydra.utils.instantiate(config.trainer, enable_progress_bar=False, enable_checkpointing=False,
                                                logger=TensorBoardLogger(save_dir=tune.get_trial_dir(), name='',
                                                                         version='.'),
                                                callbacks=[tune_callback])
@@ -133,8 +133,6 @@ def main(config: DictConfig):
         # Use mixed-precision training
         if config.trainer.get('gpus', 0):
             config.trainer.precision = 16
-        # We handle NaN here to terminate trials cleanly
-        config.trainer.terminate_on_nan = False
         # Resolve absolute path to data.root_dir
         config.data.root_dir = hydra.utils.to_absolute_path(config.data.root_dir)
 

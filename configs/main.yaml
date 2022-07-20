@@ -34,7 +34,6 @@ trainer:
   val_check_interval: 1000
   #max_steps: 169680  # 20 epochs x 8484 steps (for batch size = 384, real data)
   max_epochs: 20
-  terminate_on_nan: true
   gradient_clip_val: 20
   gpus: 2
 
