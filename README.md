@@ -2,9 +2,9 @@
 
 # Scene Text Recognition with<br/>Permuted Autoregressive Sequence Models
 [![Apache License 2.0](https://img.shields.io/github/license/baudm/parseq)](https://github.com/baudm/parseq/blob/main/LICENSE)
-[![arXiv preprint](http://img.shields.io/badge/arXiv-2207.06966-B31B1B.svg)](https://arxiv.org/abs/2207.06966)
-[![In Proc. ECCV 2022](http://img.shields.io/badge/ECCV-2022-4b44ce.svg)](https://eccv2022.ecva.net/)
-[![Hugging Face Space](https://img.shields.io/badge/demo-Gradio-orange)](https://huggingface.co/spaces/baudm/PARSeq-OCR)
+[![arXiv preprint](http://img.shields.io/badge/arXiv-2207.06966-b31b1b)](https://arxiv.org/abs/2207.06966)
+[![In Proc. ECCV 2022](http://img.shields.io/badge/ECCV-2022-6790ac)](https://eccv2022.ecva.net/)
+[![Gradio demo](https://img.shields.io/badge/demo-Gradio-ff7c00)](https://huggingface.co/spaces/baudm/PARSeq-OCR)
 
 [**Darwin Bautista**](https://github.com/baudm) and [**Rowel Atienza**](https://github.com/roatienza)
 
