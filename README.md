@@ -74,8 +74,8 @@ from strhub.data.module import SceneTextDataModule
 parseq = torch.hub.load('baudm/parseq', 'parseq', pretrained=True).eval()
 img_transform = SceneTextDataModule.get_transform(parseq.hparams.img_size)
 
-img = torch.randint(0, 256, (1, 3, 32, 128))  # Load image: (B, C, H, W)
-img = img_transform(img)  # Preprocess
+img = Image.open('/path/to/image.png').convert('RGB')
+img = img_transform(img)  # Preprocess. Shape: (B, C, H, W)
 
 logits = parseq(img)
 logits.shape  # torch.Size([1, 26, 95]), 94 characters + [EOS] symbol
