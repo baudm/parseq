@@ -68,6 +68,7 @@ Download the [datasets](Datasets.md) from the following links:
 Available models are: `abinet`, `crnn`, `trba`, `vitstr`, `parseq_tiny`, and `parseq`.
 ```python
 import torch
+from PIL import Image
 from strhub.data.module import SceneTextDataModule
 
 # Load model and image transforms
