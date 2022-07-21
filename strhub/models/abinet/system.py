@@ -24,7 +24,7 @@ from torch.optim import AdamW
 from torch.optim.lr_scheduler import OneCycleLR
 
 from pytorch_lightning.utilities.types import STEP_OUTPUT
-from timm.optim.optim_factory import add_weight_decay
+from timm.optim.optim_factory import param_groups_weight_decay
 
 from strhub.models.base import CrossEntropySystem
 from strhub.models.utils import init_weights
@@ -72,7 +72,7 @@ class ABINet(CrossEntropySystem):
 
     def _add_weight_decay(self, model: nn.Module, skip_list=()):
         if self.weight_decay:
-            return add_weight_decay(model, self.weight_decay, skip_list)
+            return param_groups_weight_decay(model, self.weight_decay, skip_list)
         else:
             return [{'params': model.parameters()}]
 

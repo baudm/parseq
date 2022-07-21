@@ -9,6 +9,6 @@ setup(
     author='Darwin Bautista',
     author_email='baudm@users.noreply.github.com',
     url='https://github.com/baudm/parseq',
-    install_requires=['torch~=1.10.2', 'pytorch-lightning~=1.6.5', 'timm~=0.4.12'],
+    install_requires=['torch~=1.10.2', 'pytorch-lightning~=1.6.5', 'timm~=0.6.5'],
     packages=find_packages(),
 )

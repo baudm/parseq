@@ -106,20 +106,12 @@ class Encoder(VisionTransformer):
                  qkv_bias=True, drop_rate=0., attn_drop_rate=0., drop_path_rate=0., embed_layer=PatchEmbed):
         super().__init__(img_size, patch_size, in_chans, embed_dim=embed_dim, depth=depth, num_heads=num_heads,
                          mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, drop_rate=drop_rate, attn_drop_rate=attn_drop_rate,
-                         drop_path_rate=drop_path_rate, embed_layer=embed_layer)
-        # Only allocate position embeddings for the image tokens (none for cls nor dist)
-        self.pos_embed = nn.Parameter(torch.zeros(1, self.patch_embed.num_patches, embed_dim))
-        nn.init.trunc_normal_(self.pos_embed, std=.02)
-        # Delete unused modules
-        del self.pre_logits, self.head, self.head_dist, self.cls_token, self.dist_token
+                         drop_path_rate=drop_path_rate, embed_layer=embed_layer,
+                         num_classes=0, global_pool='', class_token=False)  # these disable the classifier head
 
     def forward(self, x):
-        # Essentially forward_features() but returns all tokens
-        x = self.patch_embed(x)
-        x = self.pos_drop(x + self.pos_embed)
-        x = self.blocks(x)
-        x = self.norm(x)
-        return x
+        # Return all tokens
+        return self.forward_features(x)
 
 
 class TokenEmbedding(nn.Module):

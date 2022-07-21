@@ -16,7 +16,7 @@
 """Extends default ops to accept optional parameters."""
 from functools import partial
 
-from timm.data.auto_augment import _MAX_LEVEL, _randomly_negate, LEVEL_TO_ARG, NAME_TO_OP, rotate
+from timm.data.auto_augment import _LEVEL_DENOM, _randomly_negate, LEVEL_TO_ARG, NAME_TO_OP, rotate
 
 
 def rotate_expand(img, degrees, **kwargs):
@@ -27,7 +27,7 @@ def rotate_expand(img, degrees, **kwargs):
 
 def _level_to_arg(level, hparams, key, default):
     magnitude = hparams.get(key, default)
-    level = (level / _MAX_LEVEL) * magnitude
+    level = (level / _LEVEL_DENOM) * magnitude
     level = _randomly_negate(level)
     return level,
 

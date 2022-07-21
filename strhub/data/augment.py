@@ -70,7 +70,7 @@ def poisson_noise(img, lam, **_):
 
 
 def _level_to_arg(level, _hparams, max):
-    level = max * level / auto_augment._MAX_LEVEL
+    level = max * level / auto_augment._LEVEL_DENOM
     return level,
 
 
