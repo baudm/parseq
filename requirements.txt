@@ -10,6 +10,6 @@ opencv-python==4.5.4.58
 imgaug==0.4.0
 hydra-core==1.2.0
 fvcore==0.1.5.post20211023
-ray==1.7.1
+ray[tune]==1.13.0
 ax-platform==0.2.2
 SQLAlchemy==1.4.26
