@@ -15,7 +15,7 @@
 
 import logging
 import math
-from typing import Any
+from typing import Any, Tuple, List
 
 import torch
 import torch.nn.functional as F
@@ -160,7 +160,7 @@ class ABINet(CrossEntropySystem):
         self.log('loss', loss)
         return loss
 
-    def forward_logits_loss(self, images: Tensor, labels: list[str]) -> tuple[Tensor, Tensor, int]:
+    def forward_logits_loss(self, images: Tensor, labels: List[str]) -> Tuple[Tensor, Tensor, int]:
         if self.lm_only:
             inputs, lengths, targets = self._prepare_inputs_and_targets(labels)
             l_res = self.model.language(inputs, lengths)

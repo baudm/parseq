@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from pathlib import PurePath
-from typing import Optional, Callable, Sequence
+from typing import Optional, Callable, Sequence, Tuple
 
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
@@ -49,7 +49,7 @@ class SceneTextDataModule(pl.LightningDataModule):
         self._val_dataset = None
 
     @staticmethod
-    def get_transform(img_size: tuple[int], augment: bool = False, rotation: int = 0):
+    def get_transform(img_size: Tuple[int], augment: bool = False, rotation: int = 0):
         transforms = []
         if augment:
             from .augment import rand_augment_transform

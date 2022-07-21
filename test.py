@@ -20,6 +20,7 @@ import sys
 from dataclasses import dataclass
 
 from tqdm import tqdm
+from typing import List
 
 from strhub.data.module import SceneTextDataModule
 from strhub.models.utils import load_from_checkpoint, parse_model_args
@@ -35,7 +36,7 @@ class Result:
     label_length: float
 
 
-def print_results_table(results: list[Result], file=None):
+def print_results_table(results: List[Result], file=None):
     w = max(map(len, map(getattr, results, ['dataset'] * len(results))))
     w = max(w, len('Dataset'), len('Combined'))
     print('| {:<{w}} | # samples | Accuracy | 1 - NED | Confidence | Label Length |'.format('Dataset', w=w), file=file)

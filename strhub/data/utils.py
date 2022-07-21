@@ -16,7 +16,7 @@
 import re
 from abc import ABC, abstractmethod
 from itertools import groupby
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import torch
 from torch import Tensor
@@ -72,11 +72,11 @@ class BaseTokenizer(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def _filter(self, probs: Tensor, ids: Tensor) -> tuple[Tensor, list[int]]:
+    def _filter(self, probs: Tensor, ids: Tensor) -> Tuple[Tensor, List[int]]:
         """Internal method which performs the necessary filtering prior to decoding."""
         raise NotImplementedError
 
-    def decode(self, token_dists: Tensor, raw: bool = False) -> tuple[list[str], list[Tensor]]:
+    def decode(self, token_dists: Tensor, raw: bool = False) -> Tuple[List[str], List[Tensor]]:
         """Decode a batch of token distributions.
 
         Args:
@@ -115,7 +115,7 @@ class Tokenizer(BaseTokenizer):
                  for y in labels]
         return pad_sequence(batch, batch_first=True, padding_value=self.pad_id)
 
-    def _filter(self, probs: Tensor, ids: Tensor) -> tuple[Tensor, list[int]]:
+    def _filter(self, probs: Tensor, ids: Tensor) -> Tuple[Tensor, List[int]]:
         ids = ids.tolist()
         try:
             eos_idx = ids.index(self.eos_id)
@@ -140,7 +140,7 @@ class CTCTokenizer(BaseTokenizer):
         batch = [torch.as_tensor(self._tok2ids(y), dtype=torch.long, device=device) for y in labels]
         return pad_sequence(batch, batch_first=True, padding_value=self.blank_id)
 
-    def _filter(self, probs: Tensor, ids: Tensor) -> tuple[Tensor, list[int]]:
+    def _filter(self, probs: Tensor, ids: Tensor) -> Tuple[Tensor, List[int]]:
         # Best path decoding:
         ids = list(zip(*groupby(ids.tolist())))[0]  # Remove duplicate tokens
         ids = [x for x in ids if x != self.blank_id]  # Remove BLANKs
