@@ -83,8 +83,8 @@ def main():
     model = load_from_checkpoint(args.checkpoint, **kwargs).eval().to(args.device)
     model.freeze()  # disable autograd
     hp = model.hparams
-    datamodule = SceneTextDataModule('data', '_unused_', hp.img_size, hp.max_label_length, hp.charset_train, hp.charset_test,
-                                     args.batch_size, args.num_workers, False, args.rotation)
+    datamodule = SceneTextDataModule('data', '_unused_', hp.img_size, hp.max_label_length, hp.charset_train,
+                                     hp.charset_test, args.batch_size, args.num_workers, False, args.rotation)
 
     test_set = SceneTextDataModule.TEST_ABINET + SceneTextDataModule.TEST_TRBA
     if args.new:

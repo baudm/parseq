@@ -23,7 +23,7 @@ def parse_args():
 
 
 def process_img(args, src_image_root, dst_image_root):
-    # Dirty hack for multi-processing
+    # Dirty hack for multiprocessing
     img_idx, img_info, anns = args
     try:
         src_img = Image.open(osp.join(src_image_root, 'train_full_images_0/{}.jpg'.format(img_info)))

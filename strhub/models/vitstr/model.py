@@ -1,21 +1,21 @@
-'''
+"""
 Implementation of ViTSTR based on timm VisionTransformer.
 
-TODO: 
+TODO:
 1) distilled deit backbone
 2) base deit backbone
 
 Copyright 2021 Rowel Atienza
-'''
+"""
 
 from timm.models.vision_transformer import VisionTransformer
 
 
 class ViTSTR(VisionTransformer):
-    '''
+    """
     ViTSTR is basically a ViT that uses DeiT weights.
     Modified head to support a sequence of characters prediction for STR.
-    '''
+    """
 
     def forward(self, x, seqlen=25):
         x = self.forward_features(x)

@@ -13,7 +13,7 @@ University of the Philippines, Diliman
 
 </div>
 
-Scene Text Recognition (STR) models use language context to be more robust against noisy or corrupted images. Recent approaches like ABINet propose a standalone or external Language Model (LM) for prediction refinement. In this work, we argue that the external LM&mdash;which requires upfront allocation of dedicated compute capacity&mdash;is inefficient for STR due to its poor performance vs cost characteristics. We propose a more efficient approach using **P**ermuted **A**uto**r**egressive **Seq**uence (PARSeq) models.
+Scene Text Recognition (STR) models use language context to be more robust against noisy or corrupted images. Recent approaches like ABINet use a standalone or external Language Model (LM) for prediction refinement. In this work, we argue that the external LM&mdash;which requires upfront allocation of dedicated compute capacity&mdash;is inefficient for STR due to its poor performance vs cost characteristics. We propose a more efficient approach using **P**ermuted **A**uto**r**egressive **Seq**uence (PARSeq) models.
 
 ![PARSeq](.github/gh-teaser.png)
 
@@ -54,7 +54,7 @@ released under the BSD and MIT licenses, respectively (see corresponding `LICENS
 An [interactive Gradio demo](https://huggingface.co/spaces/baudm/PARSeq-OCR) hosted at Hugging Face is available. The pretrained weights released here are used for the demo.
 
 ### Installation
-Tested on Python 3.9. Requires PyTorch >= 1.10.
+Requires Python 3.7 and PyTorch 1.10 or newer. Tested on Python 3.9 and PyTorch 1.10.
 ```bash
 $ pip install -r requirements.txt
 $ pip install -e .
@@ -76,7 +76,7 @@ parseq = torch.hub.load('baudm/parseq', 'parseq', pretrained=True).eval()
 img_transform = SceneTextDataModule.get_transform(parseq.hparams.img_size)
 
 img = Image.open('/path/to/image.png').convert('RGB')
-img = img_transform(img)  # Preprocess. Shape: (B, C, H, W)
+img = img_transform(img).unsqueeze(0)  # Preprocess. Shape: (B, C, H, W)
 
 logits = parseq(img)
 logits.shape  # torch.Size([1, 26, 95]), 94 characters + [EOS] symbol

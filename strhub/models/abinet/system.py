@@ -42,6 +42,7 @@ class ABINet(CrossEntropySystem):
                  l_loss_weight: float, l_num_layers: int, l_detach: bool, l_use_self_attn: bool,
                  l_lr: float, a_loss_weight: float, lm_only: bool = False, **kwargs) -> None:
         super().__init__(charset_train, charset_test, batch_size, lr, warmup_pct, weight_decay)
+        self.scheduler = None
         self.save_hyperparameters()
         self.max_label_length = max_label_length
         self.num_classes = len(self.tokenizer) - 2  # We don't predict <bos> nor <pad>

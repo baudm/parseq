@@ -23,7 +23,7 @@ def parse_args():
 
 
 def process_img(args, src_image_root, dst_image_root):
-    # Dirty hack for multi-processing
+    # Dirty hack for multiprocessing
     img_idx, img_info, anns = args
     src_img = Image.open(osp.join(src_image_root, 'train2014', img_info['file_name']))
     src_w, src_h = src_img.size
@@ -36,7 +36,7 @@ def process_img(args, src_image_root, dst_image_root):
                 ann['legibility'] != 'legible':
             continue
 
-        # Some labels and images with '#' in the middle are actually good, but some aren't so we just filter them all.
+        # Some labels and images with '#' in the middle are actually good, but some aren't, so we just filter them all.
         if text_label != '#' and '#' in text_label:
             continue
 

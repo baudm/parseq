@@ -24,7 +24,7 @@ def parse_args():
 
 
 def process_img(args, src_image_root, dst_image_root):
-    # Dirty hack for multi-processing
+    # Dirty hack for multiprocessing
     img_idx, img_info, anns = args
     src_img = Image.open(osp.join(src_image_root, img_info['file_name']))
     labels = []

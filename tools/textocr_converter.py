@@ -20,7 +20,7 @@ def parse_args():
     parser.add_argument(
         'n_proc', default=1, type=int, help='Number of processes to run')
     parser.add_argument('--rectify_pose', action='store_true',
-        help='Fix pose of rotated text to make them horizontal')
+                        help='Fix pose of rotated text to make them horizontal')
     args = parser.parse_args()
     return args
 
@@ -50,7 +50,7 @@ def rectify_image_pose(image, top_left, points):
 
 
 def process_img(args, src_image_root, dst_image_root):
-    # Dirty hack for multi-processing
+    # Dirty hack for multiprocessing
     img_idx, img_info, anns, rectify_pose = args
     src_img = Image.open(osp.join(src_image_root, img_info['file_name']))
     labels = []
