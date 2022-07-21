@@ -38,6 +38,8 @@ trainer:
   gpus: 2
 
 hydra:
+  job:
+    chdir: true
   output_subdir: config
   run:
     dir: outputs/${model.name}/${now:%Y-%m-%d}_${now:%H-%M-%S}

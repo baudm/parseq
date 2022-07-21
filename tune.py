@@ -123,7 +123,7 @@ def train(hparams, config, checkpoint_dir=None):
     trainer.fit(model, datamodule=datamodule)
 
 
-@hydra.main(config_path='configs', config_name='tune')
+@hydra.main(config_path='configs', config_name='tune', version_base=None)
 def main(config: DictConfig):
     # Special handling for PARseq
     if config.model.get('perm_mirrored', False):

@@ -23,7 +23,7 @@ from omegaconf import DictConfig
 from torch.utils import benchmark
 
 
-@hydra.main(config_path='configs', config_name='bench')
+@hydra.main(config_path='configs', config_name='bench', version_base=None)
 def main(config: DictConfig):
     # For consistent behavior
     os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
