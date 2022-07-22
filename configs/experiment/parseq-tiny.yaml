@@ -1,4 +1,7 @@
 # @package _global_
+defaults:
+  - override /model: parseq
+
 model:
   name: parseq-tiny
   embed_dim: 192

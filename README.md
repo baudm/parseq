@@ -39,7 +39,7 @@ The figure above shows word accuracy (94-character set) vs three common computat
 ### Method tl;dr
 
 Our main insight is that with an ensemble of autoregressive (AR) models, we could unify the current STR decoding methods (context-aware AR and context-free non-AR) and the bidirectional (cloze) refinement model:
-<div align="center"><img src=".github/contexts-example.png" alt="Unified STR model" width="70%"/></div>
+<div align="center"><img src=".github/contexts-example.png" alt="Unified STR model" width="75%"/></div>
 
 The dynamic nature of attention masking in Transformers allows us to control and change information flow without modifying the model architecture. This characteristic coupled with Permutation Language Modeling (PLM) allows for a _unified_ STR model capable of context-free and context-aware inference, as well as iterative prediction refinement using bidirectional context **without** requiring a standalone language model. PARSeq can be considered an ensemble of AR models with shared architecture and weights:
 
@@ -87,20 +87,47 @@ label, confidence = parseq.tokenizer.decode(pred)
 ```
 
 ## Training
-
-The training script can train any supported model. Default configuration is stored in ```configs/model```. You can override any configuration using the command line. Please refer to [Hydra](https://hydra.cc) docs for more info about the syntax.
+The training script can train any supported model. Default configuration is stored in ```configs/model/```. You can override any configuration using the command line. Please refer to [Hydra](https://hydra.cc) docs for more info about the syntax.
 ```bash
-$ ./train.py model=parseq model.perm_num=12 model.embed_dim=512  # dual-GPU setup. Set embed_dim to 512 instead of 384
-$ ./train.py +experiment=parseq-tiny trainer.gpus=4  # quad-GPU setup. Train tiny variant of PARSeq. See configs/experiment.
+./train.py model=parseq model.perm_num=12 model.embed_dim=512  # Set embed_dim to 512 instead of 384, use 12 permutations.
 ```
 
-## Tuning
+<details><summary>Sample commands for different training configurations</summary><p>
 
-We use [Ray Tune](https://www.ray.io/ray-tune) for automated parameter tuning of the learning rate. Extend `tune.py` to support tuning of other hyperparameters.
+### Train a model variant/preconfigured experiment
+The base model configurations are in `configs/model/`, while variations are stored in `configs/experiment/`.
 ```bash
-$ ./tune.py +tune.num_samples=20  # find optimum LR for PARSeq's default config using 20 trials
-$ ./tune.py +experiment=tune_abinet-lm  # find the optimum learning rate for ABINet's language model
+./train.py +experiment=parseq-tiny  # Some examples: abinet-sv, trbc
 ```
+
+### Specify the character set for training
+```bash
+./train.py charset=94_full  # Other options: 36_lowercase or 62_mixed-case. See configs/charset/
+```
+
+### Specify the training dataset
+```bash
+./train.py dataset=real  # Other option: synth. See configs/dataset/
+```
+
+### Change general model training parameters
+```bash
+./train.py model.img_size=[32, 128] model.max_label_length=25 model.batch_size=384
+```
+
+### Change data-related training parameters
+```bash
+./train.py data.root_dir=data data.num_workers=2 data.augment=true
+```
+
+### Change `pytorch_lightning.Trainer` parameters
+```bash
+./train.py trainer.max_epochs=20 trainer.gpus=2 +trainer.accelerator=gpu
+```
+Note that you can pass any [Trainer parameter](https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html),
+you just need to prefix it with `+` if it is not originally specified in `configs/main.yaml`.
+
+</p></details>
 
 ## Evaluation
 The test script, ```test.py```, can be used to evaluate any model trained with this project. For more info, see ```./test.py --help```.
@@ -111,7 +138,7 @@ PARSeq runtime parameters can be passed using the format `param:type=value`. For
 
 ### Lowercase alphanumeric comparison on benchmark datasets (Table 6)
 ```bash
-$ ./test.py outputs/<model>/<timestamp>/checkpoints/last.ckpt  # or use the released weights: ./test.py /path/to/parseq.pt
+./test.py outputs/<model>/<timestamp>/checkpoints/last.ckpt  # or use the released weights: ./test.py /path/to/parseq.pt
 ```
 **Sample output:**
 | Dataset   | # samples | Accuracy | 1 - NED | Confidence | Label Length |
@@ -127,19 +154,19 @@ $ ./test.py outputs/<model>/<timestamp>/checkpoints/last.ckpt  # or use the rele
 
 ### Benchmark using different evaluation character sets (Table 4)
 ```bash
-$ ./test.py outputs/<model>/<timestamp>/checkpoints/last.ckpt  # lowercase alphanumeric (36-character set)
-$ ./test.py outputs/<model>/<timestamp>/checkpoints/last.ckpt --cased  # mixed-case alphanumeric (62-character set)
-$ ./test.py outputs/<model>/<timestamp>/checkpoints/last.ckpt --cased --punctuation  # mixed-case alphanumeric + punctuation (94-character set)
+./test.py outputs/<model>/<timestamp>/checkpoints/last.ckpt  # lowercase alphanumeric (36-character set)
+./test.py outputs/<model>/<timestamp>/checkpoints/last.ckpt --cased  # mixed-case alphanumeric (62-character set)
+./test.py outputs/<model>/<timestamp>/checkpoints/last.ckpt --cased --punctuation  # mixed-case alphanumeric + punctuation (94-character set)
 ```
 
 ### Lowercase alphanumeric comparison on more challenging datasets (Table 5)
 ```bash
-$ ./test.py outputs/<model>/<timestamp>/checkpoints/last.ckpt --new
+./test.py outputs/<model>/<timestamp>/checkpoints/last.ckpt --new
 ```
 
 ### Benchmark Model Compute Requirements (Figure 5)
 ```bash
-$ ./bench.py model=parseq model.decode_ar=false model.refine_iters=3
+./bench.py model=parseq model.decode_ar=false model.refine_iters=3
 <torch.utils.benchmark.utils.common.Measurement object at 0x7f8fcae67ee0>
 model(x)
   Median: 14.87 ms
@@ -156,20 +183,20 @@ model(x)
 
 ### Latency Measurements vs Output Label Length (Appendix I)
 ```bash
-$ ./bench.py model=parseq model.decode_ar=false model.refine_iters=3 +range=true
+./bench.py model=parseq model.decode_ar=false model.refine_iters=3 +range=true
 ```
 
 ### Orientation robustness benchmark (Appendix J)
 ```bash
-$ ./test.py outputs/<model>/<timestamp>/checkpoints/last.ckpt --cased --punctuation  # no rotation
-$ ./test.py outputs/<model>/<timestamp>/checkpoints/last.ckpt --cased --punctuation --rotation 90
-$ ./test.py outputs/<model>/<timestamp>/checkpoints/last.ckpt --cased --punctuation --rotation 180
-$ ./test.py outputs/<model>/<timestamp>/checkpoints/last.ckpt --cased --punctuation --rotation 270 
+./test.py outputs/<model>/<timestamp>/checkpoints/last.ckpt --cased --punctuation  # no rotation
+./test.py outputs/<model>/<timestamp>/checkpoints/last.ckpt --cased --punctuation --rotation 90
+./test.py outputs/<model>/<timestamp>/checkpoints/last.ckpt --cased --punctuation --rotation 180
+./test.py outputs/<model>/<timestamp>/checkpoints/last.ckpt --cased --punctuation --rotation 270
 ```
 
 ### Using trained models to read text from images (Appendix L)
 ```bash
-$ ./read.py outputs/<model>/<timestamp>/checkpoints/last.ckpt --images demo_images/*
+./read.py outputs/<model>/<timestamp>/checkpoints/last.ckpt --images demo_images/*
 Additional keyword arguments: {}
 demo_images/art-01107.jpg: CHEWBACCA
 demo_images/coco-1166773.jpg: Chevrol
@@ -179,9 +206,17 @@ demo_images/ic15_word_26.png: Kaopa
 demo_images/uber-27491.jpg: 3rdAve
 
 # use NAR decoding + 2 refinement iterations for PARSeq
-$ ./read.py outputs/parseq/2021-10-28_23-23-10/checkpoints/last.ckpt refine_iters:int=2 decode_ar:bool=false --images demo_images/*
+./read.py outputs/parseq/2021-10-28_23-23-10/checkpoints/last.ckpt refine_iters:int=2 decode_ar:bool=false --images demo_images/*
 ```
 </p></details>
+
+## Tuning
+
+We use [Ray Tune](https://www.ray.io/ray-tune) for automated parameter tuning of the learning rate. Extend `tune.py` to support tuning of other hyperparameters.
+```bash
+./tune.py +tune.num_samples=20  # find optimum LR for PARSeq's default config using 20 trials
+./tune.py +experiment=tune_abinet-lm  # find the optimum learning rate for ABINet's language model
+```
 
 ## Citation
 If you find our work useful, or use it in your research, please cite:
