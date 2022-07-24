@@ -55,7 +55,7 @@ class BaseSystem(pl.LightningModule, ABC):
         self.weight_decay = weight_decay
 
     @abstractmethod
-    def forward(self, images: Tensor, max_length: int = None) -> Tensor:
+    def forward(self, images: Tensor, max_length: Optional[int] = None) -> Tensor:
         """Inference
 
         Args:
@@ -161,7 +161,7 @@ class BaseSystem(pl.LightningModule, ABC):
         return self._eval_step(batch, False)
 
 
-class CrossEntropySystem(BaseSystem, ABC):
+class CrossEntropySystem(BaseSystem):
 
     def __init__(self, charset_train: str, charset_test: str,
                  batch_size: int, lr: float, warmup_pct: float, weight_decay: float) -> None:
@@ -181,7 +181,7 @@ class CrossEntropySystem(BaseSystem, ABC):
         return logits, loss, loss_numel
 
 
-class CTCSystem(BaseSystem, ABC):
+class CTCSystem(BaseSystem):
 
     def __init__(self, charset_train: str, charset_test: str,
                  batch_size: int, lr: float, warmup_pct: float, weight_decay: float) -> None:

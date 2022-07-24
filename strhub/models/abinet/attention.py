@@ -65,7 +65,7 @@ class PositionAttention(nn.Module):
             decoder_layer(num_channels, in_channels, size=(h, w), mode=mode)
         )
 
-        self.pos_encoder = PositionalEncoding(in_channels, dropout=0, max_len=max_length)
+        self.pos_encoder = PositionalEncoding(in_channels, dropout=0., max_len=max_length)
         self.project = nn.Linear(in_channels, in_channels)
 
     def forward(self, x):

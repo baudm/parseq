@@ -15,7 +15,7 @@
 
 import logging
 import math
-from typing import Any, Tuple, List
+from typing import Any, Tuple, List, Optional
 
 import torch
 import torch.nn.functional as F
@@ -96,7 +96,7 @@ class ABINet(CrossEntropySystem):
                                     pct_start=self.warmup_pct, cycle_momentum=False)
         return {'optimizer': optim, 'lr_scheduler': {'scheduler': self.scheduler, 'interval': 'step'}}
 
-    def forward(self, images: Tensor, max_length: int = None) -> Tensor:
+    def forward(self, images: Tensor, max_length: Optional[int] = None) -> Tensor:
         max_length = self.max_label_length if max_length is None else min(max_length, self.max_label_length)
         logits = self.model.forward(images)[0]['logits']
         return logits[:, :max_length + 1]  # truncate

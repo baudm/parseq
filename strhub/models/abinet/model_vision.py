@@ -35,7 +35,7 @@ class BaseVision(Model):
 
         self.cls = nn.Linear(self.out_channels, num_classes)
 
-    def forward(self, images, *args):
+    def forward(self, images):
         features = self.backbone(images)  # (N, E, H, W)
         attn_vecs, attn_scores = self.attention(features)  # (N, T, E), (N, T, H, W)
         logits = self.cls(attn_vecs)  # (N, T, C)

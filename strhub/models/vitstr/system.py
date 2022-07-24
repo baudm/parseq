@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Sequence, Any
+from typing import Sequence, Any, Optional
 
 import torch
 from pytorch_lightning.utilities.types import STEP_OUTPUT
@@ -43,7 +43,7 @@ class ViTSTR(CrossEntropySystem):
     def no_weight_decay(self):
         return {'model.' + n for n in self.model.no_weight_decay()}
 
-    def forward(self, images: Tensor, max_length: int = None) -> Tensor:
+    def forward(self, images: Tensor, max_length: Optional[int] = None) -> Tensor:
         max_length = self.max_label_length if max_length is None else min(max_length, self.max_label_length)
         logits = self.model.forward(images, max_length + 2)  # +2 tokens for [GO] and [s]
         # Truncate to conform to other models. [GO] in ViTSTR is actually used as the padding (therefore, ignored).

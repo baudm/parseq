@@ -10,5 +10,5 @@ hydra-core~=1.2.0
 fvcore~=0.1.5.post20220512
 ray[tune]~=1.13.0
 ax-platform~=0.2.5.1
-PyYAML~=6.0
+PyYAML~=6.0.0
 tqdm~=4.64.0

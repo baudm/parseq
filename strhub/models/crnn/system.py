@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Sequence
+from typing import Sequence, Optional
 
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 from torch import Tensor
@@ -33,7 +33,7 @@ class CRNN(CTCSystem):
         self.model = Model(img_size[0], 3, len(self.tokenizer), hidden_size, leaky_relu)
         self.model.apply(init_weights)
 
-    def forward(self, images: Tensor, max_length: int = None) -> Tensor:
+    def forward(self, images: Tensor, max_length: Optional[int] = None) -> Tensor:
         return self.model.forward(images)
 
     def training_step(self, batch, batch_idx) -> STEP_OUTPUT:

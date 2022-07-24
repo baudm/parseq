@@ -71,8 +71,8 @@ class DecoderLayer(nn.Module):
         tgt = tgt + self.dropout3(tgt2)
         return tgt, sa_weights, ca_weights
 
-    def forward(self, query, content, memory, query_mask=None, content_mask=None, content_key_padding_mask=None,
-                update_content=True):
+    def forward(self, query, content, memory, query_mask: Optional[Tensor] = None, content_mask: Optional[Tensor] = None,
+                content_key_padding_mask: Optional[Tensor] = None, update_content: bool = True):
         query_norm = self.norm_q(query)
         content_norm = self.norm_c(content)
         query = self.forward_stream(query, query_norm, content_norm, memory, query_mask, content_key_padding_mask)[0]
@@ -91,9 +91,10 @@ class Decoder(nn.Module):
         self.num_layers = num_layers
         self.norm = norm
 
-    def forward(self, query, content, memory, query_mask=None, content_mask=None, content_key_padding_mask=None):
-        for mod in self.layers:
-            last = mod == self.layers[-1]
+    def forward(self, query, content, memory, query_mask: Optional[Tensor] = None, content_mask: Optional[Tensor] = None,
+                content_key_padding_mask: Optional[Tensor] = None):
+        for i, mod in enumerate(self.layers):
+            last = i == len(self.layers) - 1
             query, content = mod(query, content, memory, query_mask, content_mask, content_key_padding_mask,
                                  update_content=not last)
         query = self.norm(query)

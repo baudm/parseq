@@ -17,7 +17,7 @@ class ViTSTR(VisionTransformer):
     Modified head to support a sequence of characters prediction for STR.
     """
 
-    def forward(self, x, seqlen=25):
+    def forward(self, x, seqlen: int = 25):
         x = self.forward_features(x)
         x = x[:, :seqlen]
 

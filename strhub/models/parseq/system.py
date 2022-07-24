@@ -16,7 +16,7 @@
 import math
 from functools import partial
 from itertools import permutations
-from typing import Sequence, Any
+from typing import Sequence, Any, Optional
 
 import numpy as np
 import torch
@@ -79,8 +79,9 @@ class PARSeq(CrossEntropySystem):
     def encode(self, img: torch.Tensor):
         return self.encoder(img)
 
-    def decode(self, tgt: torch.Tensor, memory: torch.Tensor, tgt_mask=None, tgt_padding_mask=None, tgt_query=None,
-               tgt_query_mask=None):
+    def decode(self, tgt: torch.Tensor, memory: torch.Tensor, tgt_mask: Optional[Tensor] = None,
+               tgt_padding_mask: Optional[Tensor] = None, tgt_query: Optional[Tensor] = None,
+               tgt_query_mask: Optional[Tensor] = None):
         N, L = tgt.shape
         # <bos> stands for the null context. We only supply position information for characters after <bos>.
         null_ctx = self.text_embed(tgt[:, :1])
@@ -91,9 +92,9 @@ class PARSeq(CrossEntropySystem):
         tgt_query = self.dropout(tgt_query)
         return self.decoder(tgt_query, tgt_emb, memory, tgt_query_mask, tgt_mask, tgt_padding_mask)
 
-    def forward(self, images: Tensor, max_length: int = None) -> Tensor:
+    def forward(self, images: Tensor, max_length: Optional[int] = None) -> Tensor:
         testing = max_length is None
-        max_length = self.max_label_length if testing else min(max_length, self.max_label_length)
+        max_length = self.max_label_length if max_length is None else min(max_length, self.max_label_length)
         bs = images.shape[0]
         # +1 for <eos> at end of sequence.
         num_steps = max_length + 1
@@ -103,10 +104,10 @@ class PARSeq(CrossEntropySystem):
         pos_queries = self.pos_queries[:, :num_steps].expand(bs, -1, -1)
 
         # Special case for the forward permutation. Faster than using `generate_attn_masks()`
-        tgt_mask = query_mask = torch.triu(torch.full((num_steps, num_steps), float('-inf'), device=self.device), 1)
+        tgt_mask = query_mask = torch.triu(torch.full((num_steps, num_steps), float('-inf'), device=self._device), 1)
 
         if self.decode_ar:
-            tgt_in = torch.full((bs, num_steps), self.pad_id, dtype=torch.long, device=self.device)
+            tgt_in = torch.full((bs, num_steps), self.pad_id, dtype=torch.long, device=self._device)
             tgt_in[:, 0] = self.bos_id
 
             logits = []
@@ -131,15 +132,15 @@ class PARSeq(CrossEntropySystem):
             logits = torch.cat(logits, dim=1)
         else:
             # No prior context, so input is just <bos>. We query all positions.
-            tgt_in = torch.full((bs, 1), self.bos_id, dtype=torch.long, device=self.device)
+            tgt_in = torch.full((bs, 1), self.bos_id, dtype=torch.long, device=self._device)
             tgt_out = self.decode(tgt_in, memory, tgt_query=pos_queries)
             logits = self.head(tgt_out)
 
         if self.refine_iters:
             # For iterative refinement, we always use a 'cloze' mask.
             # We can derive it from the AR forward mask by unmasking the token context to the right.
-            query_mask[torch.triu(torch.ones(num_steps, num_steps, dtype=torch.bool, device=self.device), 2)] = 0
-            bos = torch.full((bs, 1), self.bos_id, dtype=torch.long, device=self.device)
+            query_mask[torch.triu(torch.ones(num_steps, num_steps, dtype=torch.bool, device=self._device), 2)] = 0
+            bos = torch.full((bs, 1), self.bos_id, dtype=torch.long, device=self._device)
             for i in range(self.refine_iters):
                 # Prior context is the previous output.
                 tgt_in = torch.cat([bos, logits[:, :-1].argmax(-1)], dim=1)
@@ -159,14 +160,15 @@ class PARSeq(CrossEntropySystem):
         max_num_chars = tgt.shape[1] - 2
         # Special handling for 1-character sequences
         if max_num_chars == 1:
-            return torch.arange(3, device=self.device).unsqueeze(0)
-        perms = [torch.arange(max_num_chars, device=self.device)] if self.perm_forward else []
+            return torch.arange(3, device=self._device).unsqueeze(0)
+        perms = [torch.arange(max_num_chars, device=self._device)] if self.perm_forward else []
         # Additional permutations if needed
         max_perms = math.factorial(max_num_chars)
         if self.perm_mirrored:
             max_perms //= 2
         num_gen_perms = min(self.max_gen_perms, max_perms)
         # For 4-char sequences and shorter, we generate all permutations and sample from the pool to avoid collisions
+        # Note that this code path might NEVER get executed since the labels in a mini-batch typically exceed 4 chars.
         if max_num_chars < 5:
             # Pool of permutations to sample from. We only need the first half (if complementary option is selected)
             # Special handling for max_num_chars == 4 which correctly divides the pool into the flipped halves
@@ -174,8 +176,7 @@ class PARSeq(CrossEntropySystem):
                 selector = [0, 3, 4, 6, 9, 10, 12, 16, 17, 18, 19, 21]
             else:
                 selector = list(range(max_perms))
-            perm_pool = torch.as_tensor(list(permutations(range(max_num_chars), max_num_chars)), device=self.device)[
-                selector]
+            perm_pool = torch.as_tensor(list(permutations(range(max_num_chars), max_num_chars)), device=self._device)[selector]
             # If the forward permutation is always selected, no need to add it to the pool for sampling
             if self.perm_forward:
                 perm_pool = perm_pool[1:]
@@ -184,7 +185,7 @@ class PARSeq(CrossEntropySystem):
                 i = self.rng.choice(len(perm_pool), size=num_gen_perms - len(perms), replace=False)
                 perms = torch.cat([perms, perm_pool[i]])
         else:
-            perms.extend([torch.randperm(max_num_chars, device=self.device) for _ in range(num_gen_perms - len(perms))])
+            perms.extend([torch.randperm(max_num_chars, device=self._device) for _ in range(num_gen_perms - len(perms))])
             perms = torch.stack(perms)
         if self.perm_mirrored:
             # Add complementary pairs
@@ -205,7 +206,7 @@ class PARSeq(CrossEntropySystem):
         # 1. Reverse context for the characters
         # 2. Null context for [EOS] (required for learning to predict [EOS] in NAR mode)
         if len(perms) > 1:
-            perms[1, 1:] = max_num_chars + 1 - torch.arange(max_num_chars + 1, device=self.device)
+            perms[1, 1:] = max_num_chars + 1 - torch.arange(max_num_chars + 1, device=self._device)
         return perms
 
     def generate_attn_masks(self, perm):
@@ -214,19 +215,19 @@ class PARSeq(CrossEntropySystem):
         :return: lookahead attention masks
         """
         sz = perm.shape[0]
-        mask = torch.zeros((sz, sz), device=self.device)
+        mask = torch.zeros((sz, sz), device=self._device)
         for i in range(sz):
             query_idx = perm[i]
             masked_keys = perm[i + 1:]
             mask[query_idx, masked_keys] = float('-inf')
         content_mask = mask[:-1, :-1].clone()
-        mask[torch.eye(sz, dtype=torch.bool, device=self.device)] = float('-inf')  # mask "self"
+        mask[torch.eye(sz, dtype=torch.bool, device=self._device)] = float('-inf')  # mask "self"
         query_mask = mask[1:, :-1]
         return content_mask, query_mask
 
     def training_step(self, batch, batch_idx) -> STEP_OUTPUT:
         images, labels = batch
-        tgt = self.tokenizer.encode(labels, self.device)
+        tgt = self.tokenizer.encode(labels, self._device)
 
         # Encode the source sequence (i.e. the image codes)
         memory = self.encode(images)

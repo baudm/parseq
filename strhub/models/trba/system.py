@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from functools import partial
-from typing import Sequence, Any
+from typing import Sequence, Any, Optional
 
 import torch
 import torch.nn.functional as F
@@ -45,7 +45,7 @@ class TRBA(CrossEntropySystem):
     def no_weight_decay(self):
         return {'model.Prediction.char_embeddings.weight'}
 
-    def forward(self, images: Tensor, max_length: int = None) -> Tensor:
+    def forward(self, images: Tensor, max_length: Optional[int] = None) -> Tensor:
         max_length = self.max_label_length if max_length is None else min(max_length, self.max_label_length)
         text = images.new_full([1], self.bos_id, dtype=torch.long)
         return self.model.forward(images, max_length, text)
@@ -76,7 +76,7 @@ class TRBC(CTCSystem):
                            output_channel=output_channel, hidden_size=hidden_size, use_ctc=True)
         named_apply(partial(init_weights, exclude=['Transformation.LocalizationNetwork.localization_fc2']), self.model)
 
-    def forward(self, images: Tensor, max_length: int = None) -> Tensor:
+    def forward(self, images: Tensor, max_length: Optional[int] = None) -> Tensor:
         # max_label_length is unused in CTC prediction
         return self.model.forward(images, None)
 
