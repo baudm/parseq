@@ -28,7 +28,7 @@ from strhub.data.module import SceneTextDataModule
 from strhub.models.base import BaseSystem
 
 
-@hydra.main(config_path='configs', config_name='main', version_base=None)
+@hydra.main(config_path='configs', config_name='train', version_base=None)
 def main(config: DictConfig):
     trainer_strategy = None
     with open_dict(config):
