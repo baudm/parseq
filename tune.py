@@ -139,12 +139,9 @@ def main(config: DictConfig):
         # Resolve absolute path to data.root_dir
         config.data.root_dir = hydra.utils.to_absolute_path(config.data.root_dir)
 
-    tune_config = config.get('tune', {})
-    lr = tune_config.get('lr', {})
-    # wd = tune_config.get('wd', {})
     hparams = {
-        'lr': tune.loguniform(lr.get('min', 1e-4), lr.get('max', 2e-3)),
-        # 'wd': tune.loguniform(wd.get('min', 1e-4), wd.get('max', 1e-1)),
+        'lr': tune.loguniform(config.tune.lr.min, config.tune.lr.max),
+        # 'wd': tune.loguniform(config.tune.wd.min, config.tune.wd.max),
     }
 
     steps_per_epoch = len(hydra.utils.instantiate(config.data).train_dataloader())
@@ -165,23 +162,25 @@ def main(config: DictConfig):
         parameter_columns=['lr'],
         metric_columns=['loss', 'accuracy', 'training_iteration'])
 
+    out_dir = Path(HydraConfig.get().runtime.output_dir if config.tune.resume_dir is None else config.tune.resume_dir)
+
     analysis = tune.run(
         tune.with_parameters(train, config=config),
-        name='trials',  # required. otherwise some of Ray's checks will fail.
+        name=out_dir.name,
         metric='NED',
         mode='max',
         stop=MetricTracker('NED', max_t),
         config=hparams,
         resources_per_trial={
             'cpu': 1,
-            'gpu': tune_config.get('gpus_per_trial', 1)
+            'gpu': config.tune.gpus_per_trial
         },
-        num_samples=tune_config.get('num_samples', 10),
-        local_dir=HydraConfig.get().runtime.output_dir,
+        num_samples=config.tune.num_samples,
+        local_dir=str(out_dir.parent.absolute()),
         search_alg=search_alg,
         scheduler=scheduler,
         progress_reporter=reporter,
-        resume=tune_config.get('resume', False),
+        resume=config.tune.resume_dir is not None,
         trial_executor=RayTrialExecutor(result_buffer_length=0)  # disable result buffering
     )
 

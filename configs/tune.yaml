@@ -5,6 +5,14 @@ defaults:
 trainer:
   gpus: 1  # tuning with DDP is not yet supported.
 
+tune:
+  num_samples: 10
+  gpus_per_trial: 1
+  lr:
+    min: 1e-4
+    max: 2e-3
+  resume_dir: null
+
 hydra:
   run:
     dir: ray_results/${model.name}/${now:%Y-%m-%d}_${now:%H-%M-%S}

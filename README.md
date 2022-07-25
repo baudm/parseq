@@ -217,9 +217,9 @@ demo_images/uber-27491.jpg: 3rdAve
 
 ## Tuning
 
-We use [Ray Tune](https://www.ray.io/ray-tune) for automated parameter tuning of the learning rate. Extend `tune.py` to support tuning of other hyperparameters.
+We use [Ray Tune](https://www.ray.io/ray-tune) for automated parameter tuning of the learning rate. See `./tune.py --help`. Extend `tune.py` to support tuning of other hyperparameters.
 ```bash
-./tune.py +tune.num_samples=20  # find optimum LR for PARSeq's default config using 20 trials
+./tune.py tune.num_samples=20  # find optimum LR for PARSeq's default config using 20 trials
 ./tune.py +experiment=tune_abinet-lm  # find the optimum learning rate for ABINet's language model
 ```
 
