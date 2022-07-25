@@ -130,6 +130,8 @@ class BaseSystem(pl.LightningModule, ABC):
 
     @staticmethod
     def _aggregate_results(outputs: EPOCH_OUTPUT) -> Tuple[float, float, float]:
+        if not outputs:
+            return 0., 0., 0.
         total_loss = 0
         total_loss_numel = 0
         total_n_correct = 0

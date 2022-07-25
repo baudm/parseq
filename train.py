@@ -67,7 +67,10 @@ def main(config: DictConfig):
     trainer: Trainer = hydra.utils.instantiate(config.trainer, logger=TensorBoardLogger(str(cwd.parent), '', cwd.name),
                                                strategy=trainer_strategy, enable_model_summary=False,
                                                callbacks=[checkpoint, swa])
-    trainer.fit(model, datamodule=datamodule)
+    ckpt_path = config.get('ckpt_path', None)
+    if ckpt_path is not None:
+        ckpt_path = hydra.utils.to_absolute_path(ckpt_path)
+    trainer.fit(model, datamodule=datamodule, ckpt_path=ckpt_path)
 
 
 if __name__ == '__main__':

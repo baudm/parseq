@@ -87,7 +87,7 @@ label, confidence = parseq.tokenizer.decode(pred)
 ```
 
 ## Training
-The training script can train any supported model. Default configuration is stored in ```configs/model/```. You can override any configuration using the command line. Please refer to [Hydra](https://hydra.cc) docs for more info about the syntax.
+The training script can train any supported model. You can override any configuration using the command line. Please refer to [Hydra](https://hydra.cc) docs for more info about the syntax. Use `./train.py --help` to see the default configuration.
 ```bash
 ./train.py model=parseq model.perm_num=12 model.embed_dim=512  # Set embed_dim to 512 instead of 384, use 12 permutations.
 ```
@@ -126,6 +126,11 @@ The base model configurations are in `configs/model/`, while variations are stor
 ```
 Note that you can pass any [Trainer parameter](https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html),
 you just need to prefix it with `+` if it is not originally specified in `configs/main.yaml`.
+
+### Resume training from checkpoint (experimental)
+```bash
+./train.py +experiment=<model_exp> +ckpt_path=outputs/<model>/<timestamp>/checkpoints/<checkpoint>.ckpt
+```
 
 </p></details>
 
