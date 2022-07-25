@@ -129,7 +129,7 @@ you just need to prefix it with `+` if it is not originally specified in `config
 
 ### Resume training from checkpoint (experimental)
 ```bash
-./train.py +experiment=<model_exp> +ckpt_path=outputs/<model>/<timestamp>/checkpoints/<checkpoint>.ckpt
+./train.py +experiment=<model_exp> ckpt_path=outputs/<model>/<timestamp>/checkpoints/<checkpoint>.ckpt
 ```
 
 </p></details>

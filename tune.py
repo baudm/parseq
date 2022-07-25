@@ -20,11 +20,15 @@ import os
 import shutil
 from pathlib import Path
 
-import hydra
-import numpy as np
 from omegaconf import DictConfig, open_dict
+import hydra
+from hydra.core.hydra_config import HydraConfig
+
+import numpy as np
+
 from pytorch_lightning import Trainer, LightningModule
 from pytorch_lightning.loggers import TensorBoardLogger
+
 from ray import tune
 from ray.tune import CLIReporter
 from ray.tune.integration.pytorch_lightning import TuneReportCheckpointCallback
@@ -105,8 +109,6 @@ def train(hparams, config, checkpoint_dir=None):
     with open_dict(config):
         config.model.lr = hparams['lr']
         # config.model.weight_decay = hparams['wd']
-        if checkpoint_dir is not None:
-            config.trainer.resume_from_checkpoint = os.path.join(checkpoint_dir, 'checkpoint')
 
     model: BaseSystem = hydra.utils.instantiate(config.model)
     datamodule: SceneTextDataModule = hydra.utils.instantiate(config.data)
@@ -116,14 +118,15 @@ def train(hparams, config, checkpoint_dir=None):
         'NED': 'val_NED',
         'accuracy': 'val_accuracy'
     })
+    ckpt_path = None if checkpoint_dir is None else os.path.join(checkpoint_dir, 'checkpoint')
     trainer: Trainer = hydra.utils.instantiate(config.trainer, enable_progress_bar=False, enable_checkpointing=False,
                                                logger=TensorBoardLogger(save_dir=tune.get_trial_dir(), name='',
                                                                         version='.'),
                                                callbacks=[tune_callback])
-    trainer.fit(model, datamodule=datamodule)
+    trainer.fit(model, datamodule=datamodule, ckpt_path=ckpt_path)
 
 
-@hydra.main(config_path='configs', config_name='tune', version_base=None)
+@hydra.main(config_path='configs', config_name='tune', version_base='1.2')
 def main(config: DictConfig):
     # Special handling for PARseq
     if config.model.get('perm_mirrored', False):
@@ -174,7 +177,7 @@ def main(config: DictConfig):
             'gpu': tune_config.get('gpus_per_trial', 1)
         },
         num_samples=tune_config.get('num_samples', 10),
-        local_dir=str(Path.cwd()),
+        local_dir=HydraConfig.get().runtime.output_dir,
         search_alg=search_alg,
         scheduler=scheduler,
         progress_reporter=reporter,

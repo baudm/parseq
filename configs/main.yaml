@@ -37,9 +37,9 @@ trainer:
   gradient_clip_val: 20
   gpus: 2
 
+ckpt_path: null
+
 hydra:
-  job:
-    chdir: true
   output_subdir: config
   run:
     dir: outputs/${model.name}/${now:%Y-%m-%d}_${now:%H-%M-%S}

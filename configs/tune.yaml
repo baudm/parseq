@@ -6,7 +6,5 @@ trainer:
   gpus: 1  # tuning with DDP is not yet supported.
 
 hydra:
-  job:
-    chdir: true
   run:
     dir: ray_results/${model.name}/${now:%Y-%m-%d}_${now:%H-%M-%S}

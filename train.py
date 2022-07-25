@@ -16,8 +16,10 @@
 
 from pathlib import Path
 
-import hydra
 from omegaconf import DictConfig, open_dict
+import hydra
+from hydra.core.hydra_config import HydraConfig
+
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint, StochasticWeightAveraging
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -28,14 +30,12 @@ from strhub.data.module import SceneTextDataModule
 from strhub.models.base import BaseSystem
 
 
-@hydra.main(config_path='configs', config_name='main', version_base=None)
+@hydra.main(config_path='configs', config_name='main', version_base='1.2')
 def main(config: DictConfig):
     trainer_strategy = None
     with open_dict(config):
         # Resolve absolute path to data.root_dir
         config.data.root_dir = hydra.utils.to_absolute_path(config.data.root_dir)
-        if config.trainer.get('resume_from_checkpoint', None) is not None:
-            config.trainer.resume_from_checkpoint = hydra.utils.to_absolute_path(config.trainer.resume_from_checkpoint)
         # Special handling for GPU-affected config
         gpus = config.trainer.get('gpus', 0)
         if gpus:
@@ -48,7 +48,7 @@ def main(config: DictConfig):
             trainer_strategy = DDPStrategy(find_unused_parameters=False, gradient_as_bucket_view=True)
             # Scale steps-based config
             config.trainer.val_check_interval //= gpus
-            if config.trainer.get('max_steps', 0):
+            if config.trainer.get('max_steps', -1) > 0:
                 config.trainer.max_steps //= gpus
 
     # Special handling for PARseq
@@ -63,14 +63,12 @@ def main(config: DictConfig):
     checkpoint = ModelCheckpoint(monitor='val_accuracy', mode='max', save_top_k=3, save_last=True,
                                  filename='{epoch}-{step}-{val_accuracy:.4f}-{val_NED:.4f}')
     swa = StochasticWeightAveraging(swa_epoch_start=0.75)
-    cwd = Path.cwd()
-    trainer: Trainer = hydra.utils.instantiate(config.trainer, logger=TensorBoardLogger(str(cwd.parent), '', cwd.name),
+    cwd = HydraConfig.get().runtime.output_dir if config.ckpt_path is None else \
+        str(Path(config.ckpt_path).parents[1].absolute())
+    trainer: Trainer = hydra.utils.instantiate(config.trainer, logger=TensorBoardLogger(cwd, '', '.'),
                                                strategy=trainer_strategy, enable_model_summary=False,
                                                callbacks=[checkpoint, swa])
-    ckpt_path = config.get('ckpt_path', None)
-    if ckpt_path is not None:
-        ckpt_path = hydra.utils.to_absolute_path(ckpt_path)
-    trainer.fit(model, datamodule=datamodule, ckpt_path=ckpt_path)
+    trainer.fit(model, datamodule=datamodule, ckpt_path=config.ckpt_path)
 
 
 if __name__ == '__main__':
