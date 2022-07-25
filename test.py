@@ -86,7 +86,7 @@ def main():
     datamodule = SceneTextDataModule('data', '_unused_', hp.img_size, hp.max_label_length, hp.charset_train,
                                      hp.charset_test, args.batch_size, args.num_workers, False, args.rotation)
 
-    test_set = SceneTextDataModule.TEST_ABINET + SceneTextDataModule.TEST_TRBA
+    test_set = SceneTextDataModule.TEST_BENCHMARK_SUB + SceneTextDataModule.TEST_BENCHMARK
     if args.new:
         test_set += SceneTextDataModule.TEST_NEW
     test_set = sorted(set(test_set))
@@ -113,8 +113,8 @@ def main():
         results[name] = Result(name, total, accuracy, mean_ned, mean_conf, mean_label_length)
 
     result_groups = {
-        'ABINet': SceneTextDataModule.TEST_ABINET,
-        'TRBA': SceneTextDataModule.TEST_TRBA
+        'Benchmark (Subset)': SceneTextDataModule.TEST_BENCHMARK_SUB,
+        'Benchmark': SceneTextDataModule.TEST_BENCHMARK
     }
     if args.new:
         result_groups.update({'New': SceneTextDataModule.TEST_NEW})

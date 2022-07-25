@@ -24,10 +24,10 @@ from .dataset import build_tree_dataset, LmdbDataset
 
 
 class SceneTextDataModule(pl.LightningDataModule):
-    TEST_ABINET = ('IIIT5k', 'SVT', 'IC13_857', 'IC15_1811', 'SVTP', 'CUTE80')
-    TEST_TRBA = ('IIIT5k', 'SVT', 'IC13_1015', 'IC15_2077', 'SVTP', 'CUTE80')
+    TEST_BENCHMARK_SUB = ('IIIT5k', 'SVT', 'IC13_857', 'IC15_1811', 'SVTP', 'CUTE80')
+    TEST_BENCHMARK = ('IIIT5k', 'SVT', 'IC13_1015', 'IC15_2077', 'SVTP', 'CUTE80')
     TEST_NEW = ('ArT', 'COCOv1.4', 'Uber')
-    TEST_ALL = tuple(set(TEST_ABINET + TEST_TRBA + TEST_NEW))
+    TEST_ALL = tuple(set(TEST_BENCHMARK_SUB + TEST_BENCHMARK + TEST_NEW))
 
     def __init__(self, root_dir: str, train_dir: str, img_size: Sequence[int], max_label_length: int,
                  charset_train: str, charset_test: str, batch_size: int, num_workers: int, augment: bool,
