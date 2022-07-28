@@ -20,13 +20,15 @@ data:
   _target_: strhub.data.module.SceneTextDataModule
   root_dir: data
   train_dir: ???
+  batch_size: ${model.batch_size}
   img_size: ${model.img_size}
   charset_train: ${model.charset_train}
   charset_test: ${model.charset_test}
   max_label_length: ${model.max_label_length}
-  batch_size: ${model.batch_size}
-  num_workers: 2
+  remove_whitespace: true
+  normalize_unicode: true
   augment: true
+  num_workers: 2
 
 trainer:
   _target_: pytorch_lightning.Trainer

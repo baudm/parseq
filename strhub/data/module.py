@@ -31,6 +31,7 @@ class SceneTextDataModule(pl.LightningDataModule):
 
     def __init__(self, root_dir: str, train_dir: str, img_size: Sequence[int], max_label_length: int,
                  charset_train: str, charset_test: str, batch_size: int, num_workers: int, augment: bool,
+                 remove_whitespace: bool = True, normalize_unicode: bool = True,
                  min_image_dim: int = 0, rotation: int = 0, collate_fn: Optional[Callable] = None):
         super().__init__()
         self.root_dir = root_dir
@@ -42,6 +43,8 @@ class SceneTextDataModule(pl.LightningDataModule):
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.augment = augment
+        self.remove_whitespace = remove_whitespace
+        self.normalize_unicode = normalize_unicode
         self.min_image_dim = min_image_dim
         self.rotation = rotation
         self.collate_fn = collate_fn
@@ -69,7 +72,7 @@ class SceneTextDataModule(pl.LightningDataModule):
             transform = self.get_transform(self.img_size, self.augment)
             root = PurePath(self.root_dir, 'train', self.train_dir)
             self._train_dataset = build_tree_dataset(root, self.charset_train, self.max_label_length,
-                                                     self.min_image_dim,
+                                                     self.min_image_dim, self.remove_whitespace, self.normalize_unicode,
                                                      transform=transform, num_workers=self.num_workers)
         return self._train_dataset
 
@@ -79,6 +82,7 @@ class SceneTextDataModule(pl.LightningDataModule):
             transform = self.get_transform(self.img_size)
             root = PurePath(self.root_dir, 'val')
             self._val_dataset = build_tree_dataset(root, self.charset_test, self.max_label_length,
+                                                   self.min_image_dim, self.remove_whitespace, self.normalize_unicode,
                                                    transform=transform, num_workers=self.num_workers)
         return self._val_dataset
 
@@ -96,6 +100,7 @@ class SceneTextDataModule(pl.LightningDataModule):
         transform = self.get_transform(self.img_size, rotation=self.rotation)
         root = PurePath(self.root_dir, 'test')
         datasets = {s: LmdbDataset(str(root.joinpath(s)), self.charset_test, self.max_label_length,
+                                   self.min_image_dim, self.remove_whitespace, self.normalize_unicode,
                                    transform=transform) for s in subset}
         return {k: DataLoader(v, batch_size=self.batch_size, num_workers=self.num_workers,
                               pin_memory=True, collate_fn=self.collate_fn)

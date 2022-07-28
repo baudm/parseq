@@ -84,7 +84,7 @@ def main():
     model.freeze()  # disable autograd
     hp = model.hparams
     datamodule = SceneTextDataModule('data', '_unused_', hp.img_size, hp.max_label_length, hp.charset_train,
-                                     hp.charset_test, args.batch_size, args.num_workers, False, args.rotation)
+                                     hp.charset_test, args.batch_size, args.num_workers, False, rotation=args.rotation)
 
     test_set = SceneTextDataModule.TEST_BENCHMARK_SUB + SceneTextDataModule.TEST_BENCHMARK
     if args.new:

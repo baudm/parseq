@@ -55,12 +55,14 @@ class LmdbDataset(Dataset):
     """
 
     def __init__(self, root: str, charset: str, max_label_len: int, min_image_dim: int = 0,
-                 normalize_unicode: bool = True, unlabelled: bool = False, transform: Optional[Callable] = None,
+                 remove_whitespace: bool = True, normalize_unicode: bool = True,
+                 unlabelled: bool = False, transform: Optional[Callable] = None,
                  num_workers: int = 1):
         self.env = lmdb.open(root, max_readers=num_workers, max_spare_txns=num_workers,
                              readonly=True, create=False, readahead=False, meminit=False, lock=False)
         self.max_label_len = max_label_len
         self.min_image_dim = min_image_dim
+        self.remove_whitespace = remove_whitespace
         self.normalize_unicode = normalize_unicode
         self.unlabelled = unlabelled
         self.transform = transform
@@ -81,8 +83,9 @@ class LmdbDataset(Dataset):
                 index += 1  # lmdb starts with 1
                 label_key = f'label-{index:09d}'.encode()
                 label = txn.get(label_key).decode()
-                # There shouldn't be any whitespace in the labels but try to remove them for good measure
-                label = ''.join(label.split())
+                # Normally, whitespace is removed from the labels.
+                if self.remove_whitespace:
+                    label = ''.join(label.split())
                 # Normalize unicode composites (if any) and convert to compatible ASCII characters
                 if self.normalize_unicode:
                     label = unicodedata.normalize('NFKD', label).encode('ascii', 'ignore').decode()
