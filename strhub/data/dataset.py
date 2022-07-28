@@ -58,24 +58,29 @@ class LmdbDataset(Dataset):
                  remove_whitespace: bool = True, normalize_unicode: bool = True,
                  unlabelled: bool = False, transform: Optional[Callable] = None,
                  num_workers: int = 1):
-        self.env = lmdb.open(root, max_readers=num_workers, max_spare_txns=num_workers,
-                             readonly=True, create=False, readahead=False, meminit=False, lock=False)
-        self.max_label_len = max_label_len
-        self.min_image_dim = min_image_dim
-        self.remove_whitespace = remove_whitespace
-        self.normalize_unicode = normalize_unicode
+        self._env = None
+        self._create_env = lambda: lmdb.open(root, max_readers=num_workers, max_spare_txns=num_workers, readonly=True,
+                                             create=False, readahead=False, meminit=False, lock=False)
         self.unlabelled = unlabelled
         self.transform = transform
         self.labels = []
         self.filtered_index_list = []
-        self.num_samples = self._preprocess_labels(charset)
+        self.num_samples = self._preprocess_labels(charset, remove_whitespace, normalize_unicode, max_label_len,
+                                                   min_image_dim)
 
     def __del__(self):
-        self.env.close()
+        if self._env is not None:
+            self._env.close()
 
-    def _preprocess_labels(self, charset):
+    @property
+    def env(self):
+        if self._env is None:
+            self._env = self._create_env()
+        return self._env
+
+    def _preprocess_labels(self, charset, remove_whitespace, normalize_unicode, max_label_len, min_image_dim):
         charset_adapter = CharsetAdapter(charset)
-        with self.env.begin() as txn:
+        with self._create_env().begin() as txn:
             num_samples = int(txn.get('num-samples'.encode()))
             if self.unlabelled:
                 return num_samples
@@ -84,20 +89,20 @@ class LmdbDataset(Dataset):
                 label_key = f'label-{index:09d}'.encode()
                 label = txn.get(label_key).decode()
                 # Normally, whitespace is removed from the labels.
-                if self.remove_whitespace:
+                if remove_whitespace:
                     label = ''.join(label.split())
                 # Normalize unicode composites (if any) and convert to compatible ASCII characters
-                if self.normalize_unicode:
+                if normalize_unicode:
                     label = unicodedata.normalize('NFKD', label).encode('ascii', 'ignore').decode()
                 # Filter by length before removing unsupported characters. The original label might be too long.
-                if len(label) > self.max_label_len:
+                if len(label) > max_label_len:
                     continue
                 label = charset_adapter(label)
                 # We filter out samples which don't contain any supported characters
                 if not label:
                     continue
                 # Filter images that are too small.
-                if self.min_image_dim > 0:
+                if min_image_dim > 0:
                     img_key = f'image-{index:09d}'.encode()
                     buf = io.BytesIO(txn.get(img_key))
                     w, h = Image.open(buf).size
