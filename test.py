@@ -62,6 +62,7 @@ def print_results_table(results: List[Result], file=None):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('checkpoint', help='Model checkpoint')
+    parser.add_argument('--data_root', default='data')
     parser.add_argument('--batch_size', type=int, default=512)
     parser.add_argument('--num_workers', type=int, default=4)
     parser.add_argument('--cased', action='store_true', default=False, help='Cased comparison')
@@ -83,7 +84,7 @@ def main():
     model = load_from_checkpoint(args.checkpoint, **kwargs).eval().to(args.device)
     model.freeze()  # disable autograd
     hp = model.hparams
-    datamodule = SceneTextDataModule('data', '_unused_', hp.img_size, hp.max_label_length, hp.charset_train,
+    datamodule = SceneTextDataModule(args.data_root, '_unused_', hp.img_size, hp.max_label_length, hp.charset_train,
                                      hp.charset_test, args.batch_size, args.num_workers, False, rotation=args.rotation)
 
     test_set = SceneTextDataModule.TEST_BENCHMARK_SUB + SceneTextDataModule.TEST_BENCHMARK

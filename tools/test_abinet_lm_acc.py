@@ -39,6 +39,7 @@ class ABINetLM(ABINet):
 def main():
     parser = argparse.ArgumentParser(description='Measure the word accuracy of ABINet LM using the ground truth as input')
     parser.add_argument('checkpoint', help='Official pretrained weights for ABINet-LV (best-train-abinet.pth)')
+    parser.add_argument('--data_root', default='data')
     parser.add_argument('--batch_size', type=int, default=512)
     parser.add_argument('--num_workers', type=int, default=4)
     parser.add_argument('--new', action='store_true', default=False, help='Evaluate on new benchmark datasets')
@@ -56,9 +57,8 @@ def main():
     model = model.eval().to(args.device)
     model.freeze()  # disable autograd
     hp = model.hparams
-    datamodule = SceneTextDataModule('data', '_unused_', hp.img_size, hp.max_label_length, hp.charset_train,
-                                     hp.charset_test,
-                                     args.batch_size, args.num_workers, False)
+    datamodule = SceneTextDataModule(args.data_root, '_unused_', hp.img_size, hp.max_label_length, hp.charset_train,
+                                     hp.charset_test, args.batch_size, args.num_workers, False)
 
     test_set = SceneTextDataModule.TEST_BENCHMARK
     if args.new:
