@@ -73,7 +73,7 @@ class SceneTextDataModule(pl.LightningDataModule):
             root = PurePath(self.root_dir, 'train', self.train_dir)
             self._train_dataset = build_tree_dataset(root, self.charset_train, self.max_label_length,
                                                      self.min_image_dim, self.remove_whitespace, self.normalize_unicode,
-                                                     transform=transform, num_workers=self.num_workers)
+                                                     transform=transform)
         return self._train_dataset
 
     @property
@@ -83,17 +83,17 @@ class SceneTextDataModule(pl.LightningDataModule):
             root = PurePath(self.root_dir, 'val')
             self._val_dataset = build_tree_dataset(root, self.charset_test, self.max_label_length,
                                                    self.min_image_dim, self.remove_whitespace, self.normalize_unicode,
-                                                   transform=transform, num_workers=self.num_workers)
+                                                   transform=transform)
         return self._val_dataset
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=self.batch_size,
-                          num_workers=self.num_workers, shuffle=True,
+        return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True,
+                          num_workers=self.num_workers, persistent_workers=self.num_workers > 0,
                           pin_memory=True, collate_fn=self.collate_fn)
 
     def val_dataloader(self):
         return DataLoader(self.val_dataset, batch_size=self.batch_size,
-                          num_workers=self.num_workers,
+                          num_workers=self.num_workers, persistent_workers=self.num_workers > 0,
                           pin_memory=True, collate_fn=self.collate_fn)
 
     def test_dataloaders(self, subset):

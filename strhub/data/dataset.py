@@ -56,17 +56,16 @@ class LmdbDataset(Dataset):
 
     def __init__(self, root: str, charset: str, max_label_len: int, min_image_dim: int = 0,
                  remove_whitespace: bool = True, normalize_unicode: bool = True,
-                 unlabelled: bool = False, transform: Optional[Callable] = None,
-                 num_workers: int = 1):
+                 unlabelled: bool = False, transform: Optional[Callable] = None):
         self._env = None
-        self._create_env = lambda: lmdb.open(root, max_readers=num_workers, max_spare_txns=num_workers, readonly=True,
-                                             create=False, readahead=False, meminit=False, lock=False)
+        self._create_env = lambda: lmdb.open(root, max_readers=1, readonly=True, create=False,
+                                             readahead=False, meminit=False, lock=False)
         self.unlabelled = unlabelled
         self.transform = transform
         self.labels = []
         self.filtered_index_list = []
-        self.num_samples = self._preprocess_labels(charset, remove_whitespace, normalize_unicode, max_label_len,
-                                                   min_image_dim)
+        self.num_samples = self._preprocess_labels(charset, remove_whitespace, normalize_unicode,
+                                                   max_label_len, min_image_dim)
 
     def __del__(self):
         if self._env is not None:
@@ -80,7 +79,7 @@ class LmdbDataset(Dataset):
 
     def _preprocess_labels(self, charset, remove_whitespace, normalize_unicode, max_label_len, min_image_dim):
         charset_adapter = CharsetAdapter(charset)
-        with self._create_env().begin() as txn:
+        with self._create_env() as env, env.begin() as txn:
             num_samples = int(txn.get('num-samples'.encode()))
             if self.unlabelled:
                 return num_samples
