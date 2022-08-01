@@ -4,7 +4,7 @@
 [![Apache License 2.0](https://img.shields.io/github/license/baudm/parseq)](https://github.com/baudm/parseq/blob/main/LICENSE)
 [![arXiv preprint](http://img.shields.io/badge/arXiv-2207.06966-b31b1b)](https://arxiv.org/abs/2207.06966)
 [![In Proc. ECCV 2022](http://img.shields.io/badge/ECCV-2022-6790ac)](https://eccv2022.ecva.net/)
-[![Gradio demo](https://img.shields.io/badge/demo-Gradio-ff7c00)](https://huggingface.co/spaces/baudm/PARSeq-OCR)
+[![Gradio demo](https://img.shields.io/badge/%F0%9F%A4%97%20demo-Gradio-ff7c00)](https://huggingface.co/spaces/baudm/PARSeq-OCR)
 
 [**Darwin Bautista**](https://github.com/baudm) and [**Rowel Atienza**](https://github.com/roatienza)
 
@@ -13,13 +13,21 @@ University of the Philippines, Diliman
 
 </div>
 
-Scene Text Recognition (STR) models use language context to be more robust against noisy or corrupted images. Recent approaches like ABINet use a standalone or external Language Model (LM) for prediction refinement. In this work, we argue that the external LM&mdash;which requires upfront allocation of dedicated compute capacity&mdash;is inefficient for STR due to its poor performance vs cost characteristics. We propose a more efficient approach using **P**ermuted **A**uto**r**egressive **Seq**uence (PARSeq) models.
+Scene Text Recognition (STR) models use language context to be more robust against noisy or corrupted images. Recent approaches like ABINet use a standalone or external Language Model (LM) for prediction refinement. In this work, we show that the external LM&mdash;which requires upfront allocation of dedicated compute capacity&mdash;is inefficient for STR due to its poor performance vs cost characteristics. We propose a more efficient approach using **p**ermuted **a**uto**r**egressive **seq**uence (PARSeq) models.
 
 ![PARSeq](.github/gh-teaser.png)
 
-The figure above shows word accuracy (94-character set) vs three common computational cost indicators. PARSeq-S (our base model) achieves state-of-the-art performance while being optimal in parameter count, FLOPS, and latency. Its downsized variant, PARSeq-Ti, also achieves high word accuracy while being comparable to CRNN in parameter count and FLOPS.
+**NOTE:** _P-S and P-Ti are shorthands for PARSeq-S and PARSeq-Ti, respectively._
 
-**NOTE:** _P-S and P-Ti are shorthands for PARSeq-S and PARSeq-Ti, respectively. For TRBA and PARSeq<sub>A</sub>, FLOPS and latency correspond to mean values measured on the benchmark._
+### Method tl;dr
+
+Our main insight is that with an ensemble of autoregressive (AR) models, we could unify the current STR decoding methods (context-aware AR and context-free non-AR) and the bidirectional (cloze) refinement model:
+<div align="center"><img src=".github/contexts-example.png" alt="Unified STR model" width="75%"/></div>
+
+A single Transformer can realize different models by merely varying its attention masks. This characteristic coupled with Permutation Language Modeling allows for a _unified_ STR model capable of context-free and context-aware inference, as well as iterative prediction refinement using bidirectional context **without** requiring a standalone language model. PARSeq can be considered an ensemble of AR models with shared architecture and weights:
+
+![System](.github/system.png)
+
 
 ### Sample Results
 <div align="center">
@@ -36,14 +44,6 @@ The figure above shows word accuracy (94-character set) vs three common computat
 **NOTE:** _Bold letters and underscores indicate wrong and missing character predictions, respectively._
 </div>
 
-### Method tl;dr
-
-Our main insight is that with an ensemble of autoregressive (AR) models, we could unify the current STR decoding methods (context-aware AR and context-free non-AR) and the bidirectional (cloze) refinement model:
-<div align="center"><img src=".github/contexts-example.png" alt="Unified STR model" width="75%"/></div>
-
-The dynamic nature of attention masking in Transformers allows us to control and change information flow without modifying the model architecture. This characteristic coupled with Permutation Language Modeling (PLM) allows for a _unified_ STR model capable of context-free and context-aware inference, as well as iterative prediction refinement using bidirectional context **without** requiring a standalone language model. PARSeq can be considered an ensemble of AR models with shared architecture and weights:
-
-![System](.github/system.png)
 
 ## Getting Started
 This repository contains the reference implementation for PARSeq and reproduced models (collectively referred to as _Scene Text Recognition Model Hub_). See `NOTICE` for copyright information.
@@ -224,9 +224,8 @@ We use [Ray Tune](https://www.ray.io/ray-tune) for automated parameter tuning of
 ```
 
 ## Citation
-If you find our work useful, or use it in your research, please cite:
 ```bibtex
-@InProceedings{Bautista_2022_ECCV_parseq,
+@InProceedings{bautista2022parseq,
   author={Bautista, Darwin and Atienza, Rowel},
   title={Scene Text Recognition with Permuted Autoregressive Sequence Models},
   booktitle={Proceedings of the 17th European Conference on Computer Vision (ECCV)},
