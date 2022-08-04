@@ -99,7 +99,7 @@ class SceneTextDataModule(pl.LightningDataModule):
     def test_dataloaders(self, subset):
         transform = self.get_transform(self.img_size, rotation=self.rotation)
         root = PurePath(self.root_dir, 'test')
-        datasets = {s: LmdbDataset(str(root.joinpath(s)), self.charset_test, self.max_label_length,
+        datasets = {s: LmdbDataset(str(root / s), self.charset_test, self.max_label_length,
                                    self.min_image_dim, self.remove_whitespace, self.normalize_unicode,
                                    transform=transform) for s in subset}
         return {k: DataLoader(v, batch_size=self.batch_size, num_workers=self.num_workers,

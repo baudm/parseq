@@ -36,7 +36,7 @@ def build_tree_dataset(root: Union[PurePath, str], *args, **kwargs):
     root = Path(root).absolute()
     log.info(f'dataset root:\t{root}')
     datasets = []
-    for mdb in glob.glob(str(root.joinpath('**/data.mdb')), recursive=True):
+    for mdb in glob.glob(str(root / '**/data.mdb'), recursive=True):
         mdb = Path(mdb)
         ds_name = str(mdb.parent.relative_to(root))
         ds_root = str(mdb.parent.absolute())

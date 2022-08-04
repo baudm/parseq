@@ -24,15 +24,15 @@ _WEIGHTS_URL = {
 def _get_config(experiment: str, **kwargs):
     """Emulates hydra config resolution"""
     root = PurePath(__file__).parents[2]
-    with open(root.joinpath('configs/main.yaml'), 'r') as f:
+    with open(root / 'configs/main.yaml', 'r') as f:
         config = yaml.load(f, yaml.Loader)['model']
-    with open(root.joinpath(f'configs/charset/94_full.yaml'), 'r') as f:
+    with open(root / f'configs/charset/94_full.yaml', 'r') as f:
         config.update(yaml.load(f, yaml.Loader)['model'])
-    with open(root.joinpath(f'configs/experiment/{experiment}.yaml'), 'r') as f:
+    with open(root / f'configs/experiment/{experiment}.yaml', 'r') as f:
         exp = yaml.load(f, yaml.Loader)
     # Apply base model config
     model = exp['defaults'][0]['override /model']
-    with open(root.joinpath(f'configs/model/{model}.yaml'), 'r') as f:
+    with open(root / f'configs/model/{model}.yaml', 'r') as f:
         config.update(yaml.load(f, yaml.Loader))
     # Apply experiment config
     if 'model' in exp:
@@ -71,10 +71,7 @@ def create_model(experiment: str, pretrained: bool = False, **kwargs):
             url = _WEIGHTS_URL[experiment]
         except KeyError:
             raise InvalidModelError("No pretrained weights found for '{}'".format(experiment)) from None
-        checkpoint = torch.hub.load_state_dict_from_url(
-            url=url,
-            map_location='cpu', check_hash=True
-        )
+        checkpoint = torch.hub.load_state_dict_from_url(url=url, map_location='cpu', check_hash=True)
         model.load_state_dict(checkpoint)
     return model
 
