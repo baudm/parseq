@@ -18,9 +18,11 @@ import argparse
 import string
 import sys
 from dataclasses import dataclass
+from typing import List
+
+import torch
 
 from tqdm import tqdm
-from typing import List
 
 from strhub.data.module import SceneTextDataModule
 from strhub.models.utils import load_from_checkpoint, parse_model_args
@@ -59,6 +61,7 @@ def print_results_table(results: List[Result], file=None):
           f'| {c.confidence:>10.2f} | {c.label_length:>12.2f} |', file=file)
 
 
+@torch.inference_mode()
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('checkpoint', help="Model checkpoint (or 'pretrained=<model_id>')")
@@ -82,7 +85,6 @@ def main():
     print(f'Additional keyword arguments: {kwargs}')
 
     model = load_from_checkpoint(args.checkpoint, **kwargs).eval().to(args.device)
-    model.freeze()  # disable autograd
     hp = model.hparams
     datamodule = SceneTextDataModule(args.data_root, '_unused_', hp.img_size, hp.max_label_length, hp.charset_train,
                                      hp.charset_test, args.batch_size, args.num_workers, False, rotation=args.rotation)

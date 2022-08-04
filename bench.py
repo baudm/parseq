@@ -16,13 +16,16 @@
 
 import os
 
-import hydra
 import torch
-from fvcore.nn import FlopCountAnalysis, ActivationCountAnalysis, flop_count_table
-from omegaconf import DictConfig
 from torch.utils import benchmark
 
+from fvcore.nn import FlopCountAnalysis, ActivationCountAnalysis, flop_count_table
 
+import hydra
+from omegaconf import DictConfig
+
+
+@torch.inference_mode()
 @hydra.main(config_path='configs', config_name='bench', version_base='1.2')
 def main(config: DictConfig):
     # For consistent behavior
@@ -35,7 +38,6 @@ def main(config: DictConfig):
     h, w = config.data.img_size
     x = torch.rand(1, 3, h, w, device=device)
     model = hydra.utils.instantiate(config.model).eval().to(device)
-    model.freeze()  # disable autograd
 
     if config.get('range', False):
         for i in range(1, 26, 4):

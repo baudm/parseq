@@ -16,12 +16,15 @@
 
 import argparse
 
+import torch
+
 from PIL import Image
 
 from strhub.data.module import SceneTextDataModule
 from strhub.models.utils import load_from_checkpoint, parse_model_args
 
 
+@torch.inference_mode()
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('checkpoint', help="Model checkpoint (or 'pretrained=<model_id>')")
@@ -32,7 +35,6 @@ def main():
     print(f'Additional keyword arguments: {kwargs}')
 
     model = load_from_checkpoint(args.checkpoint, **kwargs).eval().to(args.device)
-    model.freeze()  # disable autograd
     img_transform = SceneTextDataModule.get_transform(model.hparams.img_size)
 
     for fname in args.images:
