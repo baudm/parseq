@@ -1,48 +1,91 @@
-import os.path
+from pathlib import PurePath
 from typing import Sequence
 
 import torch
-from pytorch_lightning.core.saving import ModelIO
 from torch import nn
 
+import yaml
 
-def _load_pl_checkpoint(checkpoint, **kwargs):
-    hparams = checkpoint[ModelIO.CHECKPOINT_HYPER_PARAMS_KEY]
-    hparams.update(kwargs)
-    name = hparams['name']
-    if name.startswith('abinet'):
+
+class InvalidModelError(RuntimeError):
+    """Exception raised for any model-related error (creation, loading)"""
+
+
+_WEIGHTS_URL = {
+    'parseq-tiny': 'https://github.com/baudm/parseq/releases/download/v1.0.0/parseq_tiny-e7a21b54.pt',
+    'parseq': 'https://github.com/baudm/parseq/releases/download/v1.0.0/parseq-bb5792a6.pt',
+    'abinet': 'https://github.com/baudm/parseq/releases/download/v1.0.0/abinet-1d1e373e.pt',
+    'trba': 'https://github.com/baudm/parseq/releases/download/v1.0.0/trba-cfaed284.pt',
+    'vitstr': 'https://github.com/baudm/parseq/releases/download/v1.0.0/vitstr-26d0fcf4.pt',
+    'crnn': 'https://github.com/baudm/parseq/releases/download/v1.0.0/crnn-679d0e31.pt',
+}
+
+
+def _get_config(experiment: str, **kwargs):
+    """Emulates hydra config resolution"""
+    root = PurePath(__file__).parents[2]
+    with open(root.joinpath('configs/main.yaml'), 'r') as f:
+        config = yaml.load(f, yaml.Loader)['model']
+    with open(root.joinpath(f'configs/charset/94_full.yaml'), 'r') as f:
+        config.update(yaml.load(f, yaml.Loader)['model'])
+    with open(root.joinpath(f'configs/experiment/{experiment}.yaml'), 'r') as f:
+        exp = yaml.load(f, yaml.Loader)
+    # Apply base model config
+    model = exp['defaults'][0]['override /model']
+    with open(root.joinpath(f'configs/model/{model}.yaml'), 'r') as f:
+        config.update(yaml.load(f, yaml.Loader))
+    # Apply experiment config
+    if 'model' in exp:
+        config.update(exp['model'])
+    config.update(kwargs)
+    return config
+
+
+def _get_model_class(key):
+    if 'abinet' in key:
         from .abinet.system import ABINet as ModelClass
-    elif name.startswith('crnn'):
+    elif 'crnn' in key:
         from .crnn.system import CRNN as ModelClass
-    elif name.startswith('parseq'):
+    elif 'parseq' in key:
         from .parseq.system import PARSeq as ModelClass
-    elif name.startswith('trba'):
+    elif 'trba' in key:
         from .trba.system import TRBA as ModelClass
-    elif name.startswith('trbc'):
+    elif 'trbc' in key:
         from .trba.system import TRBC as ModelClass
-    elif name.startswith('vitstr'):
+    elif 'vitstr' in key:
         from .vitstr.system import ViTSTR as ModelClass
     else:
-        raise RuntimeError('Unable to load correct model class')
-    model = ModelClass._load_model_state(checkpoint, strict=True, **kwargs)
-    return model
+        raise InvalidModelError("Unable to find model class for '{}'".format(key))
+    return ModelClass
 
 
-def _load_torch_model(checkpoint_path, checkpoint, **kwargs):
-    import hubconf
-    name = os.path.basename(checkpoint_path).split('-')[0]
-    model_factory = getattr(hubconf, name)
-    model = model_factory(**kwargs)
-    model.load_state_dict(checkpoint)
+def create_model(experiment: str, pretrained: bool = False, **kwargs):
+    try:
+        config = _get_config(experiment, **kwargs)
+    except FileNotFoundError:
+        raise InvalidModelError("No configuration found for '{}'".format(experiment)) from None
+    ModelClass = _get_model_class(experiment)
+    model = ModelClass(**config)
+    if pretrained:
+        try:
+            url = _WEIGHTS_URL[experiment]
+        except KeyError:
+            raise InvalidModelError("No pretrained weights found for '{}'".format(experiment)) from None
+        checkpoint = torch.hub.load_state_dict_from_url(
+            url=url,
+            map_location='cpu', check_hash=True
+        )
+        model.load_state_dict(checkpoint)
     return model
 
 
 def load_from_checkpoint(checkpoint_path: str, **kwargs):
-    checkpoint = torch.load(checkpoint_path, map_location='cpu')
-    try:
-        model = _load_pl_checkpoint(checkpoint, **kwargs)
-    except KeyError:
-        model = _load_torch_model(checkpoint_path, checkpoint, **kwargs)
+    if checkpoint_path.startswith('pretrained='):
+        model_id = checkpoint_path.split('=', maxsplit=1)[1]
+        model = create_model(model_id, True, **kwargs)
+    else:
+        ModelClass = _get_model_class(checkpoint_path)
+        model = ModelClass.load_from_checkpoint(checkpoint_path, **kwargs)
     return model
 
 

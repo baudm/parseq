@@ -61,7 +61,7 @@ def print_results_table(results: List[Result], file=None):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('checkpoint', help='Model checkpoint')
+    parser.add_argument('checkpoint', help="Model checkpoint (or 'pretrained=<model_id>')")
     parser.add_argument('--data_root', default='data')
     parser.add_argument('--batch_size', type=int, default=512)
     parser.add_argument('--num_workers', type=int, default=4)

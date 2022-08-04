@@ -94,6 +94,11 @@ The training script can train any supported model. You can override any configur
 
 <details><summary>Sample commands for different training configurations</summary><p>
 
+### Finetune using pretrained weights
+```bash
+./train.py pretrained=parseq-tiny  # Not all experiments have pretrained weights
+```
+
 ### Train a model variant/preconfigured experiment
 The base model configurations are in `configs/model/`, while variations are stored in `configs/experiment/`.
 ```bash
@@ -143,7 +148,7 @@ PARSeq runtime parameters can be passed using the format `param:type=value`. For
 
 ### Lowercase alphanumeric comparison on benchmark datasets (Table 6)
 ```bash
-./test.py outputs/<model>/<timestamp>/checkpoints/last.ckpt  # or use the released weights: ./test.py /path/to/parseq.pt
+./test.py outputs/<model>/<timestamp>/checkpoints/last.ckpt  # or use the released weights: ./test.py pretrained=parseq
 ```
 **Sample output:**
 | Dataset   | # samples | Accuracy | 1 - NED | Confidence | Label Length |
@@ -201,7 +206,7 @@ model(x)
 
 ### Using trained models to read text from images (Appendix L)
 ```bash
-./read.py outputs/<model>/<timestamp>/checkpoints/last.ckpt --images demo_images/*
+./read.py outputs/<model>/<timestamp>/checkpoints/last.ckpt --images demo_images/*  # Or use ./read.py pretrained=parseq
 Additional keyword arguments: {}
 demo_images/art-01107.jpg: CHEWBACCA
 demo_images/coco-1166773.jpg: Chevrol
@@ -211,7 +216,7 @@ demo_images/ic15_word_26.png: Kaopa
 demo_images/uber-27491.jpg: 3rdAve
 
 # use NAR decoding + 2 refinement iterations for PARSeq
-./read.py outputs/parseq/2021-10-28_23-23-10/checkpoints/last.ckpt refine_iters:int=2 decode_ar:bool=false --images demo_images/*
+./read.py pretrained=parseq refine_iters:int=2 decode_ar:bool=false --images demo_images/*
 ```
 </p></details>
 

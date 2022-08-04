@@ -28,6 +28,7 @@ from pytorch_lightning.utilities.model_summary import summarize
 
 from strhub.data.module import SceneTextDataModule
 from strhub.models.base import BaseSystem
+from strhub.models.utils import create_model
 
 
 @hydra.main(config_path='configs', config_name='main', version_base='1.2')
@@ -55,8 +56,12 @@ def main(config: DictConfig):
     if config.model.get('perm_mirrored', False):
         assert config.model.perm_num % 2 == 0, 'perm_num should be even if perm_mirrored = True'
 
-    model: BaseSystem = hydra.utils.instantiate(config.model)
-    summarize(model, max_depth=1 if config.model.name.startswith('parseq') else 2)
+    # If specified, use pretrained weights to initialize the model
+    if config.pretrained is not None:
+        model: BaseSystem = create_model(config.pretrained, True)
+    else:
+        model: BaseSystem = hydra.utils.instantiate(config.model)
+    print(summarize(model, max_depth=1 if model.hparams.name.startswith('parseq') else 2))
 
     datamodule: SceneTextDataModule = hydra.utils.instantiate(config.data)
 
