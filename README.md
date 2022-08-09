@@ -11,6 +11,8 @@
 Electrical and Electronics Engineering Institute<br/>
 University of the Philippines, Diliman
 
+[Method](#method-tldr) | [Sample Results](#sample-results) | [Getting Started](#getting-started) | [Training](#training) | [Evaluation](#evaluation) | [Citation](#citation)
+
 </div>
 
 Scene Text Recognition (STR) models use language context to be more robust against noisy or corrupted images. Recent approaches like ABINet use a standalone or external Language Model (LM) for prediction refinement. In this work, we show that the external LM&mdash;which requires upfront allocation of dedicated compute capacity&mdash;is inefficient for STR due to its poor performance vs cost characteristics. We propose a more efficient approach using **p**ermuted **a**uto**r**egressive **seq**uence (PARSeq) models.
@@ -76,7 +78,8 @@ parseq = torch.hub.load('baudm/parseq', 'parseq', pretrained=True).eval()
 img_transform = SceneTextDataModule.get_transform(parseq.hparams.img_size)
 
 img = Image.open('/path/to/image.png').convert('RGB')
-img = img_transform(img).unsqueeze(0)  # Preprocess. Shape: (B, C, H, W)
+# Preprocess. Model expects a batch of images with shape: (B, C, H, W)
+img = img_transform(img).unsqueeze(0)
 
 logits = parseq(img)
 logits.shape  # torch.Size([1, 26, 95]), 94 characters + [EOS] symbol
@@ -84,6 +87,7 @@ logits.shape  # torch.Size([1, 26, 95]), 94 characters + [EOS] symbol
 # Greedy decoding
 pred = logits.softmax(-1)
 label, confidence = parseq.tokenizer.decode(pred)
+print('Decoded label = {}'.format(label[0]))
 ```
 
 ## Training
