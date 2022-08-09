@@ -11,7 +11,7 @@
 Electrical and Electronics Engineering Institute<br/>
 University of the Philippines, Diliman
 
-[Method](#method-tldr) | [Sample Results](#sample-results) | [Getting Started](#getting-started) | [Training](#training) | [Evaluation](#evaluation) | [Citation](#citation)
+[Method](#method-tldr) | [Sample Results](#sample-results) | [Getting Started](#getting-started) | [FAQ](#frequently-asked-questions) | [Training](#training) | [Evaluation](#evaluation) | [Citation](#citation)
 
 </div>
 
@@ -45,7 +45,6 @@ A single Transformer can realize different models by merely varying its attentio
 
 **NOTE:** _Bold letters and underscores indicate wrong and missing character predictions, respectively._
 </div>
-
 
 ## Getting Started
 This repository contains the reference implementation for PARSeq and reproduced models (collectively referred to as _Scene Text Recognition Model Hub_). See `NOTICE` for copyright information.
@@ -89,6 +88,12 @@ pred = logits.softmax(-1)
 label, confidence = parseq.tokenizer.decode(pred)
 print('Decoded label = {}'.format(label[0]))
 ```
+
+## Frequently Asked Questions
+- How do I train on a new language? See Issues [#5](https://github.com/baudm/parseq/issues/5) and [#9](https://github.com/baudm/parseq/issues/9).
+- How to finetune or create custom dataset? See Issue [#7](https://github.com/baudm/parseq/issues/7).
+- What is `val_NED`? See Issue [#10](https://github.com/baudm/parseq/issues/10).
+- Can you export to TorchScript or ONNX? See Issue [#12](https://github.com/baudm/parseq/issues/12).
 
 ## Training
 The training script can train any supported model. You can override any configuration using the command line. Please refer to [Hydra](https://hydra.cc) docs for more info about the syntax. Use `./train.py --help` to see the default configuration.
