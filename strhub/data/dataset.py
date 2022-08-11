@@ -58,8 +58,7 @@ class LmdbDataset(Dataset):
                  remove_whitespace: bool = True, normalize_unicode: bool = True,
                  unlabelled: bool = False, transform: Optional[Callable] = None):
         self._env = None
-        self._create_env = lambda: lmdb.open(root, max_readers=1, readonly=True, create=False,
-                                             readahead=False, meminit=False, lock=False)
+        self.root = root
         self.unlabelled = unlabelled
         self.transform = transform
         self.labels = []
@@ -70,6 +69,11 @@ class LmdbDataset(Dataset):
     def __del__(self):
         if self._env is not None:
             self._env.close()
+            self._env = None
+
+    def _create_env(self):
+        return lmdb.open(self.root, max_readers=1, readonly=True, create=False,
+                         readahead=False, meminit=False, lock=False)
 
     @property
     def env(self):
