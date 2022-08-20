@@ -97,9 +97,6 @@ print('Decoded label = {}'.format(label[0]))
 
 ## Training
 The training script can train any supported model. You can override any configuration using the command line. Please refer to [Hydra](https://hydra.cc) docs for more info about the syntax. Use `./train.py --help` to see the default configuration.
-```bash
-./train.py model=parseq model.perm_num=12 model.embed_dim=512  # Set embed_dim to 512 instead of 384, use 12 permutations.
-```
 
 <details><summary>Sample commands for different training configurations</summary><p>
 
