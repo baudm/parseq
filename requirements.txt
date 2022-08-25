@@ -13,3 +13,4 @@ ax-platform~=0.2.5.1
 PyYAML~=6.0.0
 tqdm~=4.64.0
 setuptools==59.5.0
+fire-0.4.0
