@@ -5,6 +5,7 @@
 [![arXiv preprint](http://img.shields.io/badge/arXiv-2207.06966-b31b1b)](https://arxiv.org/abs/2207.06966)
 [![In Proc. ECCV 2022](http://img.shields.io/badge/ECCV-2022-6790ac)](https://eccv2022.ecva.net/)
 [![Gradio demo](https://img.shields.io/badge/%F0%9F%A4%97%20demo-Gradio-ff7c00)](https://huggingface.co/spaces/baudm/PARSeq-OCR)
+[![Pretrained weights](https://img.shields.io/badge/%F0%9F%A4%97%20weights-Hugging%20Face-ffd21e)](https://huggingface.co/baudm)
 
 [**Darwin Bautista**](https://github.com/baudm) and [**Rowel Atienza**](https://github.com/roatienza)
 
