@@ -21,7 +21,7 @@ import hydra
 from hydra.core.hydra_config import HydraConfig
 
 from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import ModelCheckpoint, StochasticWeightAveraging
+from pytorch_lightning.callbacks import ModelCheckpoint, StochasticWeightAveraging, LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.strategies import DDPStrategy
 from pytorch_lightning.utilities.model_summary import summarize
@@ -70,9 +70,10 @@ def main(config: DictConfig):
     swa = StochasticWeightAveraging(swa_epoch_start=0.75)
     cwd = HydraConfig.get().runtime.output_dir if config.ckpt_path is None else \
         str(Path(config.ckpt_path).parents[1].absolute())
+    lr_monitor = LearningRateMonitor()
     trainer: Trainer = hydra.utils.instantiate(config.trainer, logger=TensorBoardLogger(cwd, '', '.'),
                                                strategy=trainer_strategy, enable_model_summary=False,
-                                               callbacks=[checkpoint, swa])
+                                               callbacks=[checkpoint, swa, lr_monitor])
     trainer.fit(model, datamodule=datamodule, ckpt_path=config.ckpt_path)
 
 
