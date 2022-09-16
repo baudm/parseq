@@ -18,7 +18,7 @@ model:
 
 data:
   _target_: strhub.data.module.SceneTextDataModule
-  root_dir: data
+  root_dir: ../data/PARSeq/lmdb
   train_dir: ???
   batch_size: ${model.batch_size}
   img_size: ${model.img_size}
