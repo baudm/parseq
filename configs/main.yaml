@@ -18,7 +18,7 @@ model:
 
 data:
   _target_: strhub.data.module.SceneTextDataModule
-  root_dir: ../data/parseq/lmdb
+  root_dir: ../data/parseq/english/lmdb
   train_dir: ???
   batch_size: ${model.batch_size}
   img_size: ${model.img_size}
@@ -37,7 +37,7 @@ trainer:
   #max_steps: 169680  # 20 epochs x 8484 steps (for batch size = 384, real data)
   max_epochs: 20
   gradient_clip_val: 20
-  gpus: 2
+  gpus: 1
 
 ckpt_path: null
 pretrained: null
