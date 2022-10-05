@@ -3,7 +3,7 @@
 # Scene Text Recognition with<br/>Permuted Autoregressive Sequence Models
 [![Apache License 2.0](https://img.shields.io/github/license/baudm/parseq)](https://github.com/baudm/parseq/blob/main/LICENSE)
 [![arXiv preprint](http://img.shields.io/badge/arXiv-2207.06966-b31b1b)](https://arxiv.org/abs/2207.06966)
-[![In Proc. ECCV 2022](http://img.shields.io/badge/ECCV-2022-6790ac)](https://eccv2022.ecva.net/)
+[![In Proc. ECCV 2022](http://img.shields.io/badge/ECCV-2022-6790ac)](https://eccv2022.ecva.net/program/accepted-papers/)
 [![Gradio demo](https://img.shields.io/badge/%F0%9F%A4%97%20demo-Gradio-ff7c00)](https://huggingface.co/spaces/baudm/PARSeq-OCR)
 
 [**Darwin Bautista**](https://github.com/baudm) and [**Rowel Atienza**](https://github.com/roatienza)
@@ -91,9 +91,10 @@ print('Decoded label = {}'.format(label[0]))
 
 ## Frequently Asked Questions
 - How do I train on a new language? See Issues [#5](https://github.com/baudm/parseq/issues/5) and [#9](https://github.com/baudm/parseq/issues/9).
-- How to finetune or create custom dataset? See Issue [#7](https://github.com/baudm/parseq/issues/7).
+- Can you export to TorchScript or ONNX? Yes, with a [caveat (Issue #12)](https://github.com/baudm/parseq/issues/12#issuecomment-1267842315).
+- How do I test on my own dataset? See Issue [#27](https://github.com/baudm/parseq/issues/27).
+- How do I finetune and/or create a custom dataset? See Issue [#7](https://github.com/baudm/parseq/issues/7).
 - What is `val_NED`? See Issue [#10](https://github.com/baudm/parseq/issues/10).
-- Can you export to TorchScript or ONNX? See Issue [#12](https://github.com/baudm/parseq/issues/12).
 
 ## Training
 The training script can train any supported model. You can override any configuration using the command line. Please refer to [Hydra](https://hydra.cc) docs for more info about the syntax. Use `./train.py --help` to see the default configuration.
