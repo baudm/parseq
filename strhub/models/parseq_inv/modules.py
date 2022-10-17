@@ -60,12 +60,12 @@ class DecoderLayer(nn.Module):
         Both tgt_kv and memory are expected to be LayerNorm'd too.
         memory is LayerNorm'd by ViT.
         """
+        tgt2, ca_weights = self.cross_attn(self.norm1(tgt), memory, memory)
+        tgt = tgt + self.dropout2(tgt2)
+        
         tgt2, sa_weights = self.self_attn(tgt_norm, tgt_kv, tgt_kv, attn_mask=tgt_mask,
                                           key_padding_mask=tgt_key_padding_mask)
         tgt = tgt + self.dropout1(tgt2)
-
-        tgt2, ca_weights = self.cross_attn(self.norm1(tgt), memory, memory)
-        tgt = tgt + self.dropout2(tgt2)
 
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(self.norm2(tgt)))))
         tgt = tgt + self.dropout3(tgt2)
@@ -76,6 +76,7 @@ class DecoderLayer(nn.Module):
         query_norm = self.norm_q(query)
         content_norm = self.norm_c(content)
         # query_mask : Used in content -> pos.
+
         query = self.forward_stream(query, query_norm, content_norm, memory, query_mask, content_key_padding_mask)[0]
         if update_content:
             # content_mask : Used in content -> content.

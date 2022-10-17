@@ -27,8 +27,8 @@ from torch import Tensor
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 from timm.models.helpers import named_apply
 
-from strhub.models.base import CrossEntropySystem
-from strhub.models.utils import init_weights
+from strhub.models.base_debug import CrossEntropySystem
+from strhub.models.utils_debug import init_weights
 from .modules import DecoderLayer, Decoder, Encoder, TokenEmbedding
 
 
@@ -91,7 +91,7 @@ class PARSeq(CrossEntropySystem):
             tgt_query = self.pos_queries[:, :L].expand(N, -1, -1)
         tgt_query = self.dropout(tgt_query)
         # tgt_query : pos
-        # tgt_emb : pos_meb + tok_emb : content
+        # tgt_emb : pos_emb + tok_emb : content
         # memory : memory
         # tgt_query_mask : query_mask
         # tgt_mask : content_mask

@@ -32,7 +32,7 @@ from strhub.models.utils import init_weights
 from .modules import DecoderLayer, Decoder, Encoder, TokenEmbedding
 
 
-class PARSeq(CrossEntropySystem):
+class PARSeq_inv(CrossEntropySystem):
 
     def __init__(self, charset_train: str, charset_test: str, max_label_length: int,
                  batch_size: int, lr: float, warmup_pct: float, weight_decay: float,
@@ -96,6 +96,19 @@ class PARSeq(CrossEntropySystem):
         # tgt_query_mask : query_mask
         # tgt_mask : content_mask
         # tgt_padding_mask : pad + eos mask of tgt_in
+        return self.decoder(tgt_query, tgt_emb, memory, tgt_query_mask, tgt_mask, tgt_padding_mask)
+    
+    def decode(self, tgt: torch.Tensor, memory: torch.Tensor, tgt_mask: Optional[Tensor] = None,
+               tgt_padding_mask: Optional[Tensor] = None, tgt_query: Optional[Tensor] = None,
+               tgt_query_mask: Optional[Tensor] = None):
+        N, L = tgt.shape
+        if tgt_query is None:
+            tgt_query = self.pos_queries[:, :L].expand(N, -1, -1)
+        tgt_query = self.dropout(tgt_query)
+        # <bos> stands for the null context. We only supply position information for characters after <bos>.
+        null_ctx = self.text_embed(tgt[:, :1])
+        tgt_emb = self.text_embed(tgt[:, 1:])
+        tgt_emb = self.dropout(torch.cat([null_ctx, tgt_emb], dim=1))
         return self.decoder(tgt_query, tgt_emb, memory, tgt_query_mask, tgt_mask, tgt_padding_mask)
 
     def forward(self, images: Tensor, max_length: Optional[int] = None) -> Tensor:

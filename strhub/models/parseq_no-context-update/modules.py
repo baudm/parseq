@@ -106,9 +106,8 @@ class Decoder(nn.Module):
         # content_mask : content_mask
         # content_key_padding_mask : tgt_padding_mask
         for i, mod in enumerate(self.layers):
-            last = i == len(self.layers) - 1
             query, content = mod(query, content, memory, query_mask, content_mask, content_key_padding_mask,
-                                 update_content=not last)
+                                 update_content=False)
         query = self.norm(query)
         return query
 

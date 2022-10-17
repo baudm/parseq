@@ -1,3 +1,6 @@
+import os
+import shutil
+
 from pathlib import PurePath
 from typing import Sequence
 
@@ -6,6 +9,13 @@ from torch import nn
 
 import yaml
 
+
+def init_dir(dir):
+    if os.path.exists(dir):
+        shutil.rmtree(dir)
+        os.makedirs(dir)
+    else:
+        os.makedirs(dir)
 
 class InvalidModelError(RuntimeError):
     """Exception raised for any model-related error (creation, loading)"""
@@ -86,6 +96,7 @@ def load_from_checkpoint(checkpoint_path: str, **kwargs):
         model = create_model(model_id, True, **kwargs)
     else:
         ModelClass = _get_model_class(checkpoint_path)
+        checkpoint_path = checkpoint_path.replace('_debug', '')
         model = ModelClass.load_from_checkpoint(checkpoint_path, **kwargs)
     return model
 
