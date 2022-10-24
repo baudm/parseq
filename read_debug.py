@@ -33,7 +33,7 @@ from hydra import compose, initialize
 from omegaconf import OmegaConf
 
 from strhub.data.module_debug import SceneTextDataModule
-from strhub.models.utils import load_from_checkpoint, parse_model_args, init_dir
+from strhub.models.utils import parse_model_args, init_dir
 
 
 
@@ -55,13 +55,20 @@ def main():
     exp_dir = '/'.join(ckpt_split[:ckpt_split.index('checkpoints')])
     debug_dir = f'{exp_dir}/debug'
     init_dir(f'{debug_dir}/demo_images')
+    
+    # if pretrained:
+    #     try:
+    #         url = _WEIGHTS_URL[experiment]
+    #     except KeyError:
+    #         raise InvalidModelError("No pretrained weights found for '{}'".format(experiment)) from None
+    #     checkpoint = torch.hub.load_state_dict_from_url(url=url, map_location='cpu', check_hash=True)
+    #     model.load_state_dict(checkpoint)
 
     initialize(config_path=f'{exp_dir}/config', version_base='1.2')
     cfg = compose(config_name='config')
     model = instantiate(cfg.model)
     model.load_state_dict(torch.load(args.checkpoint)['state_dict'])
     model.eval().to(args.device)
-    # model = load_from_checkpoint(args.checkpoint, **kwargs).eval().to(args.device)
     img_transform = SceneTextDataModule.get_transform(model.hparams.img_size)
     
     for fname in args.images:
@@ -77,7 +84,8 @@ def main():
         p = logits.softmax(-1)
         pred, p_seq = model.tokenizer.decode(p)
         
-        visualize_sim_with_head(agg.res_pt_3, pred, model, image_save_path, scale=2.0)
+        visualize_text_embed_sim_with_head(model, image_save_path)
+        # visualize_sim_with_head(agg.res_pt_3, pred, model, image_save_path, scale=2.0)
         # visualize_sim_with_memory(image, agg.res_pt_2, agg.memory, image_save_path)
         # visualize_char_probs(pred, p, charset_train, image_save_path)
         # visualize_attn(args, image, agg.sa_weights, agg.ca_weights, image_save_path)
@@ -134,7 +142,8 @@ def visualize_text_embed_sim_with_head(model, image_save_path):
     head = model.head.weight.detach().cpu().numpy()
     charset_train = model.hparams.charset_train
     rows = ['[E]'] + list(charset_train) + ['[B]', '[P]']
-    cols = ['[E]'] + list(charset_train)
+    cols = ['[E]'] + list(charset_train) + ['[B]', '[P]']
+    # cols = ['[E]'] + list(charset_train)
     visualize_similarity(text_embed, head, rows, cols, image_save_path)
             
 
@@ -146,7 +155,7 @@ def visualize_similarity(target, source, rows, cols, image_save_path, scale=1.0)
     similarity_mtx *= scale
     df = pd.DataFrame(similarity_mtx, index=rows, columns=cols) # [tgt x src]
     s = 1.0
-    plt.figure(figsize=(30 * s, len(rows) * s), dpi=300)
+    plt.figure(figsize=(30 * s, min(len(rows), 30) * s), dpi=300)
     annot_size = 10 * s
     tick_size = 10 * s
     labelsize = 10 * s

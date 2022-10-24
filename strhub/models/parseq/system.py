@@ -32,6 +32,7 @@ from timm.models.helpers import named_apply
 from strhub.models.base import CrossEntropySystem
 from strhub.models.utils import init_weights
 from .modules import DecoderLayer, Decoder, Encoder, TokenEmbedding
+
 @dataclass
 class System_Data:
     sa_weights: torch.Tensor = None

@@ -54,19 +54,7 @@ def _get_model_class(key):
     elif 'crnn' in key:
         from .crnn.system import CRNN as ModelClass
     elif 'parseq' in key:
-        if '_inv' in key:
-            from .parseq_inv.system import PARSeq_inv as ModelClass
-        elif '_debug' in key:
-            from .parseq_debug.system import PARSeq_debug as ModelClass
-        elif '_no_context_update' in key:
-            from .parseq_no_context_update.system import PARSeq_NCU as ModelClass
-        elif '_SFV' in key:
-            if '_SFVF' in key:
-                from .parseq_SFVF.system import PARSeq_SFVF as ModelClass
-            else:
-                from .parseq_SFV.system import PARSeq_SFV as ModelClass
-        else:
-            from .parseq.system import PARSeq as ModelClass
+        from .parseq.system import PARSeq as ModelClass
     elif 'trba' in key:
         from .trba.system import TRBA as ModelClass
     elif 'trbc' in key:
