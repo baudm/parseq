@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import argparse
+from modulefinder import packagePathMap
 import os
 import numpy as np
 import seaborn as sns
@@ -71,9 +72,8 @@ def main():
         image_t = img_transform(image).unsqueeze(0).to(args.device)
 
         logits, sa_weights, ca_weights = model(image_t)
-        import ipdb; ipdb.set_trace(context=21) # #FF0000
         p = logits.softmax(-1)
-        pred, p = model.tokenizer.decode(p)
+        pred, p_seq = model.tokenizer.decode(p)
         
         text_embed = model.text_embed.embedding.weight.detach().cpu().numpy() # [charset_size, embed_dim]
         charset_train = model.hparams.charset_train
@@ -81,15 +81,47 @@ def main():
         target = model.head.weight.detach().cpu().numpy()
         rows = ['[E]'] + list(charset_train)
         cols = ['[E]'] + list(charset_train) + ['[B]', '[P]']
-        visualize_similarity(target, source, rows, cols, image_save_path)
-        
+        # visualize_similarity(target, source, rows, cols, image_save_path)
+        visualize_char_probs(pred, p, charset_train, image_save_path)
         # visualize_attn(args, image, sa_weights, ca_weights, image_save_path)
         print(f'{fname}: {pred[0]}')
         
 
-# def visualize_logits(logits, charset_train, image_save_path):
+def visualize_char_probs(pred, p, charset_train, image_save_path):
+    filename_path, ext = os.path.splitext(image_save_path)
+    rows = pred = list(pred[0]) + ['[E]']
+    p = p[0].detach().cpu().numpy()[:len(pred), :] # probs up to [E], [seq_len + 1, len(charset_train) - 2]
+    cols = ['[E]'] + list(charset_train)
+    df = pd.DataFrame(p, index=rows, columns=cols)
+    s = 1.0
+    plt.figure(figsize=(30 * s, len(rows) * s), dpi=300)
+    annot_size = 10 * s
+    tick_size = 15 * s
+    labelsize = 15 * s
+    save_path = f'{filename_path}_p{ext}'
+    ax = plt.gca()
+    # ax_pos = [0.15, 0.01, 0.84, 0.84]
+    # ax.set_position(ax_pos)
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad="5%")
+    sa = sns.heatmap(df,
+                    # vmin=0,
+                    # vmax=1,
+                    # annot=True,
+                    # fmt='.2f',
+                    # annot_kws={'size': annot_size},
+                    ax=ax,
+                    cbar_ax=cax,
+                    cbar=True,
+                    linewidths=0.5,
+                    )
+    cbar = sa.collections[0].colorbar
+    cbar.ax.tick_params(labelsize=labelsize)
+    sa.xaxis.tick_top()
+    sa.set_xticklabels(sa.get_xmajorticklabels(), fontsize=tick_size, rotation=0)
+    sa.set_yticklabels(sa.get_ymajorticklabels(), fontsize=tick_size, rotation=0)
+    plt.savefig(save_path); plt.clf()
     
-
 
 def visualize_similarity(target, source, rows, cols, image_save_path):
     filename_path, ext = os.path.splitext(image_save_path)
