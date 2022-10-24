@@ -42,15 +42,19 @@ def main(config: DictConfig):
         if gpus:
             # Use mixed-precision training
             config.trainer.precision = 16
-        if gpus > 1:
+        if isinstance(gpus, int):
+            num_gpus = gpus
+        else:
+            num_gpus = len(gpus)
+        if num_gpus > 1:
             # Use DDP
             config.trainer.strategy = 'ddp'
             # DDP optimizations
             trainer_strategy = DDPStrategy(find_unused_parameters=False, gradient_as_bucket_view=True)
             # Scale steps-based config
-            config.trainer.val_check_interval //= gpus
+            config.trainer.val_check_interval //= num_gpus
             if config.trainer.get('max_steps', -1) > 0:
-                config.trainer.max_steps //= gpus
+                config.trainer.max_steps //= num_gpus
 
     # Special handling for PARseq
     if config.model.get('perm_mirrored', False):
