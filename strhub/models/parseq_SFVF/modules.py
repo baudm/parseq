@@ -33,18 +33,24 @@ class DecoderLayer(nn.Module):
         super().__init__()
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
         self.cross_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
-        # Implementation of Feedforward model
+        
         self.linear1 = nn.Linear(d_model, dim_feedforward)
-        self.dropout = nn.Dropout(dropout)
+        self.dropout_1 = nn.Dropout(dropout)
         self.linear2 = nn.Linear(dim_feedforward, d_model)
+        
+        self.linear3 = nn.Linear(d_model, dim_feedforward)
+        self.dropout_2 = nn.Dropout(dropout)
+        self.linear4 = nn.Linear(dim_feedforward, d_model)
 
         self.norm1 = nn.LayerNorm(d_model, eps=layer_norm_eps)
         self.norm2 = nn.LayerNorm(d_model, eps=layer_norm_eps)
+        self.norm3 = nn.LayerNorm(d_model, eps=layer_norm_eps)
         self.norm_q = nn.LayerNorm(d_model, eps=layer_norm_eps)
         self.norm_c = nn.LayerNorm(d_model, eps=layer_norm_eps)
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
         self.dropout3 = nn.Dropout(dropout)
+        self.dropout4 = nn.Dropout(dropout)
 
         self.activation = transformer._get_activation_fn(activation)
 
@@ -60,15 +66,23 @@ class DecoderLayer(nn.Module):
         Both tgt_kv and memory are expected to be LayerNorm'd too.
         memory is LayerNorm'd by ViT.
         """
+        # S -> P
         tgt2, sa_weights = self.self_attn(tgt_norm, tgt_kv, tgt_kv, attn_mask=tgt_mask,
                                           key_padding_mask=tgt_key_padding_mask)
         tgt = tgt + self.dropout1(tgt2)
-
-        tgt2, ca_weights = self.cross_attn(self.norm1(tgt), memory, memory)
+        
+        # FF
+        tgt2 = self.linear2(self.dropout_1(self.activation(self.linear1(self.norm1(tgt)))))
         tgt = tgt + self.dropout2(tgt2)
 
-        tgt2 = self.linear2(self.dropout(self.activation(self.linear1(self.norm2(tgt)))))
+        # V -> P
+        tgt2, ca_weights = self.cross_attn(self.norm2(tgt), memory, memory)
         tgt = tgt + self.dropout3(tgt2)
+        
+        # FF
+        tgt2 = self.linear4(self.dropout_2(self.activation(self.linear3(self.norm3(tgt)))))
+        tgt = tgt + self.dropout4(tgt2)
+        
         return tgt, sa_weights, ca_weights
 
     def forward(self, query, content, memory, query_mask: Optional[Tensor] = None, content_mask: Optional[Tensor] = None,
@@ -76,7 +90,7 @@ class DecoderLayer(nn.Module):
         query_norm = self.norm_q(query)
         content_norm = self.norm_c(content)
         # query_mask : Used in content -> pos.
-        query = self.forward_stream(query, query_norm, content_norm, memory, query_mask, content_key_padding_mask)[0]
+        query, sa_weights, ca_weights = self.forward_stream(query, query_norm, content_norm, memory, query_mask, content_key_padding_mask)
         if update_content:
             # content_mask : Used in content -> content.
             # content can be updated with the same decoder, with context as query instead of pos. The updated content
@@ -85,7 +99,7 @@ class DecoderLayer(nn.Module):
             # plus a cross-attn with no mask to memory = vis -> content.
             content = self.forward_stream(content, content_norm, content_norm, memory, content_mask,
                                           content_key_padding_mask)[0]
-        return query, content
+        return query, content, sa_weights, ca_weights
 
 
 class Decoder(nn.Module):
@@ -106,10 +120,11 @@ class Decoder(nn.Module):
         # content_mask : content_mask
         # content_key_padding_mask : tgt_padding_mask
         for i, mod in enumerate(self.layers):
-            query, content = mod(query, content, memory, query_mask, content_mask, content_key_padding_mask,
-                                 update_content=False)
+            last = i == len(self.layers) - 1
+            query, content, sa_weights, ca_weights = mod(query, content, memory, query_mask, content_mask, content_key_padding_mask,
+                                 update_content=not last)
         query = self.norm(query)
-        return query
+        return query, sa_weights, ca_weights
 
 
 class Encoder(VisionTransformer):

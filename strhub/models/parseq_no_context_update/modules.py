@@ -76,7 +76,7 @@ class DecoderLayer(nn.Module):
         query_norm = self.norm_q(query)
         content_norm = self.norm_c(content)
         # query_mask : Used in content -> pos.
-        query = self.forward_stream(query, query_norm, content_norm, memory, query_mask, content_key_padding_mask)[0]
+        query, sa_weights, ca_weights = self.forward_stream(query, query_norm, content_norm, memory, query_mask, content_key_padding_mask)
         if update_content:
             # content_mask : Used in content -> content.
             # content can be updated with the same decoder, with context as query instead of pos. The updated content
@@ -85,7 +85,7 @@ class DecoderLayer(nn.Module):
             # plus a cross-attn with no mask to memory = vis -> content.
             content = self.forward_stream(content, content_norm, content_norm, memory, content_mask,
                                           content_key_padding_mask)[0]
-        return query, content
+        return query, content, sa_weights, ca_weights
 
 
 class Decoder(nn.Module):
@@ -107,11 +107,10 @@ class Decoder(nn.Module):
         # content_key_padding_mask : tgt_padding_mask
         for i, mod in enumerate(self.layers):
             last = i == len(self.layers) - 1
-            # decoder layer is not last, also update content
-            query, content = mod(query, content, memory, query_mask, content_mask, content_key_padding_mask,
-                                 update_content=not last)
+            query, content, sa_weights, ca_weights = mod(query, content, memory, query_mask, content_mask, content_key_padding_mask,
+                                 update_content=False)
         query = self.norm(query)
-        return query
+        return query, sa_weights, ca_weights
 
 
 class Encoder(VisionTransformer):

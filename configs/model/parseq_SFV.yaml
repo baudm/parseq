@@ -1,5 +1,5 @@
-name: parseq_no-context-update
-_target_: strhub.models.parseq_no-context-update.system.PARSeq_NCU
+name: parseq_SFV
+_target_: strhub.models.parseq_SFV.system.PARSeq_SFV
 
 # Data
 patch_size: [ 4, 8 ]  # [ height, width ]

@@ -80,9 +80,9 @@ class SceneTextDataModule():
                                    self.min_image_dim, self.remove_whitespace, self.normalize_unicode,
                                    transform=transform) for s in subset}
 
-        return {k: DataLoader(v, batch_size=self.batch_size, num_workers=0,
-                              pin_memory=True, collate_fn=self.collate_fn_test)
-                for k, v in datasets.items()}
+        # return {k: DataLoader(v, batch_size=self.batch_size, num_workers=0,
+        #                       pin_memory=True, collate_fn=self.collate_fn_test)
+        #         for k, v in datasets.items()}
         
         return {k: DataLoader(v, batch_size=self.batch_size, num_workers=self.num_workers,
                               pin_memory=True, collate_fn=self.collate_fn_test)

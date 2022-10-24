@@ -1,3 +1,5 @@
+import os
+import shutil
 from pathlib import PurePath
 from typing import Sequence
 
@@ -6,7 +8,12 @@ from torch import nn
 
 import yaml
 
-
+def init_dir(dir):
+    if os.path.exists(dir):
+        shutil.rmtree(dir)
+        os.makedirs(dir)
+    else:
+        os.makedirs(dir)
 class InvalidModelError(RuntimeError):
     """Exception raised for any model-related error (creation, loading)"""
 
@@ -46,12 +53,20 @@ def _get_model_class(key):
         from .abinet.system import ABINet as ModelClass
     elif 'crnn' in key:
         from .crnn.system import CRNN as ModelClass
-    elif 'parseq_inv' in key:
-        from .parseq_inv.system import PARSeq_inv as ModelClass
-    elif 'parseq_debug' in key:
-        from .parseq_debug.system import PARSeq as ModelClass
     elif 'parseq' in key:
-        from .parseq.system import PARSeq as ModelClass
+        if '_inv' in key:
+            from .parseq_inv.system import PARSeq_inv as ModelClass
+        elif '_debug' in key:
+            from .parseq_debug.system import PARSeq_debug as ModelClass
+        elif '_no_context_update' in key:
+            from .parseq_no_context_update.system import PARSeq_NCU as ModelClass
+        elif '_SFV' in key:
+            if '_SFVF' in key:
+                from .parseq_SFVF.system import PARSeq_SFVF as ModelClass
+            else:
+                from .parseq_SFV.system import PARSeq_SFV as ModelClass
+        else:
+            from .parseq.system import PARSeq as ModelClass
     elif 'trba' in key:
         from .trba.system import TRBA as ModelClass
     elif 'trbc' in key:

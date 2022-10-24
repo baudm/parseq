@@ -33,7 +33,7 @@ class DecoderLayer(nn.Module):
         super().__init__()
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
         self.cross_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
-        # Implementation of Feedforward model
+        
         self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.dropout = nn.Dropout(dropout)
         self.linear2 = nn.Linear(dim_feedforward, d_model)
@@ -60,15 +60,19 @@ class DecoderLayer(nn.Module):
         Both tgt_kv and memory are expected to be LayerNorm'd too.
         memory is LayerNorm'd by ViT.
         """
+        # S -> P
         tgt2, sa_weights = self.self_attn(tgt_norm, tgt_kv, tgt_kv, attn_mask=tgt_mask,
                                           key_padding_mask=tgt_key_padding_mask)
         tgt = tgt + self.dropout1(tgt2)
-
-        tgt2, ca_weights = self.cross_attn(self.norm1(tgt), memory, memory)
-        tgt = tgt + self.dropout2(tgt2)
-
+        
+        # FF
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(self.norm2(tgt)))))
         tgt = tgt + self.dropout3(tgt2)
+
+        # V -> P
+        tgt2, ca_weights = self.cross_attn(self.norm1(tgt), memory, memory)
+        tgt = tgt + self.dropout2(tgt2)
+        
         return tgt, sa_weights, ca_weights
 
     def forward(self, query, content, memory, query_mask: Optional[Tensor] = None, content_mask: Optional[Tensor] = None,

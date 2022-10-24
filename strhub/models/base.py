@@ -112,7 +112,7 @@ class BaseSystem(pl.LightningModule, ABC):
             # in the train-time charset but not in the test-time charset. For example, "aishahaleyes.blogspot.com"
             # is exactly 25 characters, but if processed by CharsetAdapter for the 36-char set, it becomes 23 characters
             # long only, which sets max_label_length = 23. This will cause the model prediction to be truncated.
-            logits = self.forward(images)
+            logits = self.forward(images)[0]
             loss = loss_numel = None  # Only used for validation; not needed at test-time.
 
         probs = logits.softmax(-1)
@@ -177,7 +177,7 @@ class CrossEntropySystem(BaseSystem):
         targets = self.tokenizer.encode(labels, self.device)
         targets = targets[:, 1:]  # Discard <bos>
         max_len = targets.shape[1] - 1  # exclude <eos> from count
-        logits = self.forward(images, max_len)
+        logits = self.forward(images, max_len)[0]
         loss = F.cross_entropy(logits.flatten(end_dim=1), targets.flatten(), ignore_index=self.pad_id)
         loss_numel = (targets != self.pad_id).sum()
         return logits, loss, loss_numel
