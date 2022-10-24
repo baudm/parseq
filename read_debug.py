@@ -60,6 +60,7 @@ def main():
     model.eval().to(args.device)
     # model = load_from_checkpoint(args.checkpoint, **kwargs).eval().to(args.device)
     img_transform = SceneTextDataModule.get_transform(model.hparams.img_size)
+    import ipdb; ipdb.set_trace(context=21) # #FF0000
     
     for fname in args.images:
         basename = os.path.basename(fname)
