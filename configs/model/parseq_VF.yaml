@@ -1,4 +1,4 @@
-name: parseq
+name: parseq_VF
 _target_: strhub.models.parseq_VF.system.PARSeq_VF
 
 # Data
