@@ -60,7 +60,6 @@ def main():
     model.eval().to(args.device)
     # model = load_from_checkpoint(args.checkpoint, **kwargs).eval().to(args.device)
     img_transform = SceneTextDataModule.get_transform(model.hparams.img_size)
-    import ipdb; ipdb.set_trace(context=21) # #FF0000
     
     for fname in args.images:
         basename = os.path.basename(fname)
@@ -74,16 +73,17 @@ def main():
         logits, sa_weights, ca_weights = model(image_t)
         p = logits.softmax(-1)
         pred, p = model.tokenizer.decode(p)
+        
+        text_embed = model.text_embed.embedding.weight.detach().cpu().numpy() # [charset_size, embed_dim]
+        charset_train = model.hparams.charset_train
         target = model.head.weight.detach().cpu().numpy()
-        visualize_similarity(model, target, save_path)
+        visualize_similarity(model, text_embed, target, charset_train, save_path)
         # visualize_attn(args, image, sa_weights, ca_weights, save_path)
         print(f'{fname}: {pred[0]}')
 
 
-def visualize_similarity(model, target, image_save_path):
+def visualize_similarity(source, target, charset_train, image_save_path):
     filename_path, ext = os.path.splitext(image_save_path)
-    text_embed = model.text_embed.embedding.weight.detach().cpu().numpy() # [charset_size, embed_dim]
-    charset_train = model.hparams.charset_train
     seq_len = target.shape[0] # target : [seq_len, embed_dim]
     # rows = list(range(seq_len))
     rows = ['[E]'] + list(charset_train)
