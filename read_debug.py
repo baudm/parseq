@@ -77,7 +77,7 @@ def main():
         p = logits.softmax(-1)
         pred, p_seq = model.tokenizer.decode(p)
         
-        visualize_sim_with_head(agg.main_pt_3, pred, model, image_save_path, scale=2.0)
+        visualize_sim_with_head(agg.res_pt_3, pred, model, image_save_path, scale=2.0)
         # visualize_sim_with_memory(image, agg.res_pt_2, agg.memory, image_save_path)
         # visualize_char_probs(pred, p, charset_train, image_save_path)
         # visualize_attn(args, image, agg.sa_weights, agg.ca_weights, image_save_path)
