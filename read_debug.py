@@ -63,35 +63,40 @@ def main():
     
     for fname in args.images:
         basename = os.path.basename(fname)
-        save_path = f'{debug_dir}/demo_images/{basename}'
+        image_save_path = f'{debug_dir}/demo_images/{basename}'
         
         # Load image and prepare for input
         image = Image.open(fname).convert('RGB')
-        image.save(save_path)
+        image.save(image_save_path)
         image_t = img_transform(image).unsqueeze(0).to(args.device)
 
         logits, sa_weights, ca_weights = model(image_t)
+        import ipdb; ipdb.set_trace(context=21) # #FF0000
         p = logits.softmax(-1)
         pred, p = model.tokenizer.decode(p)
         
         text_embed = model.text_embed.embedding.weight.detach().cpu().numpy() # [charset_size, embed_dim]
         charset_train = model.hparams.charset_train
+        source = text_embed
         target = model.head.weight.detach().cpu().numpy()
-        visualize_similarity(model, text_embed, target, charset_train, save_path)
-        # visualize_attn(args, image, sa_weights, ca_weights, save_path)
+        rows = ['[E]'] + list(charset_train)
+        cols = ['[E]'] + list(charset_train) + ['[B]', '[P]']
+        visualize_similarity(target, source, rows, cols, image_save_path)
+        
+        # visualize_attn(args, image, sa_weights, ca_weights, image_save_path)
         print(f'{fname}: {pred[0]}')
+        
+
+# def visualize_logits(logits, charset_train, image_save_path):
+    
 
 
-def visualize_similarity(source, target, charset_train, image_save_path):
+def visualize_similarity(target, source, rows, cols, image_save_path):
     filename_path, ext = os.path.splitext(image_save_path)
-    seq_len = target.shape[0] # target : [seq_len, embed_dim]
-    # rows = list(range(seq_len))
-    rows = ['[E]'] + list(charset_train)
-    cols = ['[E]'] + list(charset_train) + ['[B]', '[P]']
     target = normalize(target)
-    text_embed = normalize(text_embed)
-    similarity_mtx = target @  text_embed.T
-    df = pd.DataFrame(similarity_mtx, index=rows, columns=cols)
+    source = normalize(source)
+    similarity_mtx = target @  source.T
+    df = pd.DataFrame(similarity_mtx, index=rows, columns=cols) # [tgt x src]
     s = 1.0
     plt.figure(figsize=(30 * s, 30 * s), dpi=300)
     annot_size = 10 * s
