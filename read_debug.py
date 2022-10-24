@@ -24,6 +24,7 @@ import pandas as pd
 from PIL import Image
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import normalize
+from scipy.special import softmax
 
 import torch
 import hydra
@@ -33,6 +34,7 @@ from omegaconf import OmegaConf
 
 from strhub.data.module_debug import SceneTextDataModule
 from strhub.models.utils import load_from_checkpoint, parse_model_args, init_dir
+
 
 
 @torch.inference_mode()
@@ -71,19 +73,14 @@ def main():
         image.save(image_save_path)
         image_t = img_transform(image).unsqueeze(0).to(args.device)
 
-        logits, sa_weights, ca_weights = model(image_t)
+        logits, agg = model(image_t)
         p = logits.softmax(-1)
         pred, p_seq = model.tokenizer.decode(p)
         
-        text_embed = model.text_embed.embedding.weight.detach().cpu().numpy() # [charset_size, embed_dim]
-        charset_train = model.hparams.charset_train
-        source = text_embed
-        target = model.head.weight.detach().cpu().numpy()
-        rows = ['[E]'] + list(charset_train)
-        cols = ['[E]'] + list(charset_train) + ['[B]', '[P]']
-        # visualize_similarity(target, source, rows, cols, image_save_path)
-        visualize_char_probs(pred, p, charset_train, image_save_path)
-        # visualize_attn(args, image, sa_weights, ca_weights, image_save_path)
+        visualize_sim_with_head(agg.main_pt_3, pred, model, image_save_path, scale=2.0)
+        # visualize_sim_with_memory(image, agg.res_pt_2, agg.memory, image_save_path)
+        # visualize_char_probs(pred, p, charset_train, image_save_path)
+        # visualize_attn(args, image, agg.sa_weights, agg.ca_weights, image_save_path)
         print(f'{fname}: {pred[0]}')
         
 
@@ -123,14 +120,33 @@ def visualize_char_probs(pred, p, charset_train, image_save_path):
     plt.savefig(save_path); plt.clf()
     
 
-def visualize_similarity(target, source, rows, cols, image_save_path):
+def visualize_sim_with_head(target, pred, model, image_save_path, scale=1.0):
+    head = model.head.weight.detach().cpu().numpy()
+    charset_train = model.hparams.charset_train
+    cols = ['[E]'] + list(charset_train)
+    rows = pred = list(pred[0]) + ['[E]']
+    target = target.detach().cpu().numpy()[0]
+    visualize_similarity(target, head, rows, cols, image_save_path, scale)
+    
+    
+def visualize_text_embed_sim_with_head(model, image_save_path): 
+    text_embed = model.text_embed.embedding.weight.detach().cpu().numpy() # [charset_size, embed_dim]
+    head = model.head.weight.detach().cpu().numpy()
+    charset_train = model.hparams.charset_train
+    rows = ['[E]'] + list(charset_train) + ['[B]', '[P]']
+    cols = ['[E]'] + list(charset_train)
+    visualize_similarity(text_embed, head, rows, cols, image_save_path)
+            
+
+def visualize_similarity(target, source, rows, cols, image_save_path, scale=1.0):
     filename_path, ext = os.path.splitext(image_save_path)
     target = normalize(target)
     source = normalize(source)
     similarity_mtx = target @  source.T
+    similarity_mtx *= scale
     df = pd.DataFrame(similarity_mtx, index=rows, columns=cols) # [tgt x src]
     s = 1.0
-    plt.figure(figsize=(30 * s, 30 * s), dpi=300)
+    plt.figure(figsize=(30 * s, len(rows) * s), dpi=300)
     annot_size = 10 * s
     tick_size = 10 * s
     labelsize = 10 * s
@@ -141,8 +157,8 @@ def visualize_similarity(target, source, rows, cols, image_save_path):
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad="5%")
     sa = sns.heatmap(df,
-                    # vmin=0,
-                    # vmax=1,
+                    vmin=0,
+                    vmax=1,
                     # annot=True,
                     # fmt='.2f',
                     # annot_kws={'size': annot_size},
@@ -153,7 +169,7 @@ def visualize_similarity(target, source, rows, cols, image_save_path):
     cbar = sa.collections[0].colorbar
     cbar.ax.tick_params(labelsize=labelsize)
     sa.xaxis.tick_top()
-    sa.set_xticklabels(sa.get_xmajorticklabels(), fontsize=tick_size, rotation=90)
+    sa.set_xticklabels(sa.get_xmajorticklabels(), fontsize=tick_size, rotation=0)
     sa.set_yticklabels(sa.get_ymajorticklabels(), fontsize=tick_size, rotation=0)
     plt.savefig(save_path); plt.clf()
     
@@ -161,12 +177,12 @@ def visualize_similarity(target, source, rows, cols, image_save_path):
 def visualize_attn(args, image, sa_weights, ca_weights, image_save_path):
     image.save(image_save_path)
     if args.sa:
-        save_self_attn(sa_weights, image_save_path)
+        visualize_self_attn(sa_weights, image_save_path)
     if args.ca:
-        save_cross_attn(image, ca_weights, image_save_path)
+        visualize_cross_attn(image, ca_weights, image_save_path)
     
     
-def save_self_attn(sa_weights, image_save_path):
+def visualize_self_attn(sa_weights, image_save_path):
     if sa_weights is None: return
     seq_len = sa_weights.shape[0]
     filename_path, ext = os.path.splitext(image_save_path)
@@ -201,11 +217,11 @@ def save_self_attn(sa_weights, image_save_path):
     plt.savefig(save_path); plt.clf()
     
     
-def save_cross_attn(image, ca_weights, image_save_path):
+def visualize_cross_attn(image, ca_weights, image_save_path):
+    filename_path, ext = os.path.splitext(image_save_path)
     if ca_weights is None: return
     ca_weights = ca_weights.view(-1, 8, 16)
     ca_weights = ca_weights.detach().cpu().numpy()
-    filename_path, ext = os.path.splitext(image_save_path)
     
     cm = plt.get_cmap('jet')
     for i, attn in enumerate(ca_weights):
@@ -220,11 +236,25 @@ def save_cross_attn(image, ca_weights, image_save_path):
         blend = Image.blend(image, attn, alpha=0.8)
         blend.save(save_path)
     
-    
-    
 
-    
-
+def visualize_sim_with_memory(image, target, memory, image_save_path):
+    filename_path, ext = os.path.splitext(image_save_path)
+    cm = plt.get_cmap('jet')
+    memory = memory.view(-1, 384).detach().cpu().numpy()
+    target = target.view(-1, 384).detach().cpu().numpy()
+    seq_sim_mtx = target @ memory.T
+    for i, sim_mtx in enumerate(seq_sim_mtx):
+        save_path = f'{filename_path}_sm_{i:02d}{ext}'
+        attn = softmax(sim_mtx)
+        attn = attn * 10
+        # attn = (attn - attn.min()) / (attn.max() - attn.min())
+        attn = np.clip(attn, 0.0, 1.0)
+        attn = attn.reshape((8, 16))
+        attn = cm(attn)
+        attn = Image.fromarray((attn * 255).astype(np.uint8)).convert('RGB')
+        attn = attn.resize(image.size)
+        blend = Image.blend(image, attn, alpha=0.8)
+        blend.save(save_path)
 
 if __name__ == '__main__':
     main()
