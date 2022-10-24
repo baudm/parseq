@@ -22,6 +22,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import pandas as pd
 from PIL import Image
 import matplotlib.pyplot as plt
+from sklearn.preprocessing import normalize
 
 import torch
 import hydra
@@ -72,17 +73,51 @@ def main():
         logits, sa_weights, ca_weights = model(image_t)
         p = logits.softmax(-1)
         pred, p = model.tokenizer.decode(p)
-        visualize_attn(args, image, sa_weights, ca_weights, save_path)
+        target = model.head.weight.detach().cpu().numpy()
+        visualize_similarity(model, target, save_path)
+        # visualize_attn(args, image, sa_weights, ca_weights, save_path)
         print(f'{fname}: {pred[0]}')
 
 
-def visualize_similarity(args, model):
-    text_embed = model.text_embed.embedding.weight.detach().cpu().numpy()
+def visualize_similarity(model, target, image_save_path):
+    filename_path, ext = os.path.splitext(image_save_path)
+    text_embed = model.text_embed.embedding.weight.detach().cpu().numpy() # [charset_size, embed_dim]
     charset_train = model.hparams.charset_train
-    bos = chr(int('003B1', 16)) # alpha
-    eos = chr(int('003C9', 16)) # omega
-    pad = chr(int('003B8', 16)) # theta
-    charset_train = eos + charset_train + bos + pad
+    seq_len = target.shape[0] # target : [seq_len, embed_dim]
+    # rows = list(range(seq_len))
+    rows = ['[E]'] + list(charset_train)
+    cols = ['[E]'] + list(charset_train) + ['[B]', '[P]']
+    target = normalize(target)
+    text_embed = normalize(text_embed)
+    similarity_mtx = target @  text_embed.T
+    df = pd.DataFrame(similarity_mtx, index=rows, columns=cols)
+    s = 1.0
+    plt.figure(figsize=(30 * s, 30 * s), dpi=300)
+    annot_size = 10 * s
+    tick_size = 10 * s
+    labelsize = 10 * s
+    save_path = f'{filename_path}_sim{ext}'
+    ax = plt.gca()
+    # ax_pos = [0.15, 0.01, 0.84, 0.84]
+    # ax.set_position(ax_pos)
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad="5%")
+    sa = sns.heatmap(df,
+                    # vmin=0,
+                    # vmax=1,
+                    # annot=True,
+                    # fmt='.2f',
+                    # annot_kws={'size': annot_size},
+                    ax=ax,
+                    cbar_ax=cax,
+                    cbar=True
+                    )
+    cbar = sa.collections[0].colorbar
+    cbar.ax.tick_params(labelsize=labelsize)
+    sa.xaxis.tick_top()
+    sa.set_xticklabels(sa.get_xmajorticklabels(), fontsize=tick_size, rotation=90)
+    sa.set_yticklabels(sa.get_ymajorticklabels(), fontsize=tick_size, rotation=0)
+    plt.savefig(save_path); plt.clf()
     
         
 def visualize_attn(args, image, sa_weights, ca_weights, image_save_path):
@@ -91,26 +126,6 @@ def visualize_attn(args, image, sa_weights, ca_weights, image_save_path):
         save_self_attn(sa_weights, image_save_path)
     if args.ca:
         save_cross_attn(image, ca_weights, image_save_path)
-    
-    
-def save_cross_attn(image, ca_weights, image_save_path):
-    if ca_weights is None: return
-    ca_weights = ca_weights.view(-1, 8, 16)
-    ca_weights = ca_weights.detach().cpu().numpy()
-    filename_path, ext = os.path.splitext(image_save_path)
-    
-    cm = plt.get_cmap('jet')
-    for i, attn in enumerate(ca_weights):
-        i += 1
-        save_path = f'{filename_path}_ca_{i:02d}{ext}'
-        # attn *= 10
-        attn = (attn - attn.min()) / (attn.max() - attn.min())
-        attn = np.clip(attn, 0.0, 1.0)
-        attn = cm(attn)
-        attn = Image.fromarray((attn * 255).astype(np.uint8)).convert('RGB')
-        attn = attn.resize(image.size)
-        blend = Image.blend(image, attn, alpha=0.8)
-        blend.save(save_path)
     
     
 def save_self_attn(sa_weights, image_save_path):
@@ -146,6 +161,26 @@ def save_self_attn(sa_weights, image_save_path):
     sa.set_xticklabels(sa.get_xmajorticklabels(), fontsize=tick_size, rotation=90)
     sa.set_yticklabels(sa.get_ymajorticklabels(), fontsize=tick_size, rotation=0)
     plt.savefig(save_path); plt.clf()
+    
+    
+def save_cross_attn(image, ca_weights, image_save_path):
+    if ca_weights is None: return
+    ca_weights = ca_weights.view(-1, 8, 16)
+    ca_weights = ca_weights.detach().cpu().numpy()
+    filename_path, ext = os.path.splitext(image_save_path)
+    
+    cm = plt.get_cmap('jet')
+    for i, attn in enumerate(ca_weights):
+        i += 1
+        save_path = f'{filename_path}_ca_{i:02d}{ext}'
+        # attn *= 10
+        attn = (attn - attn.min()) / (attn.max() - attn.min())
+        attn = np.clip(attn, 0.0, 1.0)
+        attn = cm(attn)
+        attn = Image.fromarray((attn * 255).astype(np.uint8)).convert('RGB')
+        attn = attn.resize(image.size)
+        blend = Image.blend(image, attn, alpha=0.8)
+        blend.save(save_path)
     
     
     
