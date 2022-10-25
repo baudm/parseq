@@ -45,6 +45,7 @@ class System_Data:
     res_pt_2: torch.Tensor = None # residual result of ca
     res_pt_3: torch.Tensor = None # residual result of ff
     memory: torch.Tensor = None # visual features
+    content: torch.Tensor = None
 
 
 class PARSeq_emb(CrossEntropySystem):
@@ -213,6 +214,7 @@ class PARSeq_emb(CrossEntropySystem):
         agg.res_pt_2 = torch.cat(res_pt_2, dim=1)
         agg.res_pt_3 = torch.cat(res_pt_3, dim=1)
         agg.memory = memory
+        agg.content = _agg.content
         
         return logits, agg
 

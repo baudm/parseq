@@ -45,6 +45,7 @@ class System_Data:
     res_pt_2: torch.Tensor = None # residual result of ca
     res_pt_3: torch.Tensor = None # residual result of ff
     memory: torch.Tensor = None # visual features
+    content: torch.Tensor = None
 
 
 class PARSeq(CrossEntropySystem):
@@ -132,7 +133,7 @@ class PARSeq(CrossEntropySystem):
 
         sa_weights = []
         ca_weights = []
-        main_pt_1, main_pt_2, main_pt_3, main_pt_4, res_pt_1, res_pt_2, res_pt_3 = [], [], [], [], [], [], []
+        main_pt_1, main_pt_2, main_pt_3, main_pt_4, res_pt_1, res_pt_2, res_pt_3 = ([] for _ in range(7))
         
         if self.decode_ar:
             tgt_in = torch.full((bs, num_steps), self.pad_id, dtype=torch.long, device=self._device)
@@ -147,7 +148,6 @@ class PARSeq(CrossEntropySystem):
                 # Past tokens have no access to future tokens, hence are fixed once computed.
                 tgt_out, _agg = self.decode(tgt_in[:, :j], memory, tgt_mask[:j, :j], tgt_query=pos_queries[:, i:j],
                                       tgt_query_mask=query_mask[i:j, :j])
-                
                 sa_weights.append(_agg.sa_weights)
                 ca_weights.append(_agg.ca_weights)
                 main_pt_1.append(_agg.main_pt_1)
@@ -209,6 +209,7 @@ class PARSeq(CrossEntropySystem):
         agg.res_pt_2 = torch.cat(res_pt_2, dim=1)
         agg.res_pt_3 = torch.cat(res_pt_3, dim=1)
         agg.memory = memory
+        agg.content = _agg.content
         
         return logits, agg
 

@@ -88,7 +88,8 @@ def main():
         # visualize_head_self_sim(model, image_save_path)
         # visualize_sim_with_pe(model.pos_queries, ['*'*25], model, image_save_path, sim_scale=1.0)
         # visualize_sim_with_pe(agg.res_pt_1, pred, model, image_save_path, sim_scale=1.0)
-        for attr in ['main_pt_1', 'main_pt_2', 'main_pt_3', 'main_pt_4', 'res_pt_1', 'res_pt_2', 'res_pt_3']:
+        # for attr in ['main_pt_1', 'main_pt_2', 'main_pt_3', 'main_pt_4', 'res_pt_1', 'res_pt_2', 'res_pt_3']:
+        for attr in ['content']:
             visualize_sim_with_head(attr, agg, pred, model, image_save_path, sim_scale=2.0)
         # visualize_sim_with_memory(image, agg.res_pt_2, agg.memory, image_save_path)
         # visualize_char_probs(pred, p, charset_train, image_save_path)
@@ -143,11 +144,14 @@ def visualize_char_probs(pred, p, charset_train, image_save_path):
 def visualize_sim_with_head(attr, agg, pred, model, image_save_path, sim_scale=1.0):
     head = model.head.weight.detach().cpu().numpy()
     charset_train = model.hparams.charset_train
-    if len(charset_train) == 95:
+    if len(head) == 95:
         cols = ['[E]'] + list(charset_train)
     else:
         cols = ['[E]'] + list(charset_train) + ['[B]', '[P]']
-    rows = pred = list(pred[0]) + ['[E]']
+    if attr == 'content':
+        rows = ['[B]'] + list(pred[0])
+    else:
+        rows = list(pred[0]) + ['[E]']
     target = getattr(agg, attr)
     target = target.detach().cpu().numpy()[0]
     visualize_similarity(target, head, rows, cols, image_save_path, sim_scale=sim_scale, tag='_' + attr)
