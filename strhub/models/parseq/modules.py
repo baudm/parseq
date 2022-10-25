@@ -34,7 +34,7 @@ class Module_Data:
     res_pt_1: torch.Tensor = None # residual result of sa
     res_pt_2: torch.Tensor = None # residual result of ca
     res_pt_3: torch.Tensor = None # residual result of ff
-    
+    content: torch.Tensor = None
     sa_weights: torch.Tensor = None
     ca_weights: torch.Tensor = None
     
@@ -76,6 +76,7 @@ class DecoderLayer(nn.Module):
         memory is LayerNorm'd by ViT.
         """
         agg = Module_Data()
+        agg.content = tgt_kv
         
         # S -> P
         agg.main_pt_1 = tgt

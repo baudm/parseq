@@ -1,6 +1,6 @@
 hydra:
   run:
-    dir: /data2/isaackang/STR/parseq
+    dir: /home/isaackang/STR/parseq
   sweep:
     dir: multirun/${model.name}/${now:%Y-%m-%d}_${now:%H-%M-%S}
     subdir: ${hydra.job.override_dirname}
@@ -110,21 +110,16 @@ hydra:
   output_subdir: config
   overrides:
     hydra:
-    - hydra.run.dir="/data2/isaackang/STR/parseq"
+    - hydra.run.dir="/home/isaackang/STR/parseq"
     - hydra.job.name=train_ddp_process_1
-    - hydra.run.dir="/data2/isaackang/STR/parseq"
-    - hydra.job.name=train_ddp_process_2
-    - hydra.run.dir="/data2/isaackang/STR/parseq"
-    - hydra.job.name=train_ddp_process_3
     - hydra.mode=RUN
     task:
     - model=parseq_emb_no_scale_2
-    - trainer.gpus=4
-    - model.batch_size=192
+    - trainer.gpus=2
   job:
-    name: train_ddp_process_3
+    name: train_ddp_process_1
     chdir: null
-    override_dirname: model.batch_size=192,model=parseq_emb_no_scale_2,trainer.gpus=4
+    override_dirname: model=parseq_emb_no_scale_2,trainer.gpus=2
     id: ???
     num: ???
     config_name: main
@@ -138,18 +133,18 @@ hydra:
   runtime:
     version: 1.2.0
     version_base: '1.2'
-    cwd: /data2/isaackang/STR/parseq
+    cwd: /home/isaackang/STR/parseq
     config_sources:
     - path: hydra.conf
       schema: pkg
       provider: hydra
-    - path: /data2/isaackang/STR/parseq/configs
+    - path: /home/isaackang/STR/parseq/configs
       schema: file
       provider: main
     - path: ''
       schema: structured
       provider: schema
-    output_dir: /data2/isaackang/STR/parseq
+    output_dir: /home/isaackang/STR/parseq
     choices:
       dataset: real
       charset: 94_full

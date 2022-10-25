@@ -6,7 +6,7 @@ model:
   max_label_length: 25
   charset_train: 0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
   charset_test: 0123456789abcdefghijklmnopqrstuvwxyz
-  batch_size: 192
+  batch_size: 384
   weight_decay: 0.0
   warmup_pct: 0.075
   name: parseq_emb_NS_2
@@ -47,6 +47,6 @@ trainer:
   val_check_interval: 1000
   max_epochs: 20
   gradient_clip_val: 20
-  gpus: 4
+  gpus: 2
 ckpt_path: null
 pretrained: null

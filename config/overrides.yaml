@@ -1,3 +1,2 @@
 - model=parseq_emb_no_scale_2
-- trainer.gpus=4
-- model.batch_size=192
+- trainer.gpus=2
