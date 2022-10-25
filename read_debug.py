@@ -83,7 +83,7 @@ def main():
         cols = ['[E]'] + list(charset_train) + ['[B]', '[P]']
         # visualize_similarity(target, source, rows, cols, image_save_path)
         visualize_char_probs(pred, p, charset_train, image_save_path)
-        # visualize_attn(args, image, sa_weights, ca_weights, image_save_path)
+        visualize_attn(args, image, sa_weights, ca_weights, image_save_path)
         print(f'{fname}: {pred[0]}')
         
 
