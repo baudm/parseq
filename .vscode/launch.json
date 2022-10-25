@@ -12,7 +12,8 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "trainer.gpus=1"
+                "outputs/parseq/2022-09-22_14-48-51/checkpoints/last.ckpt",
+                "--images", "demo_images/*"
             ]
         }
     ]

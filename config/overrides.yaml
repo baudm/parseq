@@ -1,3 +1,2 @@
-- model=parseq_emb
+- trainer.gpus=[2,3]
 - model.batch_size=192
-- trainer.gpus=4
