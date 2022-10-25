@@ -143,8 +143,10 @@ def visualize_char_probs(pred, p, charset_train, image_save_path):
 def visualize_sim_with_head(attr, agg, pred, model, image_save_path, sim_scale=1.0):
     head = model.head.weight.detach().cpu().numpy()
     charset_train = model.hparams.charset_train
-    cols = ['[E]'] + list(charset_train)
-    # cols = ['[E]'] + list(charset_train) + ['[B]', '[P]']
+    if len(charset_train) == 95:
+        cols = ['[E]'] + list(charset_train)
+    else:
+        cols = ['[E]'] + list(charset_train) + ['[B]', '[P]']
     rows = pred = list(pred[0]) + ['[E]']
     target = getattr(agg, attr)
     target = target.detach().cpu().numpy()[0]
