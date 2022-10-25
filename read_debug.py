@@ -84,8 +84,9 @@ def main():
         p = logits.softmax(-1)
         pred, p_seq = model.tokenizer.decode(p)
         
-        visualize_text_embed_sim_with_head(model, image_save_path)
-        # visualize_sim_with_head(agg.res_pt_3, pred, model, image_save_path, scale=2.0)
+        # visualize_text_embed_sim_with_head(model, image_save_path)
+        # visualize_sim_with_pe(agg.main_pt_4, pred, model, image_save_path, scale=1.0)
+        visualize_sim_with_head(agg.main_pt_4, pred, model, image_save_path, scale=2.0)
         # visualize_sim_with_memory(image, agg.res_pt_2, agg.memory, image_save_path)
         # visualize_char_probs(pred, p, charset_train, image_save_path)
         # visualize_attn(args, image, agg.sa_weights, agg.ca_weights, image_save_path)
@@ -131,10 +132,20 @@ def visualize_char_probs(pred, p, charset_train, image_save_path):
 def visualize_sim_with_head(target, pred, model, image_save_path, scale=1.0):
     head = model.head.weight.detach().cpu().numpy()
     charset_train = model.hparams.charset_train
-    cols = ['[E]'] + list(charset_train)
+    # cols = ['[E]'] + list(charset_train)
+    cols = ['[E]'] + list(charset_train) + ['[B]', '[P]']
     rows = pred = list(pred[0]) + ['[E]']
     target = target.detach().cpu().numpy()[0]
     visualize_similarity(target, head, rows, cols, image_save_path, scale)
+    
+    
+def visualize_sim_with_pe(target, pred, model, image_save_path, scale=1.0):
+    rows = pred = list(pred[0]) + ['[E]']
+    pos_queries = model.pos_queries.detach().cpu().numpy()[0]
+    pos_queries = pos_queries[:len(pred), :]
+    target = target.detach().cpu().numpy()[0]
+    cols = list(range(1, len(pred) + 1))
+    visualize_similarity(pos_queries, pos_queries, rows, cols, image_save_path, scale)
     
     
 def visualize_text_embed_sim_with_head(model, image_save_path): 
@@ -155,7 +166,7 @@ def visualize_similarity(target, source, rows, cols, image_save_path, scale=1.0)
     similarity_mtx *= scale
     df = pd.DataFrame(similarity_mtx, index=rows, columns=cols) # [tgt x src]
     s = 1.0
-    plt.figure(figsize=(30 * s, min(len(rows), 30) * s), dpi=300)
+    plt.figure(figsize=(min(len(cols), 30) * s, min(len(rows), 30) * s), dpi=300)
     annot_size = 10 * s
     tick_size = 10 * s
     labelsize = 10 * s

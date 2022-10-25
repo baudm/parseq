@@ -309,7 +309,7 @@ class PARSeq(CrossEntropySystem):
         n = (tgt_out != self.pad_id).sum().item()
         for i, perm in enumerate(tgt_perms):
             tgt_mask, query_mask = self.generate_attn_masks(perm)
-            out, _, _ = self.decode(tgt_in, memory, tgt_mask, tgt_padding_mask, tgt_query_mask=query_mask)
+            out, _ = self.decode(tgt_in, memory, tgt_mask, tgt_padding_mask, tgt_query_mask=query_mask)
             logits = self.head(out).flatten(end_dim=1)
             loss += n * F.cross_entropy(logits, tgt_out.flatten(), ignore_index=self.pad_id)
             loss_numel += n
