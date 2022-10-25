@@ -85,13 +85,24 @@ def main():
         pred, p_seq = model.tokenizer.decode(p)
         
         # visualize_text_embed_sim_with_head(model, image_save_path)
-        # visualize_sim_with_pe(agg.main_pt_4, pred, model, image_save_path, scale=1.0)
-        visualize_sim_with_head(agg.main_pt_4, pred, model, image_save_path, scale=2.0)
+        # visualize_head_self_sim(model, image_save_path)
+        # visualize_sim_with_pe(model.pos_queries, ['*'*25], model, image_save_path, sim_scale=1.0)
+        # visualize_sim_with_pe(agg.res_pt_1, pred, model, image_save_path, sim_scale=1.0)
+        for attr in ['main_pt_1', 'main_pt_2', 'main_pt_3', 'main_pt_4', 'res_pt_1', 'res_pt_2', 'res_pt_3']:
+            visualize_sim_with_head(attr, agg, pred, model, image_save_path, sim_scale=2.0)
         # visualize_sim_with_memory(image, agg.res_pt_2, agg.memory, image_save_path)
         # visualize_char_probs(pred, p, charset_train, image_save_path)
         # visualize_attn(args, image, agg.sa_weights, agg.ca_weights, image_save_path)
         print(f'{fname}: {pred[0]}')
         
+
+def visualize_head_self_sim(model, image_save_path):
+    head = model.head.weight.detach().cpu().numpy()
+    charset_train = model.hparams.charset_train
+    # rows = cols = ['[E]'] + list(charset_train)
+    rows = cols = ['[E]'] + list(charset_train) + ['[B]', '[P]']
+    visualize_similarity(head, head, rows, cols, image_save_path)        
+
 
 def visualize_char_probs(pred, p, charset_train, image_save_path):
     filename_path, ext = os.path.splitext(image_save_path)
@@ -129,23 +140,23 @@ def visualize_char_probs(pred, p, charset_train, image_save_path):
     plt.savefig(save_path); plt.clf()
     
 
-def visualize_sim_with_head(target, pred, model, image_save_path, scale=1.0):
+def visualize_sim_with_head(attr, agg, pred, model, image_save_path, sim_scale=1.0):
     head = model.head.weight.detach().cpu().numpy()
     charset_train = model.hparams.charset_train
-    # cols = ['[E]'] + list(charset_train)
-    cols = ['[E]'] + list(charset_train) + ['[B]', '[P]']
+    cols = ['[E]'] + list(charset_train)
+    # cols = ['[E]'] + list(charset_train) + ['[B]', '[P]']
     rows = pred = list(pred[0]) + ['[E]']
+    target = getattr(agg, attr)
     target = target.detach().cpu().numpy()[0]
-    visualize_similarity(target, head, rows, cols, image_save_path, scale)
+    visualize_similarity(target, head, rows, cols, image_save_path, sim_scale=sim_scale, tag='_' + attr)
     
     
-def visualize_sim_with_pe(target, pred, model, image_save_path, scale=1.0):
+def visualize_sim_with_pe(target, pred, model, image_save_path, sim_scale=1.0):
     rows = pred = list(pred[0]) + ['[E]']
-    pos_queries = model.pos_queries.detach().cpu().numpy()[0]
-    pos_queries = pos_queries[:len(pred), :]
-    target = target.detach().cpu().numpy()[0]
+    pos_queries = model.pos_queries.detach().cpu().numpy()[0][:len(pred), :]
+    target = target.detach().cpu().numpy()[0][:len(pred), :]
     cols = list(range(1, len(pred) + 1))
-    visualize_similarity(pos_queries, pos_queries, rows, cols, image_save_path, scale)
+    visualize_similarity(pos_queries, pos_queries, rows, cols, image_save_path, sim_scale, annot=True)
     
     
 def visualize_text_embed_sim_with_head(model, image_save_path): 
@@ -158,19 +169,19 @@ def visualize_text_embed_sim_with_head(model, image_save_path):
     visualize_similarity(text_embed, head, rows, cols, image_save_path)
             
 
-def visualize_similarity(target, source, rows, cols, image_save_path, scale=1.0):
+def visualize_similarity(target, source, rows, cols, image_save_path, sim_scale=1.0, annot=False, tag=''):
     filename_path, ext = os.path.splitext(image_save_path)
     target = normalize(target)
     source = normalize(source)
     similarity_mtx = target @  source.T
-    similarity_mtx *= scale
+    similarity_mtx *= sim_scale
     df = pd.DataFrame(similarity_mtx, index=rows, columns=cols) # [tgt x src]
-    s = 1.0
-    plt.figure(figsize=(min(len(cols), 30) * s, min(len(rows), 30) * s), dpi=300)
-    annot_size = 10 * s
-    tick_size = 10 * s
-    labelsize = 10 * s
-    save_path = f'{filename_path}_sim{ext}'
+    fig_scale = 1.0
+    plt.figure(figsize=(min(len(cols), 30) * fig_scale, min(len(rows), 30) * fig_scale), dpi=300)
+    annot_size = 10 * fig_scale
+    tick_size = 10 * fig_scale
+    labelsize = 10 * fig_scale
+    save_path = f'{filename_path}_sim{tag}{ext}'
     ax = plt.gca()
     # ax_pos = [0.15, 0.01, 0.84, 0.84]
     # ax.set_position(ax_pos)
@@ -179,9 +190,9 @@ def visualize_similarity(target, source, rows, cols, image_save_path, scale=1.0)
     sa = sns.heatmap(df,
                     vmin=0,
                     vmax=1,
-                    # annot=True,
-                    # fmt='.2f',
-                    # annot_kws={'size': annot_size},
+                    annot=annot,
+                    fmt='.2f',
+                    annot_kws={'size': annot_size},
                     ax=ax,
                     cbar_ax=cax,
                     cbar=True
@@ -191,7 +202,7 @@ def visualize_similarity(target, source, rows, cols, image_save_path, scale=1.0)
     sa.xaxis.tick_top()
     sa.set_xticklabels(sa.get_xmajorticklabels(), fontsize=tick_size, rotation=0)
     sa.set_yticklabels(sa.get_ymajorticklabels(), fontsize=tick_size, rotation=0)
-    plt.savefig(save_path); plt.clf()
+    plt.savefig(save_path); plt.close()
     
         
 def visualize_attn(args, image, sa_weights, ca_weights, image_save_path):
