@@ -9,8 +9,8 @@ model:
   batch_size: 192
   weight_decay: 0.0
   warmup_pct: 0.075
-  name: parseq_emb_NS
-  _target_: strhub.models.parseq_emb_no_scale.system.PARSeq_emb_NS
+  name: parseq_emb_NS_2
+  _target_: strhub.models.parseq_emb_no_scale_2.system.PARSeq_emb_NS_2
   patch_size:
   - 4
   - 8

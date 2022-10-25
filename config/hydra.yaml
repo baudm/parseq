@@ -118,13 +118,13 @@ hydra:
     - hydra.job.name=train_ddp_process_3
     - hydra.mode=RUN
     task:
-    - model=parseq_emb_no_scale
+    - model=parseq_emb_no_scale_2
     - trainer.gpus=4
     - model.batch_size=192
   job:
     name: train_ddp_process_3
     chdir: null
-    override_dirname: model.batch_size=192,model=parseq_emb_no_scale,trainer.gpus=4
+    override_dirname: model.batch_size=192,model=parseq_emb_no_scale_2,trainer.gpus=4
     id: ???
     num: ???
     config_name: main
@@ -153,7 +153,7 @@ hydra:
     choices:
       dataset: real
       charset: 94_full
-      model: parseq_emb_no_scale
+      model: parseq_emb_no_scale_2
       hydra/env: default
       hydra/callbacks: null
       hydra/job_logging: default
