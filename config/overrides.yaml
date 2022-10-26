@@ -1,4 +1,0 @@
-- model=parseq_SFVF
-- model.dec_depth=2
-- data.train_dir=synth
-- trainer.gpus=2
