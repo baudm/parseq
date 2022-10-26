@@ -38,6 +38,7 @@ trainer:
   max_epochs: 20
   gradient_clip_val: 20
   gpus: 1
+  sync_batchnorm: True
 
 ckpt_path: null
 pretrained: null

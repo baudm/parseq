@@ -1,0 +1,2 @@
+- trainer.gpus=4
+- model.batch_size=192
