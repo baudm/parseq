@@ -9,8 +9,8 @@ model:
   batch_size: 384
   weight_decay: 0.0
   warmup_pct: 0.075
-  name: parseq_emb_NS_2
-  _target_: strhub.models.parseq_emb_no_scale_2.system.PARSeq_emb_NS_2
+  name: parseq_QK
+  _target_: strhub.models.parseq_QK.system.PARSeq_QK
   patch_size:
   - 4
   - 8
@@ -47,9 +47,7 @@ trainer:
   val_check_interval: 1000
   max_epochs: 20
   gradient_clip_val: 20
-  gpus:
-  - 2
-  - 3
+  gpus: 4
   sync_batchnorm: true
 ckpt_path: null
 pretrained: null

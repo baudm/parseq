@@ -1,2 +1,2 @@
-- model=parseq_emb_no_scale_2
-- trainer.gpus=[2,3]
+- model=parseq_QK
+- trainer.gpus=4

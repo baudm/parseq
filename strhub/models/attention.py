@@ -333,7 +333,6 @@ def multi_head_attention_forward(
     #
     # (deep breath) calculate attention and out projection
     #
-    import ipdb; ipdb.set_trace(context=21) # #FF0000
     attn_output, attn_output_weights = _scaled_dot_product_attention(q, k, v, attn_mask, dropout_p)
     attn_output = attn_output.transpose(0, 1).contiguous().view(tgt_len * bsz, embed_dim)
     attn_output = F.linear(attn_output, out_proj_weight, out_proj_bias)

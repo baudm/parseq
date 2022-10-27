@@ -112,14 +112,18 @@ hydra:
     hydra:
     - hydra.run.dir="/home/isaackang/STR/parseq"
     - hydra.job.name=train_ddp_process_1
+    - hydra.run.dir="/home/isaackang/STR/parseq"
+    - hydra.job.name=train_ddp_process_2
+    - hydra.run.dir="/home/isaackang/STR/parseq"
+    - hydra.job.name=train_ddp_process_3
     - hydra.mode=RUN
     task:
-    - model=parseq_emb_no_scale_2
-    - trainer.gpus=[2,3]
+    - model=parseq_QK
+    - trainer.gpus=4
   job:
-    name: train_ddp_process_1
+    name: train_ddp_process_3
     chdir: null
-    override_dirname: model=parseq_emb_no_scale_2,trainer.gpus=[2,3]
+    override_dirname: model=parseq_QK,trainer.gpus=4
     id: ???
     num: ???
     config_name: main
@@ -148,7 +152,7 @@ hydra:
     choices:
       dataset: real
       charset: 94_full
-      model: parseq_emb_no_scale_2
+      model: parseq_QK
       hydra/env: default
       hydra/callbacks: null
       hydra/job_logging: default
