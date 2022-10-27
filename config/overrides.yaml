@@ -1,0 +1,2 @@
+- model=parseq_emb_no_scale_2
+- trainer.gpus=[2,3]
