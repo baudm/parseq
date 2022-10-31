@@ -118,12 +118,15 @@ hydra:
     - hydra.job.name=train_ddp_process_3
     - hydra.mode=RUN
     task:
-    - model=parseq_QK
+    - model=parseq_SFVF
+    - model.dec_depth=2
     - trainer.gpus=4
+    - data.train_dir=synth
+    - trainer.max_epochs=10
   job:
     name: train_ddp_process_3
     chdir: null
-    override_dirname: model=parseq_QK,trainer.gpus=4
+    override_dirname: data.train_dir=synth,model.dec_depth=2,model=parseq_SFVF,trainer.gpus=4,trainer.max_epochs=10
     id: ???
     num: ???
     config_name: main
@@ -152,7 +155,7 @@ hydra:
     choices:
       dataset: real
       charset: 94_full
-      model: parseq_QK
+      model: parseq_SFVF
       hydra/env: default
       hydra/callbacks: null
       hydra/job_logging: default

@@ -1,2 +1,5 @@
-- model=parseq_QK
+- model=parseq_SFVF
+- model.dec_depth=2
 - trainer.gpus=4
+- data.train_dir=synth
+- trainer.max_epochs=10

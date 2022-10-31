@@ -9,8 +9,8 @@ model:
   batch_size: 384
   weight_decay: 0.0
   warmup_pct: 0.075
-  name: parseq_QK
-  _target_: strhub.models.parseq_QK.system.PARSeq_QK
+  name: parseq_SFVF
+  _target_: strhub.models.parseq_SFVF.system.PARSeq_SFVF
   patch_size:
   - 4
   - 8
@@ -20,7 +20,7 @@ model:
   enc_depth: 12
   dec_num_heads: 12
   dec_mlp_ratio: 4
-  dec_depth: 1
+  dec_depth: 2
   lr: 0.0007
   perm_num: 6
   perm_forward: true
@@ -31,7 +31,7 @@ model:
 data:
   _target_: strhub.data.module.SceneTextDataModule
   root_dir: ../data/parseq/english/lmdb
-  train_dir: real
+  train_dir: synth
   batch_size: ${model.batch_size}
   img_size: ${model.img_size}
   charset_train: ${model.charset_train}
@@ -45,7 +45,7 @@ trainer:
   _target_: pytorch_lightning.Trainer
   _convert_: all
   val_check_interval: 1000
-  max_epochs: 20
+  max_epochs: 10
   gradient_clip_val: 20
   gpus: 4
   sync_batchnorm: true
