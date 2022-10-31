@@ -1,2 +1,5 @@
-- model=parseq_emb_no_scale_2
+- model=parseq_SFVF
 - trainer.gpus=[2,3]
+- model.batch_size=192
+- data.train_dir=synth
+- trainer.max_epochs=10

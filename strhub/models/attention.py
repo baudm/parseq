@@ -6,6 +6,7 @@ from typing import Optional, Tuple
 import math
 
 import torch
+from torch import nn
 from torch import Tensor
 from torch.nn.modules.linear import NonDynamicallyQuantizableLinear
 from torch.nn.init import constant_, xavier_normal_, xavier_uniform_
@@ -15,14 +16,26 @@ import torch.nn.functional as F
 from torch.overrides import has_torch_function, handle_torch_function
 
 
+class ScaleUp(Module):
+    """Learned parameter used to scale up QKt before taking the softmax."""
+    def __init__(self, scale):
+        super(ScaleUp, self).__init__()
+        self.scale = nn.Parameter(torch.Tensor(scale))
+
+    def forward(self, x):
+        return x * self.scale
+
+
+
 class MultiheadAttention(Module):
+    """Mostly from nn.MultiheadAttention"""
     
     __constants__ = ['batch_first']
     bias_k: Optional[torch.Tensor]
     bias_v: Optional[torch.Tensor]
 
     def __init__(self, embed_dim, num_heads, dropout=0., bias=True, add_bias_kv=False, add_zero_attn=False,
-                 kdim=None, vdim=None, batch_first=False, device=None, dtype=None) -> None:
+                 kdim=None, vdim=None, batch_first=False, qk_norm=False, device=None, dtype=None) -> None:
         factory_kwargs = {'device': device, 'dtype': dtype}
         super(MultiheadAttention, self).__init__()
         self.embed_dim = embed_dim
@@ -60,6 +73,11 @@ class MultiheadAttention(Module):
             self.bias_k = self.bias_v = None
 
         self.add_zero_attn = add_zero_attn
+        
+        if qk_norm:
+            self.mha_scale = ScaleUp(1)
+        else:
+            self.mha_scale = None
 
         self._reset_parameters()
 
@@ -112,7 +130,8 @@ class MultiheadAttention(Module):
                 key_padding_mask=key_padding_mask, need_weights=need_weights,
                 attn_mask=attn_mask, use_separate_proj_weight=True,
                 q_proj_weight=self.q_proj_weight, k_proj_weight=self.k_proj_weight,
-                v_proj_weight=self.v_proj_weight, average_attn_weights=average_attn_weights)
+                v_proj_weight=self.v_proj_weight, average_attn_weights=average_attn_weights,
+                mha_scale=self.mha_scale)
         else:
             attn_output, attn_output_weights = multi_head_attention_forward(
                 query, key, value, self.embed_dim, self.num_heads,
@@ -121,7 +140,8 @@ class MultiheadAttention(Module):
                 self.dropout, self.out_proj.weight, self.out_proj.bias,
                 training=self.training,
                 key_padding_mask=key_padding_mask, need_weights=need_weights,
-                attn_mask=attn_mask, average_attn_weights=average_attn_weights)
+                attn_mask=attn_mask, average_attn_weights=average_attn_weights,
+                mha_scale=self.mha_scale)
         if self.batch_first and is_batched:
             return attn_output.transpose(1, 0), attn_output_weights
         else:
@@ -153,6 +173,7 @@ def multi_head_attention_forward(
     static_k: Optional[Tensor] = None,
     static_v: Optional[Tensor] = None,
     average_attn_weights: bool = True,
+    mha_scale: Optional[Tensor] = None
 ) -> Tuple[Tensor, Optional[Tensor]]:
     tens_ops = (query, key, value, in_proj_weight, in_proj_bias, bias_k, bias_v, out_proj_weight, out_proj_bias)
     if has_torch_function(tens_ops):
@@ -333,8 +354,7 @@ def multi_head_attention_forward(
     #
     # (deep breath) calculate attention and out projection
     #
-    import ipdb; ipdb.set_trace(context=21) # #FF0000
-    attn_output, attn_output_weights = _scaled_dot_product_attention(q, k, v, attn_mask, dropout_p)
+    attn_output, attn_output_weights = _scaled_dot_product_attention(q, k, v, mha_scale, attn_mask, dropout_p)
     attn_output = attn_output.transpose(0, 1).contiguous().view(tgt_len * bsz, embed_dim)
     attn_output = F.linear(attn_output, out_proj_weight, out_proj_bias)
     attn_output = attn_output.view(tgt_len, bsz, attn_output.size(1))
@@ -361,11 +381,17 @@ def _scaled_dot_product_attention(
     q: Tensor,
     k: Tensor,
     v: Tensor,
+    mha_scale: Optional[Tensor] = None,
     attn_mask: Optional[Tensor] = None,
     dropout_p: float = 0.0,
 ) -> Tuple[Tensor, Tensor]:
-    B, Nt, E = q.shape
-    q = q / math.sqrt(E)
+    if mha_scale is not None:
+        q = F.normalize(q, dim=-1)
+        k = F.normalize(k, dim=-1)
+        q = mha_scale(q)
+    else:
+        B, Nt, E = q.shape
+        q = q / math.sqrt(E)
     # (B, Nt, E) x (B, E, Ns) -> (B, Nt, Ns)
     if attn_mask is not None:
         attn = torch.baddbmm(attn_mask, q, k.transpose(-2, -1))

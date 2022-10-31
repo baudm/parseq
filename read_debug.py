@@ -89,11 +89,13 @@ def main():
         # visualize_sim_with_pe(model.pos_queries, ['*'*25], model, image_save_path, sim_scale=1.0)
         # visualize_sim_with_pe(agg.res_pt_1, pred, model, image_save_path, sim_scale=1.0)
         # for attr in ['main_pt_1', 'main_pt_2', 'main_pt_3', 'main_pt_4', 'res_pt_1', 'res_pt_2', 'res_pt_3']:
-        for attr in ['content']:
-            visualize_sim_with_head(attr, agg, pred, model, image_save_path, sim_scale=2.0)
+        # for attr in ['content']:
+        #     visualize_sim_with_head(attr, agg, pred, model, image_save_path, sim_scale=2.0)
         # visualize_sim_with_memory(image, agg.res_pt_2, agg.memory, image_save_path)
-        # visualize_char_probs(pred, p, charset_train, image_save_path)
+        visualize_char_probs(pred, p, model, image_save_path)
         # visualize_attn(args, image, agg.sa_weights, agg.ca_weights, image_save_path)
+        # visualize_self_attn(pred, agg.sa_weights, image_save_path)
+        # visualize_cross_attn(image, agg.ca_weights, image_save_path)
         print(f'{fname}: {pred[0]}')
         
 
@@ -105,10 +107,11 @@ def visualize_head_self_sim(model, image_save_path):
     visualize_similarity(head, head, rows, cols, image_save_path)        
 
 
-def visualize_char_probs(pred, p, charset_train, image_save_path):
+def visualize_char_probs(pred, p, model, image_save_path):
     filename_path, ext = os.path.splitext(image_save_path)
     rows = pred = list(pred[0]) + ['[E]']
     p = p[0].detach().cpu().numpy()[:len(pred), :] # probs up to [E], [seq_len + 1, len(charset_train) - 2]
+    charset_train = model.hparams.charset_train
     cols = ['[E]'] + list(charset_train)
     df = pd.DataFrame(p, index=rows, columns=cols)
     s = 1.0
@@ -219,11 +222,13 @@ def visualize_attn(args, image, sa_weights, ca_weights, image_save_path):
         visualize_cross_attn(image, ca_weights, image_save_path)
     
     
-def visualize_self_attn(sa_weights, image_save_path):
+def visualize_self_attn(pred, sa_weights, image_save_path):
     if sa_weights is None: return
-    seq_len = sa_weights.shape[0]
+    pred = ['[B]'] + list(pred[0])
     filename_path, ext = os.path.splitext(image_save_path)
-    rows = cols = list(range(seq_len))
+    seq_len = sa_weights.shape[0]
+    cols = pred
+    rows = list(range(1, seq_len + 1))
     df = pd.DataFrame(sa_weights.detach().cpu().numpy(), index=rows, columns=cols)
     s = 1.0
     plt.figure(figsize=(15 * s, 15 * s), dpi=300)
@@ -249,7 +254,7 @@ def visualize_self_attn(sa_weights, image_save_path):
     cbar = sa.collections[0].colorbar
     cbar.ax.tick_params(labelsize=labelsize)
     sa.xaxis.tick_top()
-    sa.set_xticklabels(sa.get_xmajorticklabels(), fontsize=tick_size, rotation=90)
+    sa.set_xticklabels(sa.get_xmajorticklabels(), fontsize=tick_size, rotation=0)
     sa.set_yticklabels(sa.get_ymajorticklabels(), fontsize=tick_size, rotation=0)
     plt.savefig(save_path); plt.clf()
     

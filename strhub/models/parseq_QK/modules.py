@@ -48,8 +48,8 @@ class DecoderLayer(nn.Module):
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1, activation='gelu',
                  layer_norm_eps=1e-5):
         super().__init__()
-        self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
-        self.cross_attn = MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
+        self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True, qk_norm=True)
+        self.cross_attn = MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True, qk_norm=True)
         # Implementation of Feedforward model
         self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.dropout = nn.Dropout(dropout)

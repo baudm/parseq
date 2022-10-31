@@ -15,6 +15,7 @@
 
 import math
 from typing import Optional
+from dataclasses import dataclass
 
 import torch
 from torch import nn as nn, Tensor
@@ -23,6 +24,22 @@ from torch.nn.modules import transformer
 
 from timm.models.vision_transformer import VisionTransformer, PatchEmbed
 
+
+@dataclass
+class Module_Data:
+    main_pt_1: torch.Tensor = None
+    main_pt_2: torch.Tensor = None
+    main_pt_3: torch.Tensor = None
+    main_pt_4: torch.Tensor = None
+    main_pt_5: torch.Tensor = None
+    res_pt_1: torch.Tensor = None
+    res_pt_2: torch.Tensor = None
+    res_pt_3: torch.Tensor = None
+    res_pt_4: torch.Tensor = None
+    content: torch.Tensor = None
+    sa_weights: torch.Tensor = None
+    ca_weights: torch.Tensor = None
+    
 
 class DecoderLayer(nn.Module):
     """A Transformer decoder layer supporting two-stream attention (XLNet)
@@ -66,40 +83,57 @@ class DecoderLayer(nn.Module):
         Both tgt_kv and memory are expected to be LayerNorm'd too.
         memory is LayerNorm'd by ViT.
         """
+        agg = Module_Data()
+        agg.content = tgt_kv
+        agg.main_pt_1 = tgt
+        
         # S -> P
         tgt2, sa_weights = self.self_attn(tgt_norm, tgt_kv, tgt_kv, attn_mask=tgt_mask,
                                           key_padding_mask=tgt_key_padding_mask)
+        agg.res_pt_1 = tgt2
+        agg.sa_weights = sa_weights
         tgt = tgt + self.dropout1(tgt2)
+        agg.main_pt_2 = tgt
         
         # FF
         tgt2 = self.linear2(self.dropout_1(self.activation(self.linear1(self.norm1(tgt)))))
+        agg.res_pt_2 = tgt2
         tgt = tgt + self.dropout2(tgt2)
+        agg.main_pt_3 = tgt
 
         # V -> P
         tgt2, ca_weights = self.cross_attn(self.norm2(tgt), memory, memory)
+        agg.res_pt_3 = tgt2
+        agg.ca_weights = ca_weights
         tgt = tgt + self.dropout3(tgt2)
+        agg.main_pt_4 = tgt
         
         # FF
         tgt2 = self.linear4(self.dropout_2(self.activation(self.linear3(self.norm3(tgt)))))
+        agg.res_pt_4 = tgt2
         tgt = tgt + self.dropout4(tgt2)
+        agg.main_pt_5 = tgt
         
-        return tgt, sa_weights, ca_weights
+        return tgt, agg
 
     def forward(self, query, content, memory, query_mask: Optional[Tensor] = None, content_mask: Optional[Tensor] = None,
                 content_key_padding_mask: Optional[Tensor] = None, update_content: bool = True):
+        aggs = []
         query_norm = self.norm_q(query)
         content_norm = self.norm_c(content)
         # query_mask : Used in content -> pos.
-        query, sa_weights, ca_weights = self.forward_stream(query, query_norm, content_norm, memory, query_mask, content_key_padding_mask)
+        query, agg = self.forward_stream(query, query_norm, content_norm, memory, query_mask, content_key_padding_mask)
+        aggs.append(agg)
         if update_content:
             # content_mask : Used in content -> content.
             # content can be updated with the same decoder, with context as query instead of pos. The updated content
             # is used for content input for next decoder layer, if there are more than 1 deocder layers.
             # Basically, a self-attn casual mask with permutation ordering (including self) = LM
             # plus a cross-attn with no mask to memory = vis -> content.
-            content = self.forward_stream(content, content_norm, content_norm, memory, content_mask,
-                                          content_key_padding_mask)[0]
-        return query, content, sa_weights, ca_weights
+            content, agg = self.forward_stream(content, content_norm, content_norm, memory, content_mask,
+                                          content_key_padding_mask)
+            aggs.append(agg)
+        return query, content, aggs
 
 
 class Decoder(nn.Module):
@@ -121,10 +155,10 @@ class Decoder(nn.Module):
         # content_key_padding_mask : tgt_padding_mask
         for i, mod in enumerate(self.layers):
             last = i == len(self.layers) - 1
-            query, content, sa_weights, ca_weights = mod(query, content, memory, query_mask, content_mask, content_key_padding_mask,
+            query, content, agg = mod(query, content, memory, query_mask, content_mask, content_key_padding_mask,
                                  update_content=not last)
         query = self.norm(query)
-        return query, sa_weights, ca_weights
+        return query, agg
 
 
 class Encoder(VisionTransformer):

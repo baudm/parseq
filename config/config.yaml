@@ -6,11 +6,11 @@ model:
   max_label_length: 25
   charset_train: 0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
   charset_test: 0123456789abcdefghijklmnopqrstuvwxyz
-  batch_size: 384
+  batch_size: 192
   weight_decay: 0.0
   warmup_pct: 0.075
-  name: parseq_emb_NS_2
-  _target_: strhub.models.parseq_emb_no_scale_2.system.PARSeq_emb_NS_2
+  name: parseq_SFVF
+  _target_: strhub.models.parseq_SFVF.system.PARSeq_SFVF
   patch_size:
   - 4
   - 8
@@ -31,7 +31,7 @@ model:
 data:
   _target_: strhub.data.module.SceneTextDataModule
   root_dir: ../data/parseq/english/lmdb
-  train_dir: real
+  train_dir: synth
   batch_size: ${model.batch_size}
   img_size: ${model.img_size}
   charset_train: ${model.charset_train}
@@ -45,7 +45,7 @@ trainer:
   _target_: pytorch_lightning.Trainer
   _convert_: all
   val_check_interval: 1000
-  max_epochs: 20
+  max_epochs: 10
   gradient_clip_val: 20
   gpus:
   - 2
