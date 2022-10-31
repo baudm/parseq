@@ -133,7 +133,7 @@ class DecoderLayer(nn.Module):
             content, agg = self.forward_stream(content, content_norm, content_norm, memory, content_mask,
                                           content_key_padding_mask)
             aggs.append(agg)
-        return query, content, aggs
+        return query, aggs
 
 
 class Decoder(nn.Module):

@@ -116,7 +116,7 @@ class DecoderLayer(nn.Module):
             # plus a cross-attn with no mask to memory = vis -> content.
             content, _ = self.forward_stream(content, content_norm, content_norm, memory, content_mask,
                                           content_key_padding_mask)
-        return query, content, agg
+        return query, agg
 
 
 class Decoder(nn.Module):
