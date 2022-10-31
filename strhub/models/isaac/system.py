@@ -52,7 +52,7 @@ class System_Data:
     content: torch.Tensor = None
 
 
-class PARSeq_SFVF(CrossEntropySystem):
+class Isaac(CrossEntropySystem):
 
     def __init__(self, charset_train: str, charset_test: str, max_label_length: int,
                  batch_size: int, lr: float, warmup_pct: float, weight_decay: float,
@@ -62,7 +62,7 @@ class PARSeq_SFVF(CrossEntropySystem):
                  perm_num: int, perm_forward: bool, perm_mirrored: bool,
                  decode_ar: bool, refine_iters: int, dropout: float, **kwargs: Any) -> None:
         super().__init__(charset_train, charset_test, batch_size, lr, warmup_pct, weight_decay)
-        print('Model : PARSeq_SFVF')
+        print('Model : Isaac')
         self.save_hyperparameters()
 
         self.max_label_length = max_label_length

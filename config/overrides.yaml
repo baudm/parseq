@@ -1,6 +1,0 @@
-- model.perm_num=1
-- model.perm_mirrored=False
-- model.refine_iters=0
-- data.train_dir=synth
-- trainer.max_epochs=10
-- trainer.gpus=4
