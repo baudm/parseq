@@ -66,6 +66,7 @@ def main():
 
     initialize(config_path=f'{exp_dir}/config', version_base='1.2')
     cfg = compose(config_name='config')
+    cfg.model._target_ = cfg.model._target_.replace('system', 'system_debug')
     model = instantiate(cfg.model)
     model.load_state_dict(torch.load(args.checkpoint)['state_dict'])
     model.eval().to(args.device)
@@ -95,8 +96,8 @@ def main():
         # visualize_char_probs(pred, p, model, image_save_path)
         # visualize_attn(args, image, agg.sa_weights, agg.ca_weights, image_save_path)
         # visualize_self_attn(pred, agg.sa_weights, image_save_path)
-        # visualize_cross_attn(image, agg.ca_weights, image_save_path)
-        visualize_tsne(model, image_save_path)
+        visualize_cross_attn(image, agg.ca_weights, image_save_path)
+        # visualize_tsne(model, image_save_path)
         print(f'{fname}: {pred[0]}')
 
 

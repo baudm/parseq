@@ -31,9 +31,25 @@ from timm.models.helpers import named_apply
 
 from strhub.models.base import CrossEntropySystem
 from strhub.models.utils import init_weights
-from .modules import DecoderLayer, Decoder, Encoder, TokenEmbedding
+from .modules_debug import DecoderLayer, Decoder, Encoder, TokenEmbedding
 
 DEBUG_LAYER_INDEX = 0
+
+@dataclass
+class System_Data:
+    sa_weights: torch.Tensor = None
+    ca_weights: torch.Tensor = None
+    main_pt_1: torch.Tensor = None
+    main_pt_2: torch.Tensor = None
+    main_pt_3: torch.Tensor = None
+    main_pt_4: torch.Tensor = None
+    main_pt_5: torch.Tensor = None
+    res_pt_1: torch.Tensor = None
+    res_pt_2: torch.Tensor = None
+    res_pt_3: torch.Tensor = None
+    res_pt_4: torch.Tensor = None
+    memory: torch.Tensor = None
+    content: torch.Tensor = None
 
 
 class PARSeq(CrossEntropySystem):
@@ -104,6 +120,7 @@ class PARSeq(CrossEntropySystem):
         return self.decoder(tgt_query, tgt_emb, memory, tgt_query_mask, tgt_mask, tgt_padding_mask)
 
     def forward(self, images: Tensor, max_length: Optional[int] = None) -> Tensor:
+        agg = System_Data()
         
         testing = max_length is None
         max_length = self.max_label_length if max_length is None else min(max_length, self.max_label_length)
@@ -118,6 +135,10 @@ class PARSeq(CrossEntropySystem):
         # Special case for the forward permutation. Faster than using `generate_attn_masks()`
         tgt_mask = query_mask = torch.triu(torch.full((num_steps, num_steps), float('-inf'), device=self._device), 1)
 
+        sa_weights = []
+        ca_weights = []
+        main_pt_1, main_pt_2, main_pt_3, main_pt_4, res_pt_1, res_pt_2, res_pt_3 = ([] for _ in range(7))
+        
         if self.decode_ar:
             tgt_in = torch.full((bs, num_steps), self.pad_id, dtype=torch.long, device=self._device)
             tgt_in[:, 0] = self.bos_id
@@ -129,9 +150,19 @@ class PARSeq(CrossEntropySystem):
                 # Input the context up to the ith token. We use only one query (at position = i) at a time.
                 # This works because of the lookahead masking effect of the canonical (forward) AR context.
                 # Past tokens have no access to future tokens, hence are fixed once computed.
-                tgt_out, _ = self.decode(tgt_in[:, :j], memory, tgt_mask[:j, :j], tgt_query=pos_queries[:, i:j],
+                tgt_out, _aggs = self.decode(tgt_in[:, :j], memory, tgt_mask[:j, :j], tgt_query=pos_queries[:, i:j],
                                       tgt_query_mask=query_mask[i:j, :j])
-    
+                _agg = _aggs[DEBUG_LAYER_INDEX]
+                sa_weights.append(_agg.sa_weights)
+                ca_weights.append(_agg.ca_weights)
+                main_pt_1.append(_agg.main_pt_1)
+                main_pt_2.append(_agg.main_pt_2)
+                main_pt_3.append(_agg.main_pt_3)
+                main_pt_4.append(_agg.main_pt_4)
+                res_pt_1.append(_agg.res_pt_1)
+                res_pt_2.append(_agg.res_pt_2)
+                res_pt_3.append(_agg.res_pt_3)
+                
                 # the next token probability is in the output's ith token position
                 p_i = self.head(tgt_out)
                 logits.append(p_i)
@@ -149,6 +180,16 @@ class PARSeq(CrossEntropySystem):
             tgt_out, _ = self.decode(tgt_in, memory, tgt_query=pos_queries)
             logits = self.head(tgt_out)
         
+        if sa_weights[0] is not None:
+            sa_weights = [s[0][0] for s in sa_weights]
+            sa_weights = pad_sequence(sa_weights).T
+        else:
+            sa_weights = None
+        if ca_weights[0] is not None:
+            ca_weights = torch.cat(ca_weights, dim=1)
+        else:
+            ca_weights = None
+
         if self.refine_iters:
             # For iterative refinement, we always use a 'cloze' mask.
             # We can derive it from the AR forward mask by unmasking the token context to the right.
@@ -162,7 +203,20 @@ class PARSeq(CrossEntropySystem):
                                       tgt_query=pos_queries, tgt_query_mask=query_mask[:, :tgt_in.shape[1]])
                 logits = self.head(tgt_out)
 
-        return logits, None
+        # aggregate inspection data
+        agg.sa_weights = sa_weights
+        agg.ca_weights = ca_weights
+        agg.main_pt_1 = torch.cat(main_pt_1, dim=1)
+        agg.main_pt_2 = torch.cat(main_pt_2, dim=1)
+        agg.main_pt_3 = torch.cat(main_pt_3, dim=1)
+        agg.main_pt_4 = torch.cat(main_pt_4, dim=1)
+        agg.res_pt_1 = torch.cat(res_pt_1, dim=1)
+        agg.res_pt_2 = torch.cat(res_pt_2, dim=1)
+        agg.res_pt_3 = torch.cat(res_pt_3, dim=1)
+        agg.memory = memory
+        agg.content = _agg.content
+        
+        return logits, agg
 
     def gen_tgt_perms(self, tgt):
         """Generate shared permutations for the whole batch.
