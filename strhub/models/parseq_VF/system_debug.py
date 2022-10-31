@@ -209,10 +209,10 @@ class PARSeq_VF(CrossEntropySystem):
         agg.main_pt_1 = torch.cat(main_pt_1, dim=1)
         agg.main_pt_2 = torch.cat(main_pt_2, dim=1)
         agg.main_pt_3 = torch.cat(main_pt_3, dim=1)
-        agg.main_pt_4 = torch.cat(main_pt_4, dim=1)
+        # agg.main_pt_4 = torch.cat(main_pt_4, dim=1)
         agg.res_pt_1 = torch.cat(res_pt_1, dim=1)
         agg.res_pt_2 = torch.cat(res_pt_2, dim=1)
-        agg.res_pt_3 = torch.cat(res_pt_3, dim=1)
+        # agg.res_pt_3 = torch.cat(res_pt_3, dim=1)
         agg.memory = memory
         agg.content = _agg.content
         

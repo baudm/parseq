@@ -93,10 +93,10 @@ def main():
         # for attr in ['content']:
         #     visualize_sim_with_head(attr, agg, pred, model, image_save_path, sim_scale=2.0)
         # visualize_sim_with_memory(image, agg.res_pt_2, agg.memory, image_save_path)
-        # visualize_char_probs(pred, p, model, image_save_path)
+        visualize_char_probs(pred, p, model, image_save_path)
         # visualize_attn(args, image, agg.sa_weights, agg.ca_weights, image_save_path)
         # visualize_self_attn(pred, agg.sa_weights, image_save_path)
-        visualize_cross_attn(image, agg.ca_weights, image_save_path)
+        # visualize_cross_attn(image, agg.ca_weights, image_save_path)
         # visualize_tsne(model, image_save_path)
         print(f'{fname}: {pred[0]}')
 

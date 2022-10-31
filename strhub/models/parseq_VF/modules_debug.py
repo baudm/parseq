@@ -91,7 +91,7 @@ class DecoderLayer(nn.Module):
         agg.main_pt_2 = tgt
 
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(self.norm2(tgt)))))
-        agg.main_pt_2 = tgt2
+        agg.res_pt_2 = tgt2
         tgt = tgt + self.dropout3(tgt2)
         agg.main_pt_3 = tgt
         
