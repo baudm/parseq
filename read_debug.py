@@ -92,12 +92,33 @@ def main():
         # for attr in ['content']:
         #     visualize_sim_with_head(attr, agg, pred, model, image_save_path, sim_scale=2.0)
         # visualize_sim_with_memory(image, agg.res_pt_2, agg.memory, image_save_path)
-        visualize_char_probs(pred, p, model, image_save_path)
+        # visualize_char_probs(pred, p, model, image_save_path)
         # visualize_attn(args, image, agg.sa_weights, agg.ca_weights, image_save_path)
         # visualize_self_attn(pred, agg.sa_weights, image_save_path)
         # visualize_cross_attn(image, agg.ca_weights, image_save_path)
+        visualize_tsne(model, image_save_path)
         print(f'{fname}: {pred[0]}')
-        
+
+
+def visualize_tsne(model, image_save_path):
+    filename_path, ext = os.path.splitext(image_save_path)
+    from sklearn.manifold import TSNE
+    head = model.head.weight.detach().cpu().numpy()
+    charset_train = model.hparams.charset_train
+    rows = ['[E]'] + list(charset_train)
+    cols = ['x', 'y']
+    tsne = TSNE(n_components=2).fit_transform(head)
+    tsne = pd.DataFrame(tsne, index=rows, columns=cols)
+    tsne['char'] = rows
+    plt.figure(figsize=(30, 30), dpi=300)
+    sc = sns.scatterplot(data=tsne, x='x', y='y', hue='char', style='char')
+    ax = plt.gca()
+    for _, row in tsne.iterrows():
+        ax.text(row['x'] + .02, row['y'], row['char'])
+    save_path = f'{filename_path}_sc{ext}'
+    plt.savefig(save_path); plt.clf()
+    
+
 
 def visualize_head_self_sim(model, image_save_path):
     head = model.head.weight.detach().cpu().numpy()
