@@ -9,8 +9,8 @@ model:
   batch_size: 384
   weight_decay: 0.0
   warmup_pct: 0.075
-  name: parseq_SFVF
-  _target_: strhub.models.parseq_SFVF.system.PARSeq_SFVF
+  name: parseq
+  _target_: strhub.models.parseq.system.PARSeq
   patch_size:
   - 4
   - 8
@@ -20,14 +20,14 @@ model:
   enc_depth: 12
   dec_num_heads: 12
   dec_mlp_ratio: 4
-  dec_depth: 2
+  dec_depth: 1
   lr: 0.0007
-  perm_num: 6
+  perm_num: 1
   perm_forward: true
-  perm_mirrored: true
+  perm_mirrored: false
   dropout: 0.1
   decode_ar: true
-  refine_iters: 1
+  refine_iters: 0
 data:
   _target_: strhub.data.module.SceneTextDataModule
   root_dir: ../data/parseq/english/lmdb
