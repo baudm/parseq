@@ -20,7 +20,7 @@ model:
   enc_depth: 12
   dec_num_heads: 12
   dec_mlp_ratio: 4
-  dec_depth: 1
+  dec_depth: 2
   lr: 0.0007
   perm_num: 6
   perm_forward: true
@@ -47,9 +47,7 @@ trainer:
   val_check_interval: 1000
   max_epochs: 10
   gradient_clip_val: 20
-  gpus:
-  - 2
-  - 3
+  gpus: 4
   sync_batchnorm: true
 ckpt_path: null
 pretrained: null
