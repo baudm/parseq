@@ -1,10 +1,3 @@
-- model=parseq_SFVF
-<<<<<<< HEAD
-- trainer.gpus=[2,3]
-- model.batch_size=192
-=======
-- model.dec_depth=2
 - trainer.gpus=4
->>>>>>> 1ebc7d11516bbc748bd35773d6fb9efbb3f9dc95
-- data.train_dir=synth
-- trainer.max_epochs=10
+- model.batch_size=192
+- trainer.sync_batchnorm=False

@@ -112,30 +112,19 @@ hydra:
     hydra:
     - hydra.run.dir="/data2/isaackang/STR/parseq"
     - hydra.job.name=train_ddp_process_1
-    - hydra.run.dir="/home/isaackang/STR/parseq"
+    - hydra.run.dir="/data2/isaackang/STR/parseq"
     - hydra.job.name=train_ddp_process_2
-    - hydra.run.dir="/home/isaackang/STR/parseq"
+    - hydra.run.dir="/data2/isaackang/STR/parseq"
     - hydra.job.name=train_ddp_process_3
     - hydra.mode=RUN
     task:
-    - model=parseq_SFVF
-<<<<<<< HEAD
-    - trainer.gpus=[2,3]
-    - model.batch_size=192
-=======
-    - model.dec_depth=2
     - trainer.gpus=4
->>>>>>> 1ebc7d11516bbc748bd35773d6fb9efbb3f9dc95
-    - data.train_dir=synth
-    - trainer.max_epochs=10
+    - model.batch_size=192
+    - trainer.sync_batchnorm=False
   job:
     name: train_ddp_process_3
     chdir: null
-<<<<<<< HEAD
-    override_dirname: data.train_dir=synth,model.batch_size=192,model=parseq_SFVF,trainer.gpus=[2,3],trainer.max_epochs=10
-=======
-    override_dirname: data.train_dir=synth,model.dec_depth=2,model=parseq_SFVF,trainer.gpus=4,trainer.max_epochs=10
->>>>>>> 1ebc7d11516bbc748bd35773d6fb9efbb3f9dc95
+    override_dirname: model.batch_size=192,trainer.gpus=4,trainer.sync_batchnorm=False
     id: ???
     num: ???
     config_name: main
@@ -164,7 +153,7 @@ hydra:
     choices:
       dataset: real
       charset: 94_full
-      model: parseq_SFVF
+      model: parseq
       hydra/env: default
       hydra/callbacks: null
       hydra/job_logging: default
