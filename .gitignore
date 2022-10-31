@@ -3,6 +3,11 @@ outputs/
 multirun/
 ray_results/
 
+# other
+config/
+train_ddp*
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

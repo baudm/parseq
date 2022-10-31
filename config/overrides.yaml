@@ -1,6 +1,0 @@
-- model.perm_num=1
-- model.perm_mirrored=False
-- model.refine_iters=0
-- trainer.gpus=4
-- model.batch_size=192
-- data.num_workers=4
