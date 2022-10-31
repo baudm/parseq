@@ -22,12 +22,12 @@ model:
   dec_mlp_ratio: 4
   dec_depth: 1
   lr: 0.0007
-  perm_num: 6
+  perm_num: 1
   perm_forward: true
-  perm_mirrored: true
+  perm_mirrored: false
   dropout: 0.1
   decode_ar: true
-  refine_iters: 1
+  refine_iters: 0
 data:
   _target_: strhub.data.module.SceneTextDataModule
   root_dir: ../data/parseq/english/lmdb
@@ -40,7 +40,7 @@ data:
   remove_whitespace: true
   normalize_unicode: true
   augment: true
-  num_workers: 2
+  num_workers: 4
 trainer:
   _target_: pytorch_lightning.Trainer
   _convert_: all
