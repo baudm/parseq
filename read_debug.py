@@ -224,11 +224,10 @@ def visualize_attn(args, image, sa_weights, ca_weights, image_save_path):
     
 def visualize_self_attn(pred, sa_weights, image_save_path):
     if sa_weights is None: return
-    pred = ['[B]'] + list(pred[0])
     filename_path, ext = os.path.splitext(image_save_path)
-    seq_len = sa_weights.shape[0]
-    cols = pred
-    rows = list(range(1, seq_len + 1))
+    cols = ['[B]'] + list(pred[0])
+    # rows = ['[B]'] + list(pred[0])
+    rows = list(pred[0]) + ['[E]']
     df = pd.DataFrame(sa_weights.detach().cpu().numpy(), index=rows, columns=cols)
     s = 1.0
     plt.figure(figsize=(15 * s, 15 * s), dpi=300)

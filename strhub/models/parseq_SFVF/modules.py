@@ -118,22 +118,19 @@ class DecoderLayer(nn.Module):
 
     def forward(self, query, content, memory, query_mask: Optional[Tensor] = None, content_mask: Optional[Tensor] = None,
                 content_key_padding_mask: Optional[Tensor] = None, update_content: bool = True):
-        aggs = []
         query_norm = self.norm_q(query)
         content_norm = self.norm_c(content)
         # query_mask : Used in content -> pos.
         query, agg = self.forward_stream(query, query_norm, content_norm, memory, query_mask, content_key_padding_mask)
-        aggs.append(agg)
         if update_content:
             # content_mask : Used in content -> content.
             # content can be updated with the same decoder, with context as query instead of pos. The updated content
             # is used for content input for next decoder layer, if there are more than 1 deocder layers.
             # Basically, a self-attn casual mask with permutation ordering (including self) = LM
             # plus a cross-attn with no mask to memory = vis -> content.
-            content, agg = self.forward_stream(content, content_norm, content_norm, memory, content_mask,
+            content, _ = self.forward_stream(content, content_norm, content_norm, memory, content_mask,
                                           content_key_padding_mask)
-            aggs.append(agg)
-        return query, aggs
+        return query, content, agg
 
 
 class Decoder(nn.Module):
@@ -153,12 +150,14 @@ class Decoder(nn.Module):
         # query_mask : query_mask
         # content_mask : content_mask
         # content_key_padding_mask : tgt_padding_mask
+        aggs = []
         for i, mod in enumerate(self.layers):
             last = i == len(self.layers) - 1
             query, content, agg = mod(query, content, memory, query_mask, content_mask, content_key_padding_mask,
                                  update_content=not last)
+            aggs.append(agg)
         query = self.norm(query)
-        return query, agg
+        return query, aggs
 
 
 class Encoder(VisionTransformer):

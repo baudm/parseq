@@ -116,7 +116,7 @@ class DecoderLayer(nn.Module):
             # plus a cross-attn with no mask to memory = vis -> content.
             content, _ = self.forward_stream(content, content_norm, content_norm, memory, content_mask,
                                           content_key_padding_mask)
-        return query, agg
+        return query, content, agg
 
 
 class Decoder(nn.Module):
@@ -136,12 +136,14 @@ class Decoder(nn.Module):
         # query_mask : query_mask
         # content_mask : content_mask
         # content_key_padding_mask : tgt_padding_mask
+        aggs = []
         for i, mod in enumerate(self.layers):
             last = i == len(self.layers) - 1
             query, content, agg = mod(query, content, memory, query_mask, content_mask, content_key_padding_mask,
                                  update_content=not last)
+            aggs.append(agg)
         query = self.norm(query)
-        return query, agg
+        return query, aggs
 
 
 class Encoder(VisionTransformer):

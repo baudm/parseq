@@ -33,6 +33,8 @@ from strhub.models.base import CrossEntropySystem
 from strhub.models.utils import init_weights
 from .modules import DecoderLayer, Decoder, Encoder, TokenEmbedding
 
+DEBUG_LAYER_INDEX = 0
+
 @dataclass
 class System_Data:
     sa_weights: torch.Tensor = None
@@ -142,7 +144,6 @@ class PARSeq_SFVF(CrossEntropySystem):
             tgt_in[:, 0] = self.bos_id
 
             logits = []
-            debug_layer_idx = 1
             for i in range(num_steps):
                 j = i + 1  # next token index
                 # Efficient decoding:
@@ -151,7 +152,7 @@ class PARSeq_SFVF(CrossEntropySystem):
                 # Past tokens have no access to future tokens, hence are fixed once computed.
                 tgt_out, _aggs = self.decode(tgt_in[:, :j], memory, tgt_mask[:j, :j], tgt_query=pos_queries[:, i:j],
                                       tgt_query_mask=query_mask[i:j, :j])
-                _agg = _aggs[debug_layer_idx]
+                _agg = _aggs[DEBUG_LAYER_INDEX]
                 sa_weights.append(_agg.sa_weights)
                 ca_weights.append(_agg.ca_weights)
                 main_pt_1.append(_agg.main_pt_1)
