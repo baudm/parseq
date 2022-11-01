@@ -55,8 +55,7 @@ class Isaac_VLP(CrossEntropySystem):
         decoder_layer = DecoderLayer(embed_dim, dec_num_heads, embed_dim * dec_mlp_ratio, dropout)
         self.decoder = Decoder(decoder_layer, num_layers=dec_depth, norm=nn.LayerNorm(embed_dim))
 
-        # We don't predict <bos> nor <pad>
-        self.head = nn.Linear(embed_dim, len(self.tokenizer) - 2)
+        self.head = nn.Linear(embed_dim, len(self.tokenizer))
         self.text_embed = TokenEmbedding(len(self.tokenizer), embed_dim)
 
         # +1 for <eos>
@@ -118,13 +117,14 @@ class Isaac_VLP(CrossEntropySystem):
         testing = max_length is None
         max_length = self.max_label_length if max_length is None else min(max_length, self.max_label_length)
         bs = images.shape[0]
-        L_P = num_steps = self.max_label_length + 1 # +1 for eos
+        num_steps = max_length + 1 # +1 for eos
+        L_L = L_P = self.max_label_length + 1
         
         # prepare tokens
         vis = self.encode(images)
-        lan = torch.full((bs, num_steps), self.pad_id, dtype=torch.long, device=self._device)
+        lan = torch.full((bs, L_L), self.pad_id, dtype=torch.long, device=self._device)
         lan[:, 0] = self.bos_id
-        pos = self.pos_embed[:, :num_steps].expand(bs, -1, -1)
+        pos = self.pos_embed[:, :L_P].expand(bs, -1, -1)
         
         attn_mask = self.attn_mask.to(self._device)
         
@@ -141,6 +141,7 @@ class Isaac_VLP(CrossEntropySystem):
                 if testing and (lan == self.eos_id).any(dim=-1).all():
                     break
         logits = torch.cat(logits, dim=1)
+        logits = logits[:, :num_steps]
             
         return logits, None
 
@@ -152,8 +153,8 @@ class Isaac_VLP(CrossEntropySystem):
         # Prepare the target sequences (input and output)
         tgt_in = tgt[:, :-1]
         tgt_out = tgt[:, 1:]
-
-        vis, lan, pos, _ = self.decode(vis, tgt_in)
+        
+        pos, _ = self.decode(vis, tgt_in)
         logits = self.head(pos).flatten(end_dim=1)
         loss = F.cross_entropy(logits, tgt_out.flatten(), ignore_index=self.pad_id)
 
