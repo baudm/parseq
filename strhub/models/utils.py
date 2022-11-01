@@ -14,6 +14,8 @@ def init_dir(dir):
         os.makedirs(dir)
     else:
         os.makedirs(dir)
+        
+        
 class InvalidModelError(RuntimeError):
     """Exception raised for any model-related error (creation, loading)"""
 

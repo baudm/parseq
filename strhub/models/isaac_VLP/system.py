@@ -33,9 +33,6 @@ from strhub.models.base import CrossEntropySystem
 from strhub.models.utils import init_weights
 from .modules import DecoderLayer, Decoder, Encoder, TokenEmbedding
 
-DEBUG_LAYER_INDEX = 0
-
-
 class Isaac_VLP(CrossEntropySystem):
 
     def __init__(self, charset_train: str, charset_test: str, max_label_length: int,
@@ -77,10 +74,44 @@ class Isaac_VLP(CrossEntropySystem):
         L_V = int(img_size[0] * img_size[1] / (patch_size[0] * patch_size[1]))
         L_P = self.max_label_length + 1 # +1 for eos
         L_T = L_V + 2 * L_P
-        attn_mask_PL = torch.triu(torch.full((L_P, L_P), float('-inf')), 1)
-        attn_mask_PL = attn_mask_PL.repeat(2, 2)
+        attn_mask_LP = torch.triu(torch.full((L_P, L_P), float('-inf')), 1)
+        attn_mask_LP = attn_mask_LP.repeat(2, 2)
         attn_mask = torch.zeros((L_T, L_T))
-        attn_mask[-2 * L_P:, -2 * L_P:] = attn_mask_PL
+        attn_mask[-2 * L_P:, -2 * L_P:] = attn_mask_LP
+        # import seaborn as sns
+        # import matplotlib.pyplot as plt
+        # import pandas as pd
+        # from mpl_toolkits.axes_grid1 import make_axes_locatable
+        # attn_mask_df = (attn_mask.numpy() != 0) * 1
+        # df = pd.DataFrame(attn_mask_df, index=list(range(L_T)), columns=list(range(L_T)))
+        # s = 1.0
+        # plt.figure(figsize=(30 * s, 30 * s), dpi=300)
+        # annot_size = 10 * s
+        # tick_size = 15 * s
+        # labelsize = 15 * s
+        # save_path = './attn.png'
+        # ax = plt.gca()
+        # # ax_pos = [0.15, 0.01, 0.84, 0.84]
+        # # ax.set_position(ax_pos)
+        # divider = make_axes_locatable(ax)
+        # cax = divider.append_axes("right", size="5%", pad="5%")
+        # sa = sns.heatmap(df,
+        #                 # vmin=0,
+        #                 # vmax=1,
+        #                 # annot=True,
+        #                 # fmt='.2f',
+        #                 # annot_kws={'size': annot_size},
+        #                 ax=ax,
+        #                 cbar_ax=cax,
+        #                 cbar=True,
+        #                 linewidths=0.5,
+        #                 )
+        # cbar = sa.collections[0].colorbar
+        # cbar.ax.tick_params(labelsize=labelsize)
+        # sa.xaxis.tick_top()
+        # sa.set_xticklabels(sa.get_xmajorticklabels(), fontsize=tick_size, rotation=0)
+        # sa.set_yticklabels(sa.get_ymajorticklabels(), fontsize=tick_size, rotation=0)
+        # plt.savefig(save_path); plt.clf()
         return attn_mask
 
     @torch.jit.ignore
@@ -92,17 +123,14 @@ class Isaac_VLP(CrossEntropySystem):
     def encode(self, img: torch.Tensor):
         return self.encoder(img)
 
-    def decode(self, vis:torch.Tensor, lan:torch.Tensor,  pos:Optional[Tensor]=None, attn_mask:Optional[Tensor]=None):
-        N, L = lan.shape
-        
+    def decode(self, vis:torch.Tensor, lan:torch.Tensor,  pos:torch.Tensor, attn_mask:torch.Tensor):
         # Add positional encoding to language tokens.
         # <bos> stands for the null context. We only supply position information for characters after <bos>.
+        bs, L = lan.shape
         null_ctx = self.text_embed(lan[:, :1])
         lan = self.pos_embed[:, :L - 1] + self.text_embed(lan[:, 1:])
         lan = self.dropout(torch.cat([null_ctx, lan], dim=1))
         
-        if pos is None:
-            pos = self.pos_embed[:, :L].expand(N, -1, -1)
         pos = self.dropout(pos)
         
         return self.decoder(vis, lan, pos, attn_mask=attn_mask)
@@ -148,15 +176,22 @@ class Isaac_VLP(CrossEntropySystem):
     def training_step(self, batch, batch_idx) -> STEP_OUTPUT:
         images, labels = batch
         tgt = self.tokenizer.encode(labels, self._device)
+        L_L = self.max_label_length + 1 # +1 for <eos>
+        tgt = F.pad(tgt, (0, L_L + 1 - tgt.shape[1]), "constant", self.pad_id)
         vis = self.encode(images)
 
         # Prepare the target sequences (input and output)
         tgt_in = tgt[:, :-1]
         tgt_out = tgt[:, 1:]
         
-        pos, _ = self.decode(vis, tgt_in)
+        bs = tgt_in.shape[0] 
+        pos = self.pos_embed[:, :self.max_label_length + 1].expand(bs, -1, -1)
+        
+        attn_mask = self.attn_mask.to(self._device)
+        
+        pos, _ = self.decode(vis, tgt_in, pos, attn_mask)
         logits = self.head(pos).flatten(end_dim=1)
         loss = F.cross_entropy(logits, tgt_out.flatten(), ignore_index=self.pad_id)
-
+        
         self.log('loss', loss)
         return loss

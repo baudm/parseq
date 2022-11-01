@@ -19,13 +19,15 @@ import string
 import sys
 from dataclasses import dataclass
 from typing import List
+from hydra.utils import instantiate
+from hydra import compose, initialize
 
 import torch
 
 from tqdm import tqdm
 
 from strhub.data.module_debug import SceneTextDataModule
-from strhub.models.utils_debug import load_from_checkpoint, parse_model_args, init_dir
+from strhub.models.utils import load_from_checkpoint, parse_model_args, init_dir
 
 
 @dataclass
@@ -87,12 +89,20 @@ def main():
         charset_test += string.punctuation
     kwargs.update({'charset_test': charset_test})
     print(f'Additional keyword arguments: {kwargs}')
-
+    # model = load_from_checkpoint(args.checkpoint, **kwargs).eval().to(args.device)
     ckpt_split = args.checkpoint.split('/')
-    ckpt_split[1] = ckpt_split[1] + '_debug'
-    ckpt = '/'.join(ckpt_split)
-    model = load_from_checkpoint(ckpt, **kwargs).eval().to(args.device)
+    exp_dir = '/'.join(ckpt_split[:ckpt_split.index('checkpoints')])
+    initialize(config_path=f'{exp_dir}/config', version_base='1.2')
+    cfg = compose(config_name='config')
+    # for k, v in kwargs.items():
+    #     setattr(cfg.model, k, v)
+    cfg.model._target_ = cfg.model._target_.replace('system', 'system_debug')
+    model = instantiate(cfg.model)
+    model.load_state_dict(torch.load(args.checkpoint)['state_dict'])
+    model.eval().to(args.device)
+    
     hp = model.hparams
+    print(model.hparams)
     datamodule = SceneTextDataModule(args.data_root, '_unused_', hp.img_size, hp.max_label_length, hp.charset_train,
                                      hp.charset_test, args.batch_size, args.num_workers, False, rotation=args.rotation)
 
@@ -103,8 +113,6 @@ def main():
 
     results = {}
     max_width = max(map(len, test_set))
-    ckpt_split = ckpt.replace('_debug', '').split('/')
-    exp_dir = '/'.join(ckpt_split[:ckpt_split.index('checkpoints')])
     debug_dir = f'{exp_dir}/debug'
     for name, dataloader in datamodule.test_dataloaders(test_set).items():
         total = 0
