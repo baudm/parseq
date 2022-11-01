@@ -1,5 +1,5 @@
-name: parseq_VLP
-_target_: strhub.models.parseq_VLP.system.PARSeq_VLP
+name: isaac_VLP
+_target_: strhub.models.isaac_VLP.system.Isaac_VLP
 
 # Data
 patch_size: [ 4, 4 ]  # [ height, width ]
@@ -15,11 +15,4 @@ dec_depth: 1
 
 # Training
 lr: 7e-4
-perm_num: 1
-perm_forward: true
-perm_mirrored: false
 dropout: 0.1
-
-# Decoding mode (test)
-decode_ar: true
-refine_iters: 0

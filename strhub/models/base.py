@@ -177,6 +177,7 @@ class CrossEntropySystem(BaseSystem):
         targets = self.tokenizer.encode(labels, self.device)
         targets = targets[:, 1:]  # Discard <bos>
         max_len = targets.shape[1] - 1  # exclude <eos> from count
+        import ipdb; ipdb.set_trace(context=21) # #FF0000
         logits = self.forward(images, max_len)[0]
         loss = F.cross_entropy(logits.flatten(end_dim=1), targets.flatten(), ignore_index=self.pad_id)
         loss_numel = (targets != self.pad_id).sum()
