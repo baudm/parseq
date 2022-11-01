@@ -51,11 +51,6 @@ def main():
     kwargs = parse_model_args(unknown)
     print(f'Additional keyword arguments: {kwargs}')
     
-    ckpt_split = args.checkpoint.split('/')
-    exp_dir = '/'.join(ckpt_split[:ckpt_split.index('checkpoints')])
-    debug_dir = f'{exp_dir}/debug'
-    init_dir(f'{debug_dir}/demo_images')
-    
     # if pretrained:
     #     try:
     #         url = _WEIGHTS_URL[experiment]
@@ -63,14 +58,22 @@ def main():
     #         raise InvalidModelError("No pretrained weights found for '{}'".format(experiment)) from None
     #     checkpoint = torch.hub.load_state_dict_from_url(url=url, map_location='cpu', check_hash=True)
     #     model.load_state_dict(checkpoint)
-
+    
+    ckpt_split = args.checkpoint.split('/')
+    exp_dir = '/'.join(ckpt_split[:ckpt_split.index('checkpoints')])
     initialize(config_path=f'{exp_dir}/config', version_base='1.2')
     cfg = compose(config_name='config')
     cfg.model._target_ = cfg.model._target_.replace('system', 'system_debug')
+    for k, v in kwargs.items():
+        setattr(cfg.model, k, v)
+    
     model = instantiate(cfg.model)
     model.load_state_dict(torch.load(args.checkpoint)['state_dict'])
     model.eval().to(args.device)
     img_transform = SceneTextDataModule.get_transform(model.hparams.img_size)
+    
+    debug_dir = f'{exp_dir}/debug'
+    init_dir(f'{debug_dir}/demo_images')
     
     for fname in args.images:
         basename = os.path.basename(fname)

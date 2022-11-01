@@ -85,12 +85,14 @@ def main():
         charset_test += string.punctuation
     kwargs.update({'charset_test': charset_test})
     print(f'Additional keyword arguments: {kwargs}')
-
     # model = load_from_checkpoint(args.checkpoint, **kwargs).eval().to(args.device)
     ckpt_split = args.checkpoint.split('/')
     exp_dir = '/'.join(ckpt_split[:ckpt_split.index('checkpoints')])
     initialize(config_path=f'{exp_dir}/config', version_base='1.2')
     cfg = compose(config_name='config')
+    for k, v in kwargs.items():
+        setattr(cfg.model, k, v)
+    
     model = instantiate(cfg.model)
     model.load_state_dict(torch.load(args.checkpoint)['state_dict'])
     model.eval().to(args.device)

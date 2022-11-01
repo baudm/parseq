@@ -1,8 +1,8 @@
-name: parseq
-_target_: strhub.models.parseq.system.PARSeq
+name: isaac
+_target_: strhub.models.isaac.system.Isaac
 
 # Data
-patch_size: [ 4, 8 ]  # [ height, width ]
+patch_size: [ 4, 4 ]  # [ height, width ]
 
 # Architecture
 embed_dim: 384
