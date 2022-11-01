@@ -78,40 +78,6 @@ class Isaac_VLP(CrossEntropySystem):
         attn_mask_LP = attn_mask_LP.repeat(2, 2)
         attn_mask = torch.zeros((L_T, L_T))
         attn_mask[-2 * L_P:, -2 * L_P:] = attn_mask_LP
-        # import seaborn as sns
-        # import matplotlib.pyplot as plt
-        # import pandas as pd
-        # from mpl_toolkits.axes_grid1 import make_axes_locatable
-        # attn_mask_df = (attn_mask.numpy() != 0) * 1
-        # df = pd.DataFrame(attn_mask_df, index=list(range(L_T)), columns=list(range(L_T)))
-        # s = 1.0
-        # plt.figure(figsize=(30 * s, 30 * s), dpi=300)
-        # annot_size = 10 * s
-        # tick_size = 15 * s
-        # labelsize = 15 * s
-        # save_path = './attn.png'
-        # ax = plt.gca()
-        # # ax_pos = [0.15, 0.01, 0.84, 0.84]
-        # # ax.set_position(ax_pos)
-        # divider = make_axes_locatable(ax)
-        # cax = divider.append_axes("right", size="5%", pad="5%")
-        # sa = sns.heatmap(df,
-        #                 # vmin=0,
-        #                 # vmax=1,
-        #                 # annot=True,
-        #                 # fmt='.2f',
-        #                 # annot_kws={'size': annot_size},
-        #                 ax=ax,
-        #                 cbar_ax=cax,
-        #                 cbar=True,
-        #                 linewidths=0.5,
-        #                 )
-        # cbar = sa.collections[0].colorbar
-        # cbar.ax.tick_params(labelsize=labelsize)
-        # sa.xaxis.tick_top()
-        # sa.set_xticklabels(sa.get_xmajorticklabels(), fontsize=tick_size, rotation=0)
-        # sa.set_yticklabels(sa.get_ymajorticklabels(), fontsize=tick_size, rotation=0)
-        # plt.savefig(save_path); plt.clf()
         return attn_mask
 
     @torch.jit.ignore
