@@ -225,7 +225,6 @@ class Isaac_VLP(CrossEntropySystem):
         pos = self.pos_embed[:, :self.max_label_length + 1].expand(bs, -1, -1)
         
         attn_mask = self.attn_mask.to(self._device)
-        import ipdb; ipdb.set_trace(context=21) # #FF0000
         
         pos, _ = self.decode(vis, tgt_in, pos, attn_mask)
         logits = self.head(pos).flatten(end_dim=1)
