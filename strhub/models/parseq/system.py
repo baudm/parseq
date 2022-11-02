@@ -117,7 +117,6 @@ class PARSeq(CrossEntropySystem):
 
         # Special case for the forward permutation. Faster than using `generate_attn_masks()`
         tgt_mask = query_mask = torch.triu(torch.full((num_steps, num_steps), float('-inf'), device=self._device), 1)
-        import ipdb; ipdb.set_trace(context=21) # #FF0000
 
         if self.decode_ar:
             tgt_in = torch.full((bs, num_steps), self.pad_id, dtype=torch.long, device=self._device)

@@ -64,28 +64,64 @@ class Isaac_VLP(CrossEntropySystem):
         
         # attn_mask
         self.attn_mask = self.get_attn_mask(img_size, patch_size)
+        self.visualize_attn_mask()
         
+    # def get_attn_mask(self, img_size, patch_size):
+    #     L_V = int(img_size[0] * img_size[1] / (patch_size[0] * patch_size[1]))
+    #     L_L = L_P = self.max_label_length + 1 # +1 for eos
+    #     L_T = L_V + L_L + L_P
+    #     attn_mask_LP = torch.triu(torch.full((L_P, L_P), float('-inf')), 1)
+    #     attn_mask_LP = attn_mask_LP.repeat(2, 2)
+    #     attn_mask = torch.zeros((L_T, L_T))
+    #     attn_mask[-L_L - L_P:, -L_L - L_P:] = attn_mask_LP
+    #     return attn_mask
+    
     def get_attn_mask(self, img_size, patch_size):
-        """
-        Creates attention mask for VLP Transformer.
-        
-        Attention between P & L are causal, including self.
-        """
         L_V = int(img_size[0] * img_size[1] / (patch_size[0] * patch_size[1]))
-        L_P = self.max_label_length + 1 # +1 for eos
-        L_T = L_V + 2 * L_P
-        attn_mask_LP = torch.triu(torch.full((L_P, L_P), float('-inf')), 1)
-        attn_mask_LP = attn_mask_LP.repeat(2, 2)
-        attn_mask = torch.zeros((L_T, L_T))
-        attn_mask[-2 * L_P:, -2 * L_P:] = attn_mask_LP
+        L_L = L_P = self.max_label_length + 1 # +1 for eos
+        L_T = L_V + L_L + L_P
+        def full_attn(h, w=None):
+            w = w if w is not None else h
+            return torch.zeros((h, w))
+        def zero_attn(h, w=None):
+            w = w if w is not None else h
+            return torch.full((h, w), float('-inf'))
+        def causal_attn(h, include_self=True):
+            diagonal = 1 if include_self == True else 0
+            return torch.triu(torch.full((h, h), float('-inf')), diagonal)
+        def diag_attn(h):
+            triu = torch.triu(torch.full((h, h), float('-inf'), 1))
+            tril = torch.tril(torch.full((h, h), float('-inf'), -1))
+            return triu + tril
         
+        attn_VV = zero_attn(L_V)
+        attn_VL = zero_attn(L_V, L_L)
+        attn_VP = zero_attn(L_V, L_P)
+        attn_V = torch.cat((attn_VV, attn_VL, attn_VP), dim=1)
+        
+        attn_LV = zero_attn(L_L, L_V)
+        attn_LL = zero_attn(L_L)
+        attn_LP = zero_attn(L_L, L_P)
+        attn_L = torch.cat((attn_LV, attn_LL, attn_LP), dim=1)
+        
+        attn_PV = full_attn(L_P, L_V)
+        attn_PL = zero_attn(L_P, L_L)
+        attn_PP = zero_attn(L_P)
+        attn_P = torch.cat((attn_PV, attn_PL, attn_PP), dim=1)
+        
+        attn_mask = torch.cat((attn_V, attn_L, attn_P), dim=0)
+        
+        return attn_mask
+
+    def visualize_attn_mask(self):
         import seaborn as sns
         import pandas as pd
         from mpl_toolkits.axes_grid1 import make_axes_locatable
         import matplotlib.pyplot as plt
-
-        
-        df = pd.Dataframe(attn_mask.numpy(), index=list(range(L_T)), columns=list(range(L_T)))
+        # L_L = L_P = self.max_label_length + 1
+        # win = L_L + L_P
+        win = self.attn_mask.shape[0]
+        df = pd.DataFrame(torch.where(self.attn_mask == 0, 1, 0).numpy()[-win:, -win:], index=list(range(win)), columns=list(range(win)))
         s = 1.0
         plt.figure(figsize=(30 * s, 30 * s), dpi=300)
         annot_size = 10 * s
@@ -98,8 +134,8 @@ class Isaac_VLP(CrossEntropySystem):
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad="5%")
         sa = sns.heatmap(df,
-                        # vmin=0,
-                        # vmax=1,
+                        vmin=0,
+                        vmax=1,
                         # annot=True,
                         # fmt='.2f',
                         # annot_kws={'size': annot_size},
@@ -114,9 +150,6 @@ class Isaac_VLP(CrossEntropySystem):
         sa.set_xticklabels(sa.get_xmajorticklabels(), fontsize=tick_size, rotation=0)
         sa.set_yticklabels(sa.get_ymajorticklabels(), fontsize=tick_size, rotation=0)
         plt.savefig(save_path); plt.clf()
-        
-        
-        return attn_mask
 
     @torch.jit.ignore
     def no_weight_decay(self):
@@ -192,6 +225,7 @@ class Isaac_VLP(CrossEntropySystem):
         pos = self.pos_embed[:, :self.max_label_length + 1].expand(bs, -1, -1)
         
         attn_mask = self.attn_mask.to(self._device)
+        import ipdb; ipdb.set_trace(context=21) # #FF0000
         
         pos, _ = self.decode(vis, tgt_in, pos, attn_mask)
         logits = self.head(pos).flatten(end_dim=1)
