@@ -17,6 +17,7 @@
 import argparse
 import string
 import sys
+import os
 from dataclasses import dataclass
 from typing import List
 from hydra.utils import instantiate
@@ -78,6 +79,7 @@ def main():
     args, unknown = parser.parse_known_args()
     kwargs = parse_model_args(unknown)
 
+    os.environ['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
     charset_test = string.digits + string.ascii_lowercase
     if args.cased:
         charset_test += string.ascii_uppercase
@@ -94,11 +96,11 @@ def main():
         setattr(cfg.model, k, v)
     
     model = instantiate(cfg.model)
-    model.load_state_dict(torch.load(args.checkpoint)['state_dict'])
-    model.eval().to(args.device)
-    
     hp = model.hparams
     print(model.hparams)
+    model.load_state_dict(torch.load(args.checkpoint, map_location=args.device)['state_dict'])
+    model.eval().to(args.device)
+    
     datamodule = SceneTextDataModule(args.data_root, '_unused_', hp.img_size, hp.max_label_length, hp.charset_train,
                                      hp.charset_test, args.batch_size, args.num_workers, False, rotation=args.rotation)
 

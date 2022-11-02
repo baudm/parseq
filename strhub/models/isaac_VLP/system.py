@@ -58,6 +58,7 @@ class Isaac_VLP(CrossEntropySystem):
         # +1 for <eos>
         self.pos_embed = nn.Parameter(torch.Tensor(1, max_label_length + 1, embed_dim))
         self.dropout = nn.Dropout(p=dropout)
+        
         # Encoder has its own init.
         named_apply(partial(init_weights, exclude=['encoder']), self)
         nn.init.trunc_normal_(self.pos_embed, std=.02)
@@ -161,11 +162,21 @@ class Isaac_VLP(CrossEntropySystem):
         return self.encoder(img)
 
     def decode(self, vis:torch.Tensor, lan:torch.Tensor,  pos:torch.Tensor, attn_mask:torch.Tensor):
+        """
+        Generate language / position tokens.
+        Run Decoder.
+        
+        Args:
+            vis : Visual tokens. Shape: N, L_V, D
+            lan : Language token indices. Shape: N, L_L
+            pos : Positional tokens. Shape: N, L_P, D
+        
+        """
         # Add positional encoding to language tokens.
         # <bos> stands for the null context. We only supply position information for characters after <bos>.
-        bs, L = lan.shape
+        bs, L_L = lan.shape
         null_ctx = self.text_embed(lan[:, :1])
-        lan = self.pos_embed[:, :L - 1] + self.text_embed(lan[:, 1:])
+        lan = self.pos_embed[:, :L_L - 1] + self.text_embed(lan[:, 1:])
         lan = self.dropout(torch.cat([null_ctx, lan], dim=1))
         
         pos = self.dropout(pos)
@@ -183,7 +194,7 @@ class Isaac_VLP(CrossEntropySystem):
         max_length = self.max_label_length if max_length is None else min(max_length, self.max_label_length)
         bs = images.shape[0]
         num_steps = max_length + 1 # +1 for eos
-        L_L = L_P = self.max_label_length + 1
+        L_L = L_P = self.max_label_length + 1 # +1 for eos
         
         # prepare tokens
         vis = self.encode(images)
@@ -206,14 +217,14 @@ class Isaac_VLP(CrossEntropySystem):
                 if testing and (lan == self.eos_id).any(dim=-1).all():
                     break
         logits = torch.cat(logits, dim=1)
-        logits = logits[:, :num_steps]
             
         return logits, None
 
     def training_step(self, batch, batch_idx) -> STEP_OUTPUT:
         images, labels = batch
+        
         tgt = self.tokenizer.encode(labels, self._device)
-        L_L = self.max_label_length + 1 # +1 for <eos>
+        L_L = L_P = self.max_label_length + 1 # +1 for <eos>
         tgt = F.pad(tgt, (0, L_L + 1 - tgt.shape[1]), "constant", self.pad_id)
         vis = self.encode(images)
 
@@ -221,8 +232,8 @@ class Isaac_VLP(CrossEntropySystem):
         tgt_in = tgt[:, :-1]
         tgt_out = tgt[:, 1:]
         
-        bs = tgt_in.shape[0] 
-        pos = self.pos_embed[:, :self.max_label_length + 1].expand(bs, -1, -1)
+        bs = tgt_in.shape[0]
+        pos = self.pos_embed[:, :L_P].expand(bs, -1, -1)
         
         attn_mask = self.attn_mask.to(self._device)
         
@@ -231,4 +242,5 @@ class Isaac_VLP(CrossEntropySystem):
         loss = F.cross_entropy(logits, tgt_out.flatten(), ignore_index=self.pad_id)
         
         self.log('loss', loss)
+        
         return loss

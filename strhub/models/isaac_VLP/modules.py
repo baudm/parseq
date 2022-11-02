@@ -78,8 +78,8 @@ class DecoderLayer(nn.Module):
         self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.linear2 = nn.Linear(dim_feedforward, d_model)
 
-        self.norm1 = nn.LayerNorm(d_model, eps=layer_norm_eps)
-        self.norm2 = nn.LayerNorm(d_model, eps=layer_norm_eps)
+        self.norm_l = nn.LayerNorm(d_model, eps=layer_norm_eps)
+        self.norm_p = nn.LayerNorm(d_model, eps=layer_norm_eps)
         
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
@@ -95,20 +95,20 @@ class DecoderLayer(nn.Module):
         L_V = vis_tokens.shape[1]
         L_L = lan_tokens.shape[1]
         L_P = pos_tokens.shape[1]
+        
         tokens = torch.cat([vis_tokens, lan_tokens, pos_tokens], dim=1)
+        lan_tokens_norm = self.norm_l(lan_tokens)
+        pos_tokens_norm = self.norm_p(pos_tokens)
+        tokens_norm = torch.cat([vis_tokens, lan_tokens_norm, pos_tokens_norm], dim=1)
         
         # SA
-        tokens_norm = self.norm1(tokens)
         tokens2, sa_weights = self.self_attn(tokens_norm, tokens_norm, tokens_norm, attn_mask=attn_mask)
         tokens = tokens + self.dropout1(tokens2)
         
         # FF
-        tokens_norm = self.norm2(tokens)
         tokens2 = self.linear2(self.dropout2(self.activation(self.linear1(tokens))))
         tokens = tokens + self.dropout3(tokens2)
         
-        vis_tokens = tokens[:, :L_V]
-        lan_tokens = tokens[:, L_V:L_V + L_L]
-        pos_tokens = tokens[:, -L_P:]
+        vis_tokens, lan_tokens, pos_tokens = torch.split(tokens, [L_V, L_L, L_P], dim=1)
         
         return vis_tokens, lan_tokens, pos_tokens, None
