@@ -15,7 +15,7 @@ University of the Philippines, Diliman
 
 </div>
 
-Scene Text Recognition (STR) models use language context to be more robust against noisy or corrupted images. Recent approaches like ABINet use a standalone or external Language Model (LM) for prediction refinement. In this work, we show that the external LM&mdash;which requires upfront allocation of dedicated compute capacity&mdash;is inefficient for STR due to its poor performance vs cost characteristics. We propose a more efficient approach using **p**ermuted **a**uto**r**egressive **seq**uence (PARSeq) models.
+Scene Text Recognition (STR) models use language context to be more robust against noisy or corrupted images. Recent approaches like ABINet use a standalone or external Language Model (LM) for prediction refinement. In this work, we show that the external LM&mdash;which requires upfront allocation of dedicated compute capacity&mdash;is inefficient for STR due to its poor performance vs cost characteristics. We propose a more efficient approach using **p**ermuted **a**uto**r**egressive **seq**uence (PARSeq) models. View our ECCV [poster](https://drive.google.com/file/d/19luOT_RMqmafLMhKQQHBnHNXV7fOCRfw/view) and [presentation](https://drive.google.com/file/d/11VoZW4QC5tbMwVIjKB44447uTiuCJAAD/view) for a brief overview.
 
 ![PARSeq](.github/gh-teaser.png)
 
@@ -238,12 +238,15 @@ We use [Ray Tune](https://www.ray.io/ray-tune) for automated parameter tuning of
 ## Citation
 ```bibtex
 @InProceedings{bautista2022parseq,
-  author={Bautista, Darwin and Atienza, Rowel},
   title={Scene Text Recognition with Permuted Autoregressive Sequence Models},
-  booktitle={Proceedings of the 17th European Conference on Computer Vision (ECCV)},
+  author={Bautista, Darwin and Atienza, Rowel},
+  booktitle={European Conference on Computer Vision},
+  pages={178--196},
   month={10},
   year={2022},
-  publisher={Springer International Publishing},
-  address={Cham}
+  publisher={Springer Nature Switzerland},
+  address={Cham},
+  doi={10.1007/978-3-031-19815-1_11},
+  url={https://doi.org/10.1007/978-3-031-19815-1_11}
 }
 ```
