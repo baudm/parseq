@@ -270,9 +270,6 @@ class PARSeq(CrossEntropySystem):
                 tgt_out = torch.where(tgt_out == self.eos_id, self.pad_id, tgt_out)
                 n = (tgt_out != self.pad_id).sum().item()
         loss /= loss_numel
-        
-        if batch_idx % 1000 == 0:
-            import ipdb; ipdb.set_trace(context=21) # #FF0000
 
         self.log('loss', loss)
         return loss
