@@ -73,7 +73,6 @@ class DecoderLayer(nn.Module):
         # FF
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(self.norm2(tgt)))))
         tgt = tgt + self.dropout3(tgt2)
-        import ipdb; ipdb.set_trace(context=21) # #FF0000
         
         return tgt, None
 
