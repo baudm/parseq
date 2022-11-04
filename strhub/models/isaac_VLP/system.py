@@ -52,7 +52,7 @@ class Isaac_VLP(CrossEntropySystem):
         decoder_layer = DecoderLayer(embed_dim, dec_num_heads, embed_dim * dec_mlp_ratio, dropout)
         self.decoder = Decoder(decoder_layer, num_layers=dec_depth, norm=nn.LayerNorm(embed_dim))
 
-        self.head = nn.Linear(embed_dim, len(self.tokenizer))
+        self.head = nn.Linear(embed_dim, len(self.tokenizer) - 2) # We don't predict [B], [P]
         self.text_embed = TokenEmbedding(len(self.tokenizer), embed_dim)
 
         # +1 for <eos>
@@ -161,7 +161,7 @@ class Isaac_VLP(CrossEntropySystem):
     def encode(self, img: torch.Tensor):
         return self.encoder(img)
 
-    def decode(self, vis:torch.Tensor, lan:torch.Tensor,  pos:torch.Tensor, attn_mask:torch.Tensor):
+    def decode(self, vis:torch.Tensor, lan:torch.Tensor,  pos:torch.Tensor, attn_mask:torch.Tensor, padding_mask:Optional[Tensor]=None):
         """
         Generate language / position tokens.
         Run Decoder.
@@ -181,7 +181,7 @@ class Isaac_VLP(CrossEntropySystem):
         
         pos = self.dropout(pos)
         
-        return self.decoder(vis, lan, pos, attn_mask=attn_mask)
+        return self.decoder(vis, lan, pos, attn_mask=attn_mask, padding_mask=padding_mask)
 
     def forward(self, images:Tensor, max_length: Optional[int] = None) -> Tensor:
         """
@@ -223,23 +223,30 @@ class Isaac_VLP(CrossEntropySystem):
     def training_step(self, batch, batch_idx) -> STEP_OUTPUT:
         images, labels = batch
         
+        bs = images.shape[0]
+        vis = self.encode(images)
+        L_V = vis.shape[1]
+        
         tgt = self.tokenizer.encode(labels, self._device)
         L_L = L_P = self.max_label_length + 1 # +1 for <eos>
         tgt = F.pad(tgt, (0, L_L + 1 - tgt.shape[1]), "constant", self.pad_id)
-        vis = self.encode(images)
-
         # Prepare the target sequences (input and output)
         tgt_in = tgt[:, :-1]
         tgt_out = tgt[:, 1:]
+        padding_mask = (tgt_in == self.pad_id) | (tgt_in == self.eos_id)
+        padding_mask = F.pad(padding_mask, (L_V, L_P), "constant", 0)
+        padding_mask = None
         
-        bs = tgt_in.shape[0]
         pos = self.pos_embed[:, :L_P].expand(bs, -1, -1)
         
         attn_mask = self.attn_mask.to(self._device)
         
-        pos, _ = self.decode(vis, tgt_in, pos, attn_mask)
+        pos, _ = self.decode(vis, tgt_in, pos, attn_mask, padding_mask)
         logits = self.head(pos).flatten(end_dim=1)
         loss = F.cross_entropy(logits, tgt_out.flatten(), ignore_index=self.pad_id)
+        
+        if batch_idx % 1000 == 0:
+            import ipdb; ipdb.set_trace(context=21) # #FF0000
         
         self.log('loss', loss)
         

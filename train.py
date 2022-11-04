@@ -55,9 +55,11 @@ def main(config: DictConfig):
             if config.trainer.get('max_steps', -1) > 0:
                 config.trainer.max_steps //= num_gpus
 
-    if config.model.perm_num == 1:
-        config.model.perm_mirrored = False
-        config.model.refine_iters = 0
+    if config.model.get('perm_num') is not None:
+        if config.model.perm_num == 1:
+            config.model.perm_mirrored = False
+            config.model.refine_iters = 0
+    
     model: BaseSystem = hydra.utils.instantiate(config.model)
     print(summarize(model, max_depth=1))
 

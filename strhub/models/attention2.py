@@ -2,7 +2,7 @@
 MHA, mostly from pytorch nn.MultiHeadAttention
 """
 import warnings
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 import math
 
 import torch
@@ -20,7 +20,7 @@ class MultiheadAttention(Module):
     
     __constants__ = ['batch_first']
 
-    def __init__(self, embed_dim, num_heads, dropout=0., bias=True, batch_first=False, device=None, dtype=None) -> None:
+    def __init__(self, split_lengths:List[int], embed_dim, num_heads, dropout=0., batch_first=False, device=None, dtype=None) -> None:
         factory_kwargs = {'device': device, 'dtype': dtype}
         super(MultiheadAttention, self).__init__()
         self.embed_dim = embed_dim
@@ -29,26 +29,40 @@ class MultiheadAttention(Module):
         self.dropout = dropout
         self.batch_first = batch_first
         self.head_dim = embed_dim // num_heads
+        self.split_lengths = split_lengths
         assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
+        assert len(self.split_lengths) == 3, "only supports split_lengths of 3"
 
-        self.in_proj_weight = Parameter(torch.empty((3 * embed_dim, embed_dim), **factory_kwargs))
+        self.in_proj_weight_1 = Parameter(torch.empty((3 * embed_dim, embed_dim), **factory_kwargs))
+        self.in_proj_weight_2 = Parameter(torch.empty((3 * embed_dim, embed_dim), **factory_kwargs))
+        self.in_proj_weight_3 = Parameter(torch.empty((3 * embed_dim, embed_dim), **factory_kwargs))
 
-        self.in_proj_bias = Parameter(torch.empty(3 * embed_dim, **factory_kwargs))
-        self.out_proj = NonDynamicallyQuantizableLinear(embed_dim, embed_dim, bias=bias, **factory_kwargs)
+        self.in_proj_bias_1 = Parameter(torch.empty(3 * embed_dim, **factory_kwargs))
+        self.in_proj_bias_2 = Parameter(torch.empty(3 * embed_dim, **factory_kwargs))
+        self.in_proj_bias_3 = Parameter(torch.empty(3 * embed_dim, **factory_kwargs))
+        
+        self.out_proj_1 = NonDynamicallyQuantizableLinear(embed_dim, embed_dim, bias=True, **factory_kwargs)
+        self.out_proj_2 = NonDynamicallyQuantizableLinear(embed_dim, embed_dim, bias=True, **factory_kwargs)
+        self.out_proj_3 = NonDynamicallyQuantizableLinear(embed_dim, embed_dim, bias=True, **factory_kwargs)
 
         self._reset_parameters()
 
     def _reset_parameters(self):
-        xavier_uniform_(self.in_proj_weight)
-        if self.in_proj_bias is not None:
-            constant_(self.in_proj_bias, 0.)
-            constant_(self.out_proj.bias, 0.)
+        xavier_uniform_(self.in_proj_weight_1)
+        xavier_uniform_(self.in_proj_weight_2)
+        xavier_uniform_(self.in_proj_weight_3)
+        constant_(self.in_proj_bias_1, 0.)
+        constant_(self.in_proj_bias_2, 0.)
+        constant_(self.in_proj_bias_3, 0.)
+        constant_(self.out_proj_1.bias, 0.)
+        constant_(self.out_proj_2.bias, 0.)
+        constant_(self.out_proj_3.bias, 0.)
 
     def forward(self, query: Tensor, key: Tensor, value: Tensor, key_padding_mask: Optional[Tensor] = None,
                 need_weights: bool = True, attn_mask: Optional[Tensor] = None,
                 average_attn_weights: bool = True) -> Tuple[Tensor, Optional[Tensor]]:
+        
         is_batched = query.dim() == 3
-
         if self.batch_first and is_batched:
             # make sure that the transpose op does not affect the "is" property
             if key is value:
@@ -59,11 +73,19 @@ class MultiheadAttention(Module):
                     value = key
             else:
                 query, key, value = [x.transpose(1, 0) for x in (query, key, value)]
-
+        
+        assert query.shape[0] == sum(self.split_lengths), f"seq_len {query.shape[0]} does not match split_lengths {sum(self.split_lengths)}"
+        
         attn_output, attn_output_weights = multi_head_attention_forward(
+            self.split_lengths,
             query, key, value, self.embed_dim, self.num_heads,
-            self.in_proj_weight, self.in_proj_bias,
-            self.dropout, self.out_proj.weight, self.out_proj.bias,
+            self.in_proj_weight_1, self.in_proj_bias_1,
+            self.in_proj_weight_2, self.in_proj_bias_2,
+            self.in_proj_weight_3, self.in_proj_bias_3,
+            self.dropout,
+            self.out_proj_1.weight, self.out_proj_1.bias,
+            self.out_proj_2.weight, self.out_proj_2.bias,
+            self.out_proj_3.weight, self.out_proj_3.bias,
             training=self.training,
             key_padding_mask=key_padding_mask, need_weights=need_weights,
             attn_mask=attn_mask, average_attn_weights=average_attn_weights)
@@ -74,16 +96,25 @@ class MultiheadAttention(Module):
         
 
 def multi_head_attention_forward(
+    split_lengths: List[int],
     query: Tensor,
     key: Tensor,
     value: Tensor,
     embed_dim_to_check: int,
     num_heads: int,
-    in_proj_weight: Optional[Tensor],
-    in_proj_bias: Optional[Tensor],
+    in_proj_weight_1: Tensor,
+    in_proj_bias_1: Tensor,
+    in_proj_weight_2: Tensor,
+    in_proj_bias_2: Tensor,
+    in_proj_weight_3: Tensor,
+    in_proj_bias_3: Tensor,
     dropout_p: float,
-    out_proj_weight: Tensor,
-    out_proj_bias: Optional[Tensor],
+    out_proj_weight_1: Tensor,
+    out_proj_bias_1: Tensor,
+    out_proj_weight_2: Tensor,
+    out_proj_bias_2: Tensor,
+    out_proj_weight_3: Tensor,
+    out_proj_bias_3: Tensor,
     training: bool = True,
     key_padding_mask: Optional[Tensor] = None,
     need_weights: bool = True,
@@ -100,8 +131,12 @@ def multi_head_attention_forward(
     assert key.shape == value.shape, f"key shape {key.shape} does not match value shape {value.shape}"
     
     # compute in-projection
-    assert in_proj_weight is not None, "use_separate_proj_weight is False but in_proj_weight is None"
-    q, k, v = F._in_projection_packed(query, key, value, in_proj_weight, in_proj_bias)
+    query1, query2, query3 = torch.split(query, split_lengths, dim=0)
+    key1, key2, key3 = torch.split(key, split_lengths, dim=0)
+    value1, value2, value3 = torch.split(value, split_lengths, dim=0)
+    q1, k1, v1 = F._in_projection_packed(query1, key1, value1, in_proj_weight_1, in_proj_bias_1)
+    q2, k2, v2 = F._in_projection_packed(query2, key2, value2, in_proj_weight_2, in_proj_bias_2)
+    q3, k3, v3 = F._in_projection_packed(query3, key3, value3, in_proj_weight_3, in_proj_bias_3)
     if attn_mask is not None:
         assert attn_mask.is_floating_point() or attn_mask.dtype == torch.bool, \
             f"Only float, byte, and bool types are supported for attn_mask, not {attn_mask.dtype}"
@@ -118,9 +153,18 @@ def multi_head_attention_forward(
         key_padding_mask = key_padding_mask.to(torch.bool)
 
     # reshape q, k, v for multihead attention and make em batch first
-    q = q.contiguous().view(tgt_len, bsz * num_heads, head_dim).transpose(0, 1)
-    k = k.contiguous().view(k.shape[0], bsz * num_heads, head_dim).transpose(0, 1)
-    v = v.contiguous().view(v.shape[0], bsz * num_heads, head_dim).transpose(0, 1)
+    q1 = q1.contiguous().view(q1.shape[0], bsz * num_heads, head_dim).transpose(0, 1)
+    q2 = q2.contiguous().view(q2.shape[0], bsz * num_heads, head_dim).transpose(0, 1)
+    q3 = q3.contiguous().view(q3.shape[0], bsz * num_heads, head_dim).transpose(0, 1)
+    k1 = k1.contiguous().view(k1.shape[0], bsz * num_heads, head_dim).transpose(0, 1)
+    k2 = k2.contiguous().view(k2.shape[0], bsz * num_heads, head_dim).transpose(0, 1)
+    k3 = k3.contiguous().view(k3.shape[0], bsz * num_heads, head_dim).transpose(0, 1)
+    v1 = v1.contiguous().view(v1.shape[0], bsz * num_heads, head_dim).transpose(0, 1)
+    v2 = v2.contiguous().view(v2.shape[0], bsz * num_heads, head_dim).transpose(0, 1)
+    v3 = v3.contiguous().view(v3.shape[0], bsz * num_heads, head_dim).transpose(0, 1)
+    q = torch.cat([q1, q2, q3], dim=1)
+    k = torch.cat([k1, k2, k3], dim=1)
+    v = torch.cat([v1, v2, v3], dim=1)
 
     # update source sequence length after adjustments
     src_len = k.size(1)
@@ -150,9 +194,18 @@ def multi_head_attention_forward(
 
     # calculate attention and out projection
     attn_output, attn_output_weights = _scaled_dot_product_attention(q, k, v, attn_mask, dropout_p)
-    attn_output = attn_output.transpose(0, 1).contiguous().view(tgt_len * bsz, embed_dim)
-    attn_output = F.linear(attn_output, out_proj_weight, out_proj_bias)
-    attn_output = attn_output.view(tgt_len, bsz, attn_output.size(1))
+    attn_output = attn_output.transpose(0, 1).contiguous()
+    attn_output1, attn_output2, attn_output3 = torch.split(attn_output, split_lengths, dim=0)
+    attn_output1 = attn_output1.view(split_lengths[0] * bsz, embed_dim)
+    attn_output2 = attn_output2.view(split_lengths[1] * bsz, embed_dim)
+    attn_output3 = attn_output3.view(split_lengths[2] * bsz, embed_dim)
+    attn_output1 = F.linear(attn_output1, out_proj_weight_1, out_proj_bias_1)
+    attn_output2 = F.linear(attn_output2, out_proj_weight_2, out_proj_bias_2)
+    attn_output3 = F.linear(attn_output3, out_proj_weight_3, out_proj_bias_3)
+    attn_output1 = attn_output1.view(split_lengths[0], bsz, embed_dim)
+    attn_output2 = attn_output2.view(split_lengths[1], bsz, embed_dim)
+    attn_output3 = attn_output3.view(split_lengths[2], bsz, embed_dim)
+    attn_output = torch.cat([attn_output1, attn_output2, attn_output3], dim=0)
 
     if need_weights:
         # optionally average attention weights over heads
