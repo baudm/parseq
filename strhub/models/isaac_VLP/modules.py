@@ -24,7 +24,7 @@ from torch.nn.modules import transformer
 
 from timm.models.vision_transformer import VisionTransformer, PatchEmbed
 
-from strhub.models.attention import MultiheadAttention
+from strhub.models.attention2 import MultiheadAttention
 
 
 class TokenEmbedding(nn.Module):
@@ -61,9 +61,9 @@ class Decoder(nn.Module):
         self.num_layers = num_layers
         self.norm = norm
 
-    def forward(self, vis, lan, pos, attn_mask:Optional[Tensor]=None):
+    def forward(self, vis, lan, pos, attn_mask:Optional[Tensor]=None, padding_mask:Optional[Tensor]=None):
         for i, dec_layer in enumerate(self.layers):
-            vis, lan, pos, _ = dec_layer(vis, lan, pos, attn_mask)
+            vis, lan, pos, _ = dec_layer(vis, lan, pos, attn_mask, padding_mask)
         pos = self.norm(pos)
         return pos, None
     
@@ -75,22 +75,20 @@ class DecoderLayer(nn.Module):
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1, activation='gelu',
                  layer_norm_eps=1e-5):
         super().__init__()
-        self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
+        self.self_attn = MultiheadAttention([256, 26, 26], d_model, nhead, dropout=dropout, batch_first=True)
         
-        self.linear1 = nn.Linear(d_model, dim_feedforward)
-        self.linear2 = nn.Linear(dim_feedforward, d_model)
-
+        self.ff_v = FeedForwardLayer(d_model, dim_feedforward, dropout, activation)
+        self.ff_l = FeedForwardLayer(d_model, dim_feedforward, dropout, activation)
+        self.ff_p = FeedForwardLayer(d_model, dim_feedforward, dropout, activation)
+        
         self.norm_l = nn.LayerNorm(d_model, eps=layer_norm_eps)
         self.norm_p = nn.LayerNorm(d_model, eps=layer_norm_eps)
         
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
-        self.dropout3 = nn.Dropout(dropout)
 
-        self.activation = transformer._get_activation_fn(activation)
-        
 
-    def forward(self, vis_tokens:Tensor, lan_tokens:Tensor, pos_tokens:Tensor, attn_mask:Optional[Tensor]=None):
+    def forward(self, vis_tokens:Tensor, lan_tokens:Tensor, pos_tokens:Tensor, attn_mask:Optional[Tensor]=None, padding_mask:Optional[Tensor]=None):
         """
         Vision-Langauge-Position Transformer decoder.
         """
@@ -104,13 +102,31 @@ class DecoderLayer(nn.Module):
         tokens_norm = torch.cat([vis_tokens, lan_tokens_norm, pos_tokens_norm], dim=1)
         
         # SA
-        tokens2, sa_weights = self.self_attn(tokens_norm, tokens_norm, tokens_norm, attn_mask=attn_mask)
+        tokens2, sa_weights = self.self_attn(tokens_norm, tokens_norm, tokens_norm, attn_mask=attn_mask, key_padding_mask=padding_mask)
         tokens = tokens + self.dropout1(tokens2)
         
         # FF
-        tokens2 = self.linear2(self.dropout2(self.activation(self.linear1(tokens))))
-        tokens = tokens + self.dropout3(tokens2)
+        vis_tokens, lan_tokens, pos_tokens = torch.split(tokens, [L_V, L_L, L_P], dim=1)
+        vis_tokens2 = self.ff_v(vis_tokens)
+        lan_tokens2 = self.ff_l(lan_tokens)
+        pos_tokens2 = self.ff_p(pos_tokens)
+        tokens2 = torch.cat([vis_tokens2, lan_tokens2, pos_tokens2], dim=1)
+        tokens = tokens + self.dropout2(tokens2)
         
         vis_tokens, lan_tokens, pos_tokens = torch.split(tokens, [L_V, L_L, L_P], dim=1)
         
         return vis_tokens, lan_tokens, pos_tokens, None
+    
+
+class FeedForwardLayer(nn.Module):
+    """Transformer position-wise feed-forward layer"""
+    
+    def __init__(self, d_model, dim_feedforward=2048, dropout=0.1, activation='gelu'):
+        super().__init__()
+        self.linear1 = nn.Linear(d_model, dim_feedforward)
+        self.dropout = nn.Dropout(dropout)
+        self.linear2 = nn.Linear(dim_feedforward, d_model)
+        self.activation = transformer._get_activation_fn(activation)
+        
+    def forward(self, x):
+        return self.linear2(self.dropout(self.activation(self.linear1(x))))
