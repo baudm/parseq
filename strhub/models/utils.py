@@ -38,6 +38,8 @@ def _get_config(experiment: str, **kwargs):
     if 'model' in exp:
         config.update(exp['model'])
     config.update(kwargs)
+    # Workaround for now: manually cast the lr to the correct type.
+    config['lr'] = float(config['lr'])
     return config
 
 
@@ -59,6 +61,14 @@ def _get_model_class(key):
     return ModelClass
 
 
+def get_pretrained_weights(experiment):
+    try:
+        url = _WEIGHTS_URL[experiment]
+    except KeyError:
+        raise InvalidModelError("No pretrained weights found for '{}'".format(experiment)) from None
+    return torch.hub.load_state_dict_from_url(url=url, map_location='cpu', check_hash=True)
+
+
 def create_model(experiment: str, pretrained: bool = False, **kwargs):
     try:
         config = _get_config(experiment, **kwargs)
@@ -67,12 +77,7 @@ def create_model(experiment: str, pretrained: bool = False, **kwargs):
     ModelClass = _get_model_class(experiment)
     model = ModelClass(**config)
     if pretrained:
-        try:
-            url = _WEIGHTS_URL[experiment]
-        except KeyError:
-            raise InvalidModelError("No pretrained weights found for '{}'".format(experiment)) from None
-        checkpoint = torch.hub.load_state_dict_from_url(url=url, map_location='cpu', check_hash=True)
-        model.load_state_dict(checkpoint)
+        model.load_state_dict(get_pretrained_weights(experiment))
     return model
 
 
