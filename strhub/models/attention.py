@@ -180,10 +180,9 @@ def _scaled_dot_product_attention(
         attn = torch.baddbmm(attn_mask, q, k.transpose(-2, -1))
     else:
         attn = torch.bmm(q, k.transpose(-2, -1))
-
+    
     attn = F.softmax(attn, dim=-1)
-    # remove nan
-    attn = torch.nan_to_num(attn, 0)
+    # attn = torch.nan_to_num(attn, 0)
     
     if dropout_p > 0.0:
         attn = F.dropout(attn, p=dropout_p)

@@ -53,24 +53,20 @@ class DecoderLayer(nn.Module):
             state['activation'] = F.gelu
         super().__setstate__(state)
 
-    def forward_stream(self, tgt: Tensor, tgt_norm: Tensor, tgt_kv: Tensor, memory: Tensor, tgt_mask: Optional[Tensor],
+    def forward_stream(self, tgt_query: Tensor, tgt_query_norm: Tensor, tgt_kv_norm: Tensor, memory: Tensor, tgt_mask: Optional[Tensor],
                        tgt_key_padding_mask: Optional[Tensor]):
         """Forward pass for a single stream (i.e. content or query)
-        tgt_norm is just a LayerNorm'd tgt. Added as a separate parameter for efficiency.
-        Both tgt_kv and memory are expected to be LayerNorm'd too.
+        tgt_query_norm is just a LayerNorm'd tgt_query. Added as a separate parameter for efficiency.
+        Both tgt_kv_norm and memory are expected to be LayerNorm'd too.
         memory is LayerNorm'd by ViT.
         """
-        # tgt2, sa_weights = self.self_attn(tgt_norm, tgt_kv, tgt_kv, attn_mask=tgt_mask,
-        #                                   key_padding_mask=tgt_key_padding_mask)
-        # tgt = tgt + self.dropout1(tgt2)
+        tgt_query_res, ca_weights = self.cross_attn(self.norm1(tgt_query), memory, memory)
+        tgt_query = tgt_query + self.dropout2(tgt_query_res)
 
-        tgt2, ca_weights = self.cross_attn(self.norm1(tgt), memory, memory)
-        tgt = tgt + self.dropout2(tgt2)
-
-        tgt2 = self.linear2(self.dropout(self.activation(self.linear1(self.norm2(tgt)))))
-        tgt = tgt + self.dropout3(tgt2)
+        tgt_query_res = self.linear2(self.dropout(self.activation(self.linear1(self.norm2(tgt_query)))))
+        tgt_query = tgt_query + self.dropout3(tgt_query_res)
         
-        return tgt, None
+        return tgt_query, None
 
     def forward(self, query, content, memory, query_mask: Optional[Tensor] = None, content_mask: Optional[Tensor] = None,
                 content_key_padding_mask: Optional[Tensor] = None, update_content: bool = True):
@@ -84,8 +80,7 @@ class DecoderLayer(nn.Module):
             # is used for content input for next decoder layer, if there are more than 1 deocder layers.
             # Basically, a self-attn casual mask with permutation ordering (including self) = LM
             # plus a cross-attn with no mask to memory = vis -> content.
-            content = self.forward_stream(content, content_norm, content_norm, memory, content_mask,
-                                          content_key_padding_mask)[0]
+            content = self.forward_stream(content, content_norm, content_norm, memory, content_mask, content_key_padding_mask)[0]
         return query, content, _
 
 

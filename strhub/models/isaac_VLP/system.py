@@ -66,6 +66,7 @@ class Isaac_VLP(CrossEntropySystem):
         # attn_mask
         self.attn_mask = self.get_attn_mask(img_size, patch_size)
         self.visualize_attn_mask()
+        self.dummy_token = torch.zeros((1, 1, embed_dim))
         
     # def get_attn_mask(self, img_size, patch_size):
     #     L_V = int(img_size[0] * img_size[1] / (patch_size[0] * patch_size[1]))
@@ -111,7 +112,20 @@ class Isaac_VLP(CrossEntropySystem):
         attn_P = torch.cat((attn_PV, attn_PL, attn_PP), dim=1)
         
         attn_mask = torch.cat((attn_V, attn_L, attn_P), dim=0)
+        attn_mask = self.add_dummy_attn(attn_mask)
         
+        return attn_mask
+    
+    def add_dummy_attn(self, attn_mask):
+        """ Add attention to dummy token (extra fixed zero token) to get around the
+        gradient error caused by all keys being masked. When all keys are masked,
+        attention to the dummy token is enabled.
+        """
+        attn_mask = F.pad(attn_mask, (0, 0, 0, 1), 'constant', float('-inf'))
+        attn_mask = F.pad(attn_mask, (0, 1), 'constant', 0)
+        for i, row in enumerate(attn_mask):
+            if torch.any(row[:-1] != float('-inf')):
+                attn_mask[i, -1] = float('-inf')
         return attn_mask
 
     def visualize_attn_mask(self):
@@ -161,27 +175,30 @@ class Isaac_VLP(CrossEntropySystem):
     def encode(self, img: torch.Tensor):
         return self.encoder(img)
 
-    def decode(self, vis:torch.Tensor, lan:torch.Tensor,  pos:torch.Tensor, attn_mask:torch.Tensor, padding_mask:Optional[Tensor]=None):
+    def decode(self, vis:torch.Tensor, lan_ind:torch.Tensor,  pos:torch.Tensor, dummy_token:torch.Tensor,
+               attn_mask:torch.Tensor, padding_mask:Optional[Tensor]=None):
         """
         Generate language / position tokens.
         Run Decoder.
         
         Args:
             vis : Visual tokens. Shape: N, L_V, D
-            lan : Language token indices. Shape: N, L_L
+            lan_ind : Language token indices. Shape: N, L_L
             pos : Positional tokens. Shape: N, L_P, D
         
         """
         # Add positional encoding to language tokens.
         # <bos> stands for the null context. We only supply position information for characters after <bos>.
-        bs, L_L = lan.shape
-        null_ctx = self.text_embed(lan[:, :1])
-        lan = self.pos_embed[:, :L_L - 1] + self.text_embed(lan[:, 1:])
+        bs, L_L = lan_ind.shape
+        null_ctx = self.text_embed(lan_ind[:, :1])
+        lan = self.pos_embed[:, :L_L - 1] + self.text_embed(lan_ind[:, 1:])
         lan = self.dropout(torch.cat([null_ctx, lan], dim=1))
         
         pos = self.dropout(pos)
         
-        return self.decoder(vis, lan, pos, attn_mask=attn_mask, padding_mask=padding_mask)
+        dummy_token = dummy_token.expand(bs, -1, -1)
+        
+        return self.decoder(vis, lan, pos, dummy_token, attn_mask=attn_mask, padding_mask=padding_mask)
 
     def forward(self, images:Tensor, max_length: Optional[int] = None) -> Tensor:
         """
@@ -203,11 +220,12 @@ class Isaac_VLP(CrossEntropySystem):
         pos = self.pos_embed[:, :L_P].expand(bs, -1, -1)
         
         attn_mask = self.attn_mask.to(self._device)
+        dummy_token = self.dummy_token.to(self._device)
         
         logits = []
         for i in range(num_steps):
             j = i + 1 # next token index
-            pos, _ = self.decode(vis, lan, pos, attn_mask=attn_mask)
+            pos, _ = self.decode(vis, lan, pos, dummy_token, attn_mask=attn_mask)
             p_i = self.head(pos[:, i:j])
             logits.append(p_i)
             if j < num_steps:
@@ -234,19 +252,32 @@ class Isaac_VLP(CrossEntropySystem):
         tgt_in = tgt[:, :-1]
         tgt_out = tgt[:, 1:]
         padding_mask = (tgt_in == self.pad_id) | (tgt_in == self.eos_id)
-        padding_mask = F.pad(padding_mask, (L_V, L_P), "constant", 0)
-        padding_mask = None
+        padding_mask = F.pad(padding_mask, (L_V, L_P + 1), "constant", 0) # +1 for dummy token
         
         pos = self.pos_embed[:, :L_P].expand(bs, -1, -1)
         
         attn_mask = self.attn_mask.to(self._device)
+        dummy_token = self.dummy_token.to(self._device)
         
-        pos, _ = self.decode(vis, tgt_in, pos, attn_mask, padding_mask)
+        pos, agg = self.decode(vis, tgt_in, pos, dummy_token, attn_mask, padding_mask)
         logits = self.head(pos).flatten(end_dim=1)
         loss = F.cross_entropy(logits, tgt_out.flatten(), ignore_index=self.pad_id)
         
-        if batch_idx % 1000 == 0:
-            import ipdb; ipdb.set_trace(context=21) # #FF0000
+        # if batch_idx % 100 == 0:
+        #     pred = logits.argmax(-1).view(bs, -1)
+        #     print('tgt_out')
+        #     print(tgt_out)
+        #     print('pred')
+        #     print(pred)
+        #     chr_emb = self.text_embed(torch.LongTensor([0, 1, 2]).to(self._device))[:, :8]
+        #     print('chr_emb')
+        #     print(chr_emb)
+        #     pos_emb = self.pos_embed[0][:3][:, :8]
+        #     print('pos_emb')
+        #     print(pos_emb)
+        #     print('sa_weights')
+        #     print(agg.sa_weights[0][-10:])
+        #     import ipdb; ipdb.set_trace(context=21) # #FF0000
         
         self.log('loss', loss)
         
