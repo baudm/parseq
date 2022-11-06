@@ -215,6 +215,7 @@ class Isaac_VLP(CrossEntropySystem):
         
         # prepare tokens
         vis = self.encode(images)
+        L_V = vis.shape[1]
         lan = torch.full((bs, L_L), self.pad_id, dtype=torch.long, device=self._device)
         lan[:, 0] = self.bos_id
         pos_in = self.pos_embed[:, :L_P].expand(bs, -1, -1)
