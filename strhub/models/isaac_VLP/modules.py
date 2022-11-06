@@ -108,6 +108,9 @@ class DecoderLayer(nn.Module):
                 attn_mask:Optional[Tensor]=None, padding_mask:Optional[Tensor]=None):
         """
         Vision-Langauge-Position Transformer decoder.
+        
+        Dummy token is added to handle the softmax gradient error when all keys are masked.
+        
         """
         L_V = vis_tokens.shape[1]
         L_L = lan_tokens.shape[1]

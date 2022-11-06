@@ -108,7 +108,7 @@ def multi_head_attention_forward(
     assert in_proj_weight is not None, "use_separate_proj_weight is False but in_proj_weight is None"
     q, k, v = F._in_projection_packed(query, key, value, in_proj_weight, in_proj_bias)
     if dummy:
-        v[-1] = 0
+        v.contiguous()[-1] = 0
     if attn_mask is not None:
         assert attn_mask.is_floating_point() or attn_mask.dtype == torch.bool, \
             f"Only float, byte, and bool types are supported for attn_mask, not {attn_mask.dtype}"
