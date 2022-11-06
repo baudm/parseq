@@ -24,7 +24,12 @@ from torch.nn.modules import transformer
 
 from timm.models.vision_transformer import VisionTransformer, PatchEmbed
 
-from strhub.models.attention2 import MultiheadAttention
+from strhub.models.attention import MultiheadAttention
+
+
+@dataclass
+class Module_Data:
+    sa_weights: torch.Tensor=None
 
 
 class TokenEmbedding(nn.Module):
@@ -61,11 +66,11 @@ class Decoder(nn.Module):
         self.num_layers = num_layers
         self.norm = norm
 
-    def forward(self, vis, lan, pos, attn_mask:Optional[Tensor]=None, padding_mask:Optional[Tensor]=None):
+    def forward(self, vis, lan, pos, dummy, attn_mask:Optional[Tensor]=None, padding_mask:Optional[Tensor]=None):
         for i, dec_layer in enumerate(self.layers):
-            vis, lan, pos, _ = dec_layer(vis, lan, pos, attn_mask, padding_mask)
+            vis, lan, pos, agg = dec_layer(vis, lan, pos, dummy, attn_mask, padding_mask)
         pos = self.norm(pos)
-        return pos, None
+        return pos, agg
     
 
 class DecoderLayer(nn.Module):
@@ -75,7 +80,9 @@ class DecoderLayer(nn.Module):
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1, activation='gelu',
                  layer_norm_eps=1e-5):
         super().__init__()
-        self.self_attn = MultiheadAttention([256, 26, 26], d_model, nhead, dropout=dropout, batch_first=True)
+        # self.self_attn = MultiheadAttention([256, 26, 26], d_model, nhead, dropout=dropout, batch_first=True)
+        self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
+        # self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
         
         self.ff_v = FeedForwardLayer(d_model, dim_feedforward, dropout, activation)
         self.ff_l = FeedForwardLayer(d_model, dim_feedforward, dropout, activation)
@@ -87,8 +94,18 @@ class DecoderLayer(nn.Module):
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
 
+        self.norm1 = nn.LayerNorm(d_model, eps=layer_norm_eps)
+        self.norm2 = nn.LayerNorm(d_model, eps=layer_norm_eps)
+        self.linear1 = nn.Linear(d_model, dim_feedforward)
+        self.activation = transformer._get_activation_fn(activation)
+        self.dropout = nn.Dropout(dropout)
+        self.linear2 = nn.Linear(dim_feedforward, d_model)
+        
+        self.dummy_token = torch.zeros((1, d_model))
+        
 
-    def forward(self, vis_tokens:Tensor, lan_tokens:Tensor, pos_tokens:Tensor, attn_mask:Optional[Tensor]=None, padding_mask:Optional[Tensor]=None):
+    def forward(self, vis_tokens:Tensor, lan_tokens:Tensor, pos_tokens:Tensor, dummy_token:Tensor,
+                attn_mask:Optional[Tensor]=None, padding_mask:Optional[Tensor]=None):
         """
         Vision-Langauge-Position Transformer decoder.
         """
@@ -96,37 +113,59 @@ class DecoderLayer(nn.Module):
         L_L = lan_tokens.shape[1]
         L_P = pos_tokens.shape[1]
         
-        tokens = torch.cat([vis_tokens, lan_tokens, pos_tokens], dim=1)
-        lan_tokens_norm = self.norm_l(lan_tokens)
-        pos_tokens_norm = self.norm_p(pos_tokens)
-        tokens_norm = torch.cat([vis_tokens, lan_tokens_norm, pos_tokens_norm], dim=1)
+        tokens = torch.cat([vis_tokens, lan_tokens, pos_tokens, dummy_token], dim=1)
+        tokens_norm = torch.cat([vis_tokens, self.norm_l(lan_tokens), self.norm_p(pos_tokens), dummy_token], dim=1)
         
         # SA
-        tokens2, sa_weights = self.self_attn(tokens_norm, tokens_norm, tokens_norm, attn_mask=attn_mask, key_padding_mask=padding_mask)
-        tokens = tokens + self.dropout1(tokens2)
+        tokens_res, sa_weights = self.self_attn(tokens_norm, tokens_norm, tokens_norm, attn_mask=attn_mask, key_padding_mask=padding_mask)
+        tokens = tokens + self.dropout1(tokens_res)
         
         # FF
-        vis_tokens, lan_tokens, pos_tokens = torch.split(tokens, [L_V, L_L, L_P], dim=1)
-        vis_tokens2 = self.ff_v(vis_tokens)
-        lan_tokens2 = self.ff_l(lan_tokens)
-        pos_tokens2 = self.ff_p(pos_tokens)
-        tokens2 = torch.cat([vis_tokens2, lan_tokens2, pos_tokens2], dim=1)
-        tokens = tokens + self.dropout2(tokens2)
+        vis_tokens, lan_tokens, pos_tokens, _ = torch.split(tokens, [L_V, L_L, L_P, 1], dim=1)
+        vis_tokens_res = self.ff_v(vis_tokens)
+        lan_tokens_res = self.ff_l(lan_tokens)
+        pos_tokens_res = self.ff_p(pos_tokens)
+        tokens_res = torch.cat([vis_tokens_res, lan_tokens_res, pos_tokens_res], dim=1)
+        tokens = tokens[:, :-1, :]
+        tokens = tokens + self.dropout2(tokens_res)
         
         vis_tokens, lan_tokens, pos_tokens = torch.split(tokens, [L_V, L_L, L_P], dim=1)
         
-        return vis_tokens, lan_tokens, pos_tokens, None
+        
+        # # CA
+        # L_V = vis_tokens.shape[1]
+        # L_L = lan_tokens.shape[1]
+        # L_P = pos_tokens.shape[1]
+        # mask_PV = attn_mask[-L_P:, :L_V]
+        # # mask_PV[:, :1] = float('-inf')
+        # # mask_PV[-1, :-1] = float('-inf')
+        # mask_PV[-1, :] = float('-inf') # where it goes wrong
+        
+        # pos_tokens_res, ca_weights = self.self_attn(self.norm_p(pos_tokens), vis_tokens, vis_tokens, attn_mask=mask_PV)
+        # if vis_tokens.requires_grad == True:
+        #     # print(ca_weights[0])vis_tkens
+        #     import ipdb; ipdb.set_trace(context=21) # #FF0000
+        # pos_tokens = pos_tokens + self.dropout1(pos_tokens_res)
+        
+        # pos_tokens_res = self.ff_p(pos_tokens)
+        # pos_tokens = pos_tokens + pos_tokens_res
+        
+        # agg = Module_Data()
+        # agg.sa_weights = sa_weights
+        agg = None
+        return vis_tokens, lan_tokens, pos_tokens, agg
     
 
 class FeedForwardLayer(nn.Module):
     """Transformer position-wise feed-forward layer"""
     
-    def __init__(self, d_model, dim_feedforward=2048, dropout=0.1, activation='gelu'):
+    def __init__(self, d_model, dim_feedforward=2048, dropout=0.1, activation='gelu', layer_norm_eps=1e-5):
         super().__init__()
+        self.norm = nn.LayerNorm(d_model, eps=layer_norm_eps)
         self.linear1 = nn.Linear(d_model, dim_feedforward)
+        self.activation = transformer._get_activation_fn(activation)
         self.dropout = nn.Dropout(dropout)
         self.linear2 = nn.Linear(dim_feedforward, d_model)
-        self.activation = transformer._get_activation_fn(activation)
         
     def forward(self, x):
-        return self.linear2(self.dropout(self.activation(self.linear1(x))))
+        return self.linear2(self.dropout(self.activation(self.linear1(self.norm(x)))))

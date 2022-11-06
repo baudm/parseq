@@ -85,6 +85,18 @@ class PARSeq_VF(CrossEntropySystem):
     def decode(self, tgt: torch.Tensor, memory: torch.Tensor, tgt_mask: Optional[Tensor] = None,
                tgt_padding_mask: Optional[Tensor] = None, tgt_query: Optional[Tensor] = None,
                tgt_query_mask: Optional[Tensor] = None):
+        # out, _ = self.decode(tgt_in, memory, tgt_mask, tgt_padding_mask, tgt_query_mask=query_mask)
+        # tgt : tok_idx. Shape : N, L_L
+        # memory : vis_tok. Shape : N, L_V, D
+        
+        # tgt_mask, query_mask = self.generate_attn_masks(perm)
+        # tgt_mask : tgt_mask
+        # tgt_pdding_mask : [E] + [P] in tgt(tgt_in)
+        # tgt_query : 
+        #   validation : self.pos_tok[t]
+        #   training : None
+        # tgt_query_mask : query_mask
+        
         N, L = tgt.shape
         # <bos> stands for the null context. We only supply position information for characters after <bos>.
         null_ctx = self.text_embed(tgt[:, :1])
@@ -93,13 +105,19 @@ class PARSeq_VF(CrossEntropySystem):
         if tgt_query is None:
             tgt_query = self.pos_queries[:, :L].expand(N, -1, -1)
         tgt_query = self.dropout(tgt_query)
-        # tgt_query : pos
-        # tgt_emb : pos_meb + tok_emb : content
+        # tgt_query : pos_emb
+        # tgt_emb : pos_emb + tok_emb : content
         # memory : memory
         # tgt_query_mask : query_mask
         # tgt_mask : content_mask
         # tgt_padding_mask : pad + eos mask of tgt_in
         return self.decoder(tgt_query, tgt_emb, memory, tgt_query_mask, tgt_mask, tgt_padding_mask)
+        # tgt_query : P
+        # tgt_emb : L
+        # memory : V
+        # tgt_query_mask : mask_PL
+        # tgt_mask : mask_LL
+        # tgt_padding_mask : padding mask of L
 
     def forward(self, images: Tensor, max_length: Optional[int] = None) -> Tensor:
         
@@ -231,17 +249,21 @@ class PARSeq_VF(CrossEntropySystem):
             query_idx = perm[i]
             masked_keys = perm[i + 1:]
             mask[query_idx, masked_keys] = float('-inf')
-        # content_mask : Used in content -> content attention.
+        # mask causal mask for permutation, including self
+            
+        # content_mask : mask_LL
         # query starts from [B], ends with char_last. key starts from [B], ends with char_last.
         content_mask = mask[:-1, :-1].clone()
-        mask[torch.eye(sz, dtype=torch.bool, device=self._device)] = float('-inf')  # mask "self"
-        # query mask : Used in content -> pos attention.
-        # query starts from char_first, ends with [E]. key starts from [B], ends with char_last.c
+        
+        # query mask : mask_PL
+        # query starts from char_first, ends with [E]. key starts from [B], ends with char_last.
+        mask[torch.eye(sz, dtype=torch.bool, device=self._device)] = float('-inf')  # mask "self". P_i doesn't know C_i (it is output)
         query_mask = mask[1:, :-1]
         return content_mask, query_mask
 
     def training_step(self, batch, batch_idx) -> STEP_OUTPUT:
         images, labels = batch
+        bs = images.shape[0]
         tgt = self.tokenizer.encode(labels, self._device)
 
         # Encode the source sequence (i.e. the image codes)
@@ -259,6 +281,10 @@ class PARSeq_VF(CrossEntropySystem):
         n = (tgt_out != self.pad_id).sum().item()
         for i, perm in enumerate(tgt_perms):
             tgt_mask, query_mask = self.generate_attn_masks(perm)
+            # if batch_idx % 1000 == 0:
+            #     mask_PL = query_mask.detach().cpu()
+            #     mask_LL = tgt_mask.detach().cpu()
+            #     perm = perm.detach().cpu()
             out, _ = self.decode(tgt_in, memory, tgt_mask, tgt_padding_mask, tgt_query_mask=query_mask)
             logits = self.head(out).flatten(end_dim=1)
             loss += n * F.cross_entropy(logits, tgt_out.flatten(), ignore_index=self.pad_id)
@@ -268,10 +294,18 @@ class PARSeq_VF(CrossEntropySystem):
             if i == 1:
                 tgt_out = torch.where(tgt_out == self.eos_id, self.pad_id, tgt_out)
                 n = (tgt_out != self.pad_id).sum().item()
-        loss /= loss_numel
         
-        if batch_idx % 1000 == 0:
+        if batch_idx % 100 == 0:
+            pred = logits.argmax(-1).view(bs, -1)
+            print('tgt_out')
+            print(tgt_out)
+            print('pred')
+            print(pred)
+            chr_emb = self.text_embed(torch.LongTensor([0, 1, 2]).to(self._device))[:, :8]
+            print('chr_emb')
+            print(chr_emb)
             import ipdb; ipdb.set_trace(context=21) # #FF0000
-
+        
+        loss /= loss_numel
         self.log('loss', loss)
         return loss
