@@ -148,7 +148,6 @@ class DecoderLayer(nn.Module):
         pos_tokens_res, ca_weights = self.self_attn(self.norm_p(pos_tokens), vis_tokens, vis_tokens, attn_mask=mask_PV, dummy=False)
         # if vis_tokens.requires_grad == True:
         #     # print(ca_weights[0])vis_tkens
-        #     import ipdb; ipdb.set_trace(context=21) # #FF0000
         pos_tokens = pos_tokens + self.dropout1(pos_tokens_res)
         
         pos_tokens_res = self.ff_p(pos_tokens)

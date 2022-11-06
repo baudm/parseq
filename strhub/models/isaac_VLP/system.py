@@ -217,7 +217,7 @@ class Isaac_VLP(CrossEntropySystem):
         vis = self.encode(images)
         lan = torch.full((bs, L_L), self.pad_id, dtype=torch.long, device=self._device)
         lan[:, 0] = self.bos_id
-        pos = self.pos_embed[:, :L_P].expand(bs, -1, -1)
+        pos_in = self.pos_embed[:, :L_P].expand(bs, -1, -1)
         
         attn_mask = self.attn_mask.to(self._device)
         dummy_token = self.dummy_token.to(self._device)
@@ -225,8 +225,8 @@ class Isaac_VLP(CrossEntropySystem):
         logits = []
         for i in range(num_steps):
             j = i + 1 # next token index
-            pos, _ = self.decode(vis, lan, pos, dummy_token, attn_mask=attn_mask)
-            p_i = self.head(pos[:, i:j])
+            pos_out, agg = self.decode(vis, lan, pos_in, dummy_token, attn_mask=attn_mask)
+            p_i = self.head(pos_out[:, i:j])
             logits.append(p_i)
             if j < num_steps:
                 # greedy decode. add the next token index to the target input
@@ -278,7 +278,6 @@ class Isaac_VLP(CrossEntropySystem):
             # print('sa_weights')
             # print(agg.sa_weights[0][:5])
             # print(agg.sa_weights[0][-5:])
-        #     import ipdb; ipdb.set_trace(context=21) # #FF0000
         
         self.log('loss', loss)
         
