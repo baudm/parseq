@@ -295,16 +295,15 @@ class PARSeq_VF(CrossEntropySystem):
                 tgt_out = torch.where(tgt_out == self.eos_id, self.pad_id, tgt_out)
                 n = (tgt_out != self.pad_id).sum().item()
         
-        if batch_idx % 100 == 0:
-            pred = logits.argmax(-1).view(bs, -1)
-            print('tgt_out')
-            print(tgt_out)
-            print('pred')
-            print(pred)
-            chr_emb = self.text_embed(torch.LongTensor([0, 1, 2]).to(self._device))[:, :8]
-            print('chr_emb')
-            print(chr_emb)
-            import ipdb; ipdb.set_trace(context=21) # #FF0000
+        # if batch_idx % 100 == 0:
+        #     pred = logits.argmax(-1).view(bs, -1)
+        #     print('tgt_out')
+        #     print(tgt_out)
+        #     print('pred')
+        #     print(pred)
+        #     chr_emb = self.text_embed(torch.LongTensor([0, 1, 2]).to(self._device))[:, :8]
+        #     print('chr_emb')
+        #     print(chr_emb)
         
         loss /= loss_numel
         self.log('loss', loss)
