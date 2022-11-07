@@ -300,7 +300,8 @@ class Isaac_VLP(CrossEntropySystem):
         targets = targets[:, 1:]  # Discard <bos>
         L_L = self.max_label_length + 1 # +1 for <eos>
         targets = F.pad(targets, (0, L_L - targets.shape[1]), "constant", self.pad_id)
-        logits = self.forward(images)[0]
+        max_len = targets.shape[-1]
+        logits = self.forward(images, max_len)[0]
         loss = F.cross_entropy(logits.flatten(end_dim=1), targets.flatten(), ignore_index=self.pad_id)
         loss_numel = (targets != self.pad_id).sum()
         return logits, loss, loss_numel
@@ -400,10 +401,10 @@ class Isaac_VLP(CrossEntropySystem):
             vis, lan, pos, agg = self.refine(vis, init_pred, pos, dummy_token, attn_mask_refine, padding_mask)
             logits = self.head(pos)
             loss_refine = F.cross_entropy(logits.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
+            loss = loss_refine
         else:
             loss_refine = 0
-        
-        loss = loss_dec + loss_refine
+            loss = loss_dec
         
         # if batch_idx % 100 == 0:
         #     pred = logits.argmax(-1).view(bs, -1)
@@ -422,5 +423,7 @@ class Isaac_VLP(CrossEntropySystem):
             # print(agg.sa_weights[0][-5:])
         
         self.log('loss', loss)
+        self.log('loss_ref', loss_refine)
+        self.log('loss_dec', loss_dec)
         
         return loss
