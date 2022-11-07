@@ -112,46 +112,23 @@ class DecoderLayer(nn.Module):
         Dummy token is added to handle the softmax gradient error when all keys are masked.
         Residual outputs (MHA, FF) are explicitly set to zero where all keys are masked.
         
-        """
+        """        
+        # CA
         L_V = vis_tokens.shape[1]
         L_L = lan_tokens.shape[1]
         L_P = pos_tokens.shape[1]
+        mask_PV = attn_mask[-L_P-1:-1, :L_V]
+        # mask_PV[:, :1] = float('-inf')
+        # mask_PV[-1, :-1] = float('-inf')
+        # mask_PV[-1, :] = float('-inf') # where it goes wrong
         
-        tokens = torch.cat([vis_tokens, lan_tokens, pos_tokens, dummy_token], dim=1)
-        tokens_norm = torch.cat([vis_tokens, self.norm_l(lan_tokens), self.norm_p(pos_tokens), dummy_token], dim=1)
+        pos_tokens_res, ca_weights = self.self_attn(self.norm_p(pos_tokens), vis_tokens, vis_tokens, attn_mask=mask_PV, dummy=False)
+        # if vis_tokens.requires_grad == True:
+        #     # print(ca_weights[0])vis_tkens
+        pos_tokens = pos_tokens + self.dropout1(pos_tokens_res)
         
-        # SA
-        tokens_res, sa_weights = self.self_attn(tokens_norm, tokens_norm, tokens_norm, attn_mask=attn_mask, key_padding_mask=padding_mask)
-        tokens_res = tokens_res.masked_fill(~attn_mask[:, -1].unsqueeze(1).to(torch.bool), 0)
-        tokens = tokens + self.dropout1(tokens_res)
-        
-        # FF
-        vis_tokens, lan_tokens, pos_tokens, _ = torch.split(tokens, [L_V, L_L, L_P, 1], dim=1)
-        vis_tokens_res = self.ff_v(vis_tokens)
-        lan_tokens_res = self.ff_l(lan_tokens)
         pos_tokens_res = self.ff_p(pos_tokens)
-        tokens_res = torch.cat([vis_tokens_res, lan_tokens_res, pos_tokens_res, dummy_token], dim=1)
-        tokens_res = tokens_res.masked_fill(~attn_mask[:, -1].unsqueeze(1).to(torch.bool), 0)
-        tokens = tokens + self.dropout2(tokens_res)
-        vis_tokens, lan_tokens, pos_tokens, _ = torch.split(tokens, [L_V, L_L, L_P, 1], dim=1)
-        
-        
-        # # CA
-        # L_V = vis_tokens.shape[1]
-        # L_L = lan_tokens.shape[1]
-        # L_P = pos_tokens.shape[1]
-        # mask_PV = attn_mask[-L_P-1:-1, :L_V]
-        # # mask_PV[:, :1] = float('-inf')
-        # # mask_PV[-1, :-1] = float('-inf')
-        # # mask_PV[-1, :] = float('-inf') # where it goes wrong
-        
-        # pos_tokens_res, ca_weights = self.self_attn(self.norm_p(pos_tokens), vis_tokens, vis_tokens, attn_mask=mask_PV, dummy=False)
-        # # if vis_tokens.requires_grad == True:
-        # #     # print(ca_weights[0])vis_tkens
-        # pos_tokens = pos_tokens + self.dropout1(pos_tokens_res)
-        
-        # pos_tokens_res = self.ff_p(pos_tokens)
-        # pos_tokens = pos_tokens + pos_tokens_res
+        pos_tokens = pos_tokens + pos_tokens_res
         
         # agg = Module_Data()
         # agg.sa_weights = sa_weights

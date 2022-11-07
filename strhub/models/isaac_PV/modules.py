@@ -135,24 +135,6 @@ class DecoderLayer(nn.Module):
         tokens = tokens + self.dropout2(tokens_res)
         vis_tokens, lan_tokens, pos_tokens, _ = torch.split(tokens, [L_V, L_L, L_P, 1], dim=1)
         
-        
-        # # CA
-        # L_V = vis_tokens.shape[1]
-        # L_L = lan_tokens.shape[1]
-        # L_P = pos_tokens.shape[1]
-        # mask_PV = attn_mask[-L_P-1:-1, :L_V]
-        # # mask_PV[:, :1] = float('-inf')
-        # # mask_PV[-1, :-1] = float('-inf')
-        # # mask_PV[-1, :] = float('-inf') # where it goes wrong
-        
-        # pos_tokens_res, ca_weights = self.self_attn(self.norm_p(pos_tokens), vis_tokens, vis_tokens, attn_mask=mask_PV, dummy=False)
-        # # if vis_tokens.requires_grad == True:
-        # #     # print(ca_weights[0])vis_tkens
-        # pos_tokens = pos_tokens + self.dropout1(pos_tokens_res)
-        
-        # pos_tokens_res = self.ff_p(pos_tokens)
-        # pos_tokens = pos_tokens + pos_tokens_res
-        
         # agg = Module_Data()
         # agg.sa_weights = sa_weights
         agg = None
