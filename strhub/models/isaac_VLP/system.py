@@ -16,7 +16,7 @@
 import math
 from functools import partial
 from itertools import permutations
-from typing import Sequence, Any, Optional
+from typing import Sequence, Any, Optional, List
 from dataclasses import dataclass
 
 import numpy as np
@@ -40,7 +40,19 @@ class Isaac_VLP(CrossEntropySystem):
                  img_size: Sequence[int], patch_size: Sequence[int], embed_dim: int,
                  enc_num_heads: int, enc_mlp_ratio: int, enc_depth: int,
                  dec_num_heads: int, dec_mlp_ratio: int, dec_depth: int,
-                 dropout: float, **kwargs: Any) -> None:
+                 dropout: float, QK: List[List[str]], **kwargs: Any) -> None:
+        """
+        Args:
+            QK : Specifies allowed attention. "VV" stands for self-attention of visual tokens.
+                "PV" stands for positional tokens as query and visual tokens as key.
+                
+                QK = [query_V_list, query_L_list, query_P_list].
+                query_V_list = [key_V, key_L, key_P]
+                
+                e.g. QK = [['V', 'L'], [], ['P']] means that "VV", "VL', "PP" attention is allowed.
+                
+                Language and positional tokens are always causal, including self.
+        """
         super().__init__(charset_train, charset_test, batch_size, lr, warmup_pct, weight_decay)
         print('Model : Isaac_VLP')
         self.save_hyperparameters()
@@ -64,21 +76,22 @@ class Isaac_VLP(CrossEntropySystem):
         nn.init.trunc_normal_(self.pos_embed, std=.02)
         
         # attn_mask
+        self.QK = QK
         self.attn_mask = self.get_attn_mask(img_size, patch_size)
         self.visualize_attn_mask()
         self.dummy_token = torch.zeros((1, 1, embed_dim))
-        
-    # def get_attn_mask(self, img_size, patch_size):
-    #     L_V = int(img_size[0] * img_size[1] / (patch_size[0] * patch_size[1]))
-    #     L_L = L_P = self.max_label_length + 1 # +1 for eos
-    #     L_T = L_V + L_L + L_P
-    #     attn_mask_LP = torch.triu(torch.full((L_P, L_P), float('-inf')), 1)
-    #     attn_mask_LP = attn_mask_LP.repeat(2, 2)
-    #     attn_mask = torch.zeros((L_T, L_T))
-    #     attn_mask[-L_L - L_P:, -L_L - L_P:] = attn_mask_LP
-    #     return attn_mask
     
-    def get_attn_mask(self, img_size, patch_size):
+    def get_attn_mask(self, img_size, patch_size, base_layer:bool=True):
+        """Generates attention mask for the multi-modal transformer layers.
+        
+        Args:
+            base_layer: Whether or not the layer is used for initial text prediction.
+                When True, since information leak to future time steps are not allowed,
+                - visual tokens cannot attend to language or positional tokens
+                - causal mask is applied between language and positional tokens
+                When False, it assumes an initial text prediction (up to <eos>) is already made.
+                - full attention between visual, langauge and positional tokens is applied.
+        """
         L_V = int(img_size[0] * img_size[1] / (patch_size[0] * patch_size[1]))
         L_L = L_P = self.max_label_length + 1 # +1 for eos
         L_T = L_V + L_L + L_P
@@ -88,27 +101,76 @@ class Isaac_VLP(CrossEntropySystem):
         def zero_attn(h, w=None):
             w = w if w is not None else h
             return torch.full((h, w), float('-inf'))
-        def causal_attn(h, include_self=True):
+        def causal_attn(h, w=None, include_self=True):
+            w = w if w is not None else h
             diagonal = 1 if include_self == True else 0
-            return torch.triu(torch.full((h, h), float('-inf')), diagonal)
-        def diag_attn(h):
-            triu = torch.triu(torch.full((h, h), float('-inf'), 1))
-            tril = torch.tril(torch.full((h, h), float('-inf'), -1))
+            return torch.triu(torch.full((h, w), float('-inf')), diagonal)
+        def diag_attn(h, w=None):
+            w = w if w is not None else h
+            triu = torch.triu(torch.full((h, w), float('-inf'), 1))
+            tril = torch.tril(torch.full((h, w), float('-inf'), -1))
             return triu + tril
         
-        attn_VV = zero_attn(L_V)
-        attn_VL = zero_attn(L_V, L_L)
-        attn_VP = zero_attn(L_V, L_P)
+        # query : V
+        QK_V = self.QK[0]
+        if 'V' in QK_V:
+            attn_VV = full_attn(L_V)
+        else:
+            attn_VV = zero_attn(L_V)
+        if 'L' in QK_V and not base_layer:
+            # VL attention is not allowed in base layer, due to information leak from future time steps
+            attn_VL = full_attn(L_V, L_L)
+        else:
+            attn_VL = zero_attn(L_V, L_L)
+        if 'P' in QK_V and not base_layer:
+            # VP attention is not allowed inf base layer, due to information leak from future time steps
+            attn_VP = full_attn(L_V, L_P)
+        else:
+            attn_VP = zero_attn(L_V, L_P)
         attn_V = torch.cat((attn_VV, attn_VL, attn_VP), dim=1)
         
-        attn_LV = zero_attn(L_L, L_V)
-        attn_LL = zero_attn(L_L)
-        attn_LP = zero_attn(L_L, L_P)
+        # query : L
+        QK_L = self.QK[1]
+        if 'V' in QK_L:
+            attn_LV = full_attn(L_L, L_V)
+        else:
+            attn_LV = zero_attn(L_L, L_V)
+        if 'L' in QK_L:
+            if base_layer:
+                attn_LL = causal_attn(L_L)
+            else:
+                attn_LL = full_attn(L_L)
+        else:
+            attn_LL = zero_attn(L_L)
+        if 'P' in QK_L:
+            if base_layer:
+                attn_LP = causal_attn(L_L, L_P)
+            else:
+                attn_LP = full_attn(L_L, L_P)
+        else:
+            attn_LP = zero_attn(L_L, L_P)
         attn_L = torch.cat((attn_LV, attn_LL, attn_LP), dim=1)
         
-        attn_PV = full_attn(L_P, L_V)
-        attn_PL = zero_attn(L_P, L_L)
-        attn_PP = zero_attn(L_P)
+        # query : P
+        QK_P = self.QK[2]
+        if 'V' in QK_P:
+            attn_PV = full_attn(L_P, L_V)
+        else:
+            attn_PV = zero_attn(L_P, L_V)
+        if 'L' in QK_P:
+            if base_layer:
+                attn_PL = causal_attn(L_P, L_L)
+            else:
+                attn_PL = full_attn(L_P, L_L)
+        else:
+            attn_PL = zero_attn(L_P, L_L)
+        if 'P' in QK_P:
+            if base_layer:
+                attn_PP = causal_attn(L_P)
+            else:
+                attn_PP = full_attn(L_P)
+        else:
+            attn_PP = zero_attn(L_P)
         attn_P = torch.cat((attn_PV, attn_PL, attn_PP), dim=1)
         
         attn_mask = torch.cat((attn_V, attn_L, attn_P), dim=0)
@@ -117,7 +179,8 @@ class Isaac_VLP(CrossEntropySystem):
         return attn_mask
     
     def add_dummy_attn(self, attn_mask):
-        """ Add attention to dummy token (extra fixed zero token) to get around the
+        """ Add attention to dummy token(extra fixed zero token),
+        which is appended to the end of the concatenated tokens, to get around the
         gradient error caused by all keys being masked. When all keys are masked,
         attention to the dummy token is enabled.
         """
@@ -252,7 +315,7 @@ class Isaac_VLP(CrossEntropySystem):
         # Prepare the target sequences (input and output)
         tgt_in = tgt[:, :-1]
         tgt_out = tgt[:, 1:]
-        padding_mask = (tgt_in == self.pad_id) | (tgt_in == self.eos_id)
+        padding_mask = (tgt_in == self.pad_id)
         padding_mask = F.pad(padding_mask, (L_V, L_P + 1), "constant", 0) # +1 for dummy token
         
         pos = self.pos_embed[:, :L_P].expand(bs, -1, -1)
