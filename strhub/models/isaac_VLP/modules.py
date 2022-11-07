@@ -69,8 +69,10 @@ class Decoder(nn.Module):
     def forward(self, vis, lan, pos, dummy, attn_mask:Optional[Tensor]=None, padding_mask:Optional[Tensor]=None):
         for i, dec_layer in enumerate(self.layers):
             vis, lan, pos, agg = dec_layer(vis, lan, pos, dummy, attn_mask, padding_mask)
+        vis = self.norm(vis)
+        lan = self.norm(lan)
         pos = self.norm(pos)
-        return pos, agg
+        return vis, lan, pos, agg
     
 
 class DecoderLayer(nn.Module):
@@ -94,13 +96,6 @@ class DecoderLayer(nn.Module):
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
 
-        self.norm1 = nn.LayerNorm(d_model, eps=layer_norm_eps)
-        self.norm2 = nn.LayerNorm(d_model, eps=layer_norm_eps)
-        self.linear1 = nn.Linear(d_model, dim_feedforward)
-        self.activation = transformer._get_activation_fn(activation)
-        self.dropout = nn.Dropout(dropout)
-        self.linear2 = nn.Linear(dim_feedforward, d_model)
-        
         self.dummy_token = torch.zeros((1, d_model))
         
 
@@ -134,24 +129,6 @@ class DecoderLayer(nn.Module):
         tokens_res = tokens_res.masked_fill(~attn_mask[:, -1].unsqueeze(1).to(torch.bool), 0)
         tokens = tokens + self.dropout2(tokens_res)
         vis_tokens, lan_tokens, pos_tokens, _ = torch.split(tokens, [L_V, L_L, L_P, 1], dim=1)
-        
-        
-        # # CA
-        # L_V = vis_tokens.shape[1]
-        # L_L = lan_tokens.shape[1]
-        # L_P = pos_tokens.shape[1]
-        # mask_PV = attn_mask[-L_P-1:-1, :L_V]
-        # # mask_PV[:, :1] = float('-inf')
-        # # mask_PV[-1, :-1] = float('-inf')
-        # # mask_PV[-1, :] = float('-inf') # where it goes wrong
-        
-        # pos_tokens_res, ca_weights = self.self_attn(self.norm_p(pos_tokens), vis_tokens, vis_tokens, attn_mask=mask_PV, dummy=False)
-        # # if vis_tokens.requires_grad == True:
-        # #     # print(ca_weights[0])vis_tkens
-        # pos_tokens = pos_tokens + self.dropout1(pos_tokens_res)
-        
-        # pos_tokens_res = self.ff_p(pos_tokens)
-        # pos_tokens = pos_tokens + pos_tokens_res
         
         # agg = Module_Data()
         # agg.sa_weights = sa_weights

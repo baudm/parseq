@@ -16,7 +16,7 @@
 import math
 from functools import partial
 from itertools import permutations
-from typing import Sequence, Any, Optional, List
+from typing import Sequence, Any, Optional, List, Tuple
 from dataclasses import dataclass
 
 import numpy as np
@@ -39,7 +39,7 @@ class Isaac_VLP(CrossEntropySystem):
                  batch_size: int, lr: float, warmup_pct: float, weight_decay: float,
                  img_size: Sequence[int], patch_size: Sequence[int], embed_dim: int,
                  enc_num_heads: int, enc_mlp_ratio: int, enc_depth: int,
-                 dec_num_heads: int, dec_mlp_ratio: int, dec_depth: int,
+                 dec_num_heads: int, dec_mlp_ratio: int, dec_depth: int, ref_depth: int,
                  dropout: float, QK: List[List[str]], **kwargs: Any) -> None:
         """
         Args:
@@ -63,6 +63,7 @@ class Isaac_VLP(CrossEntropySystem):
                                mlp_ratio=enc_mlp_ratio)
         decoder_layer = DecoderLayer(embed_dim, dec_num_heads, embed_dim * dec_mlp_ratio, dropout)
         self.decoder = Decoder(decoder_layer, num_layers=dec_depth, norm=nn.LayerNorm(embed_dim))
+        self.refiner = Decoder(decoder_layer, num_layers=ref_depth, norm=nn.LayerNorm(embed_dim)) if ref_depth > 0 else None
 
         self.head = nn.Linear(embed_dim, len(self.tokenizer) - 2) # We don't predict [B], [P]
         self.text_embed = TokenEmbedding(len(self.tokenizer), embed_dim)
@@ -78,18 +79,20 @@ class Isaac_VLP(CrossEntropySystem):
         # attn_mask
         self.QK = QK
         self.attn_mask = self.get_attn_mask(img_size, patch_size)
-        self.visualize_attn_mask()
+        self.attn_mask_refine = self.get_attn_mask(img_size, patch_size, refine_layer=True)
+        self.visualize_attn_mask(self.attn_mask)
+        self.visualize_attn_mask(self.attn_mask_refine, refine_layer=True)
         self.dummy_token = torch.zeros((1, 1, embed_dim))
     
-    def get_attn_mask(self, img_size, patch_size, base_layer:bool=True):
+    def get_attn_mask(self, img_size, patch_size, refine_layer:bool=False):
         """Generates attention mask for the multi-modal transformer layers.
         
         Args:
-            base_layer: Whether or not the layer is used for initial text prediction.
-                When True, since information leak to future time steps are not allowed,
+            refine_layer: Whether or not the layer is used for refinement (as opposed to initial text prediction).
+                When False, since information leak to future time steps are not allowed,
                 - visual tokens cannot attend to language or positional tokens
                 - causal mask is applied between language and positional tokens
-                When False, it assumes an initial text prediction (up to <eos>) is already made.
+                When True, it assumes an initial text prediction (up to <eos>) is already made.
                 - full attention between visual, langauge and positional tokens is applied.
         """
         L_V = int(img_size[0] * img_size[1] / (patch_size[0] * patch_size[1]))
@@ -117,12 +120,12 @@ class Isaac_VLP(CrossEntropySystem):
             attn_VV = full_attn(L_V)
         else:
             attn_VV = zero_attn(L_V)
-        if 'L' in QK_V and not base_layer:
+        if 'L' in QK_V and not not refine_layer:
             # VL attention is not allowed in base layer, due to information leak from future time steps
             attn_VL = full_attn(L_V, L_L)
         else:
             attn_VL = zero_attn(L_V, L_L)
-        if 'P' in QK_V and not base_layer:
+        if 'P' in QK_V and not not refine_layer:
             # VP attention is not allowed inf base layer, due to information leak from future time steps
             attn_VP = full_attn(L_V, L_P)
         else:
@@ -136,14 +139,14 @@ class Isaac_VLP(CrossEntropySystem):
         else:
             attn_LV = zero_attn(L_L, L_V)
         if 'L' in QK_L:
-            if base_layer:
+            if not refine_layer:
                 attn_LL = causal_attn(L_L)
             else:
                 attn_LL = full_attn(L_L)
         else:
             attn_LL = zero_attn(L_L)
         if 'P' in QK_L:
-            if base_layer:
+            if not refine_layer:
                 attn_LP = causal_attn(L_L, L_P)
             else:
                 attn_LP = full_attn(L_L, L_P)
@@ -158,14 +161,14 @@ class Isaac_VLP(CrossEntropySystem):
         else:
             attn_PV = zero_attn(L_P, L_V)
         if 'L' in QK_P:
-            if base_layer:
+            if not refine_layer:
                 attn_PL = causal_attn(L_P, L_L)
             else:
                 attn_PL = full_attn(L_P, L_L)
         else:
             attn_PL = zero_attn(L_P, L_L)
         if 'P' in QK_P:
-            if base_layer:
+            if not refine_layer:
                 attn_PP = causal_attn(L_P)
             else:
                 attn_PP = full_attn(L_P)
@@ -191,21 +194,24 @@ class Isaac_VLP(CrossEntropySystem):
                 attn_mask[i, -1] = float('-inf')
         return attn_mask
 
-    def visualize_attn_mask(self):
+    def visualize_attn_mask(self, attn_mask, refine_layer:bool=False):
         import seaborn as sns
         import pandas as pd
         from mpl_toolkits.axes_grid1 import make_axes_locatable
         import matplotlib.pyplot as plt
         # L_L = L_P = self.max_label_length + 1
         # win = L_L + L_P
-        win = self.attn_mask.shape[0]
-        df = pd.DataFrame(torch.where(self.attn_mask == 0, 1, 0).numpy()[-win:, -win:], index=list(range(win)), columns=list(range(win)))
+        win = attn_mask.shape[0]
+        df = pd.DataFrame(torch.where(attn_mask == 0, 1, 0).numpy()[-win:, -win:], index=list(range(win)), columns=list(range(win)))
         s = 1.0
         plt.figure(figsize=(30 * s, 30 * s), dpi=300)
         annot_size = 10 * s
         tick_size = 5 * s
         labelsize = 15 * s
-        save_path = f'./attn.png'
+        if refine_layer:
+            save_path = f'./attn_refine.png'
+        else:
+            save_path = f'./attn.png'
         ax = plt.gca()
         # ax_pos = [0.15, 0.01, 0.84, 0.84]
         # ax.set_position(ax_pos)
@@ -262,7 +268,43 @@ class Isaac_VLP(CrossEntropySystem):
         dummy_token = dummy_token.expand(bs, -1, -1)
         
         return self.decoder(vis, lan, pos, dummy_token, attn_mask=attn_mask, padding_mask=padding_mask)
+    
+    def refine(self, vis:torch.Tensor, lan_ind:torch.Tensor,  pos:torch.Tensor, dummy_token:torch.Tensor,
+               attn_mask:torch.Tensor, padding_mask:Optional[Tensor]=None):
+        """
+        Further refines initial decoder prediction.
+        Stop gradient is applied to received tokens.
+        
+        Args:
+            vis : Visual tokens. Shape: N, L_V, D
+            lan_ind : Language token indices. Shape: N, L_L
+            pos : Positional tokens. Shape: N, L_P, D
+        
+        """
+        # Add positional encoding to language tokens.
+        # <bos> stands for the null context. We only supply position information for characters after <bos>.
+        bs, L_L = lan_ind.shape
+        null_ctx = self.text_embed(lan_ind[:, :1])
+        lan = self.pos_embed[:, :L_L - 1] + self.text_embed(lan_ind[:, 1:])
+        lan = self.dropout(torch.cat([null_ctx, lan], dim=1))
+        
+        pos = self.dropout(pos)
+        
+        dummy_token = dummy_token.expand(bs, -1, -1)
+        
+        return self.decoder(vis.detach(), lan.detach(), pos.detach(), dummy_token, attn_mask=attn_mask, padding_mask=padding_mask)
 
+    def forward_logits_loss(self, images: Tensor, labels: List[str]) -> Tuple[Tensor, Tensor, int]:
+        """Override function defined in CrossEntropySystem, because initial prediction might be longer than target."""
+        targets = self.tokenizer.encode(labels, self.device)
+        targets = targets[:, 1:]  # Discard <bos>
+        L_L = self.max_label_length + 1 # +1 for <eos>
+        targets = F.pad(targets, (0, L_L - targets.shape[1]), "constant", self.pad_id)
+        logits = self.forward(images)[0]
+        loss = F.cross_entropy(logits.flatten(end_dim=1), targets.flatten(), ignore_index=self.pad_id)
+        loss_numel = (targets != self.pad_id).sum()
+        return logits, loss, loss_numel
+    
     def forward(self, images:Tensor, max_length: Optional[int] = None) -> Tensor:
         """
         Forward-pass for val & test.
@@ -281,15 +323,16 @@ class Isaac_VLP(CrossEntropySystem):
         L_V = vis.shape[1]
         lan = torch.full((bs, L_L), self.pad_id, dtype=torch.long, device=self._device)
         lan[:, 0] = self.bos_id
-        pos_in = self.pos_embed[:, :L_P].expand(bs, -1, -1)
+        pos = self.pos_embed[:, :L_P].expand(bs, -1, -1)
         
         attn_mask = self.attn_mask.to(self._device)
         dummy_token = self.dummy_token.to(self._device)
         
+        # inital text prediction
         logits = []
         for i in range(num_steps):
             j = i + 1 # next token index
-            pos_out, agg = self.decode(vis, lan, pos_in, dummy_token, attn_mask=attn_mask)
+            vis_out, lan_out, pos_out, agg = self.decode(vis, lan, pos, dummy_token, attn_mask=attn_mask)
             p_i = self.head(pos_out[:, i:j])
             logits.append(p_i)
             if j < num_steps:
@@ -299,6 +342,22 @@ class Isaac_VLP(CrossEntropySystem):
                 if testing and (lan == self.eos_id).any(dim=-1).all():
                     break
         logits = torch.cat(logits, dim=1)
+        
+        # refinement
+        if self.refiner is not None:
+            bos = torch.full((logits.shape[0], 1), self.bos_id).to(self._device)
+            init_pred = logits.argmax(-1)[:, :-1]
+            init_pred = torch.cat([bos, init_pred], dim=1)
+            padding_mask = F.pad(((init_pred == self.eos_id).cumsum(-1) > 0), (1, 0), "constant", 0)[:, :-1].to(torch.bool) # positions beyond the first <eos> token
+            init_pred = init_pred.masked_fill(padding_mask, self.pad_id)
+            init_pred = F.pad(init_pred, (0, L_L - init_pred.shape[1]), "constant", self.pad_id)
+            padding_mask = (init_pred == self.pad_id)
+            padding_mask = F.pad(padding_mask, (L_V, L_P + 1), "constant", 0) # +1 for dummy token
+            
+            attn_mask_refine = self.attn_mask_refine.to(self._device)
+
+            vis_out2, lan_out2, pos_out2, agg = self.refine(vis_out, init_pred, pos_out, dummy_token, attn_mask_refine, padding_mask)
+            logits = self.head(pos_out2)
             
         return logits, None
 
@@ -309,13 +368,13 @@ class Isaac_VLP(CrossEntropySystem):
         vis = self.encode(images)
         L_V = vis.shape[1]
         
+        # Prepare the target sequences (input and output)
         tgt = self.tokenizer.encode(labels, self._device)
         L_L = L_P = self.max_label_length + 1 # +1 for <eos>
-        tgt = F.pad(tgt, (0, L_L + 1 - tgt.shape[1]), "constant", self.pad_id)
-        # Prepare the target sequences (input and output)
+        tgt = F.pad(tgt, (0, L_L + 1 - tgt.shape[1]), "constant", self.pad_id) # +1 for <bos>
         tgt_in = tgt[:, :-1]
         tgt_out = tgt[:, 1:]
-        padding_mask = (tgt_in == self.pad_id)
+        padding_mask = (tgt_in == self.pad_id) | (tgt_in == self.eos_id)
         padding_mask = F.pad(padding_mask, (L_V, L_P + 1), "constant", 0) # +1 for dummy token
         
         pos = self.pos_embed[:, :L_P].expand(bs, -1, -1)
@@ -323,9 +382,28 @@ class Isaac_VLP(CrossEntropySystem):
         attn_mask = self.attn_mask.to(self._device)
         dummy_token = self.dummy_token.to(self._device)
         
-        pos, agg = self.decode(vis, tgt_in, pos, dummy_token, attn_mask, padding_mask)
-        logits = self.head(pos).flatten(end_dim=1)
-        loss = F.cross_entropy(logits, tgt_out.flatten(), ignore_index=self.pad_id)
+        vis, lan, pos, agg = self.decode(vis, tgt_in, pos, dummy_token, attn_mask, padding_mask)
+        logits = self.head(pos)
+        loss_dec = F.cross_entropy(logits.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
+        
+        
+        bos = torch.full((logits.shape[0], 1), self.bos_id).to(self._device)
+        init_pred = logits.argmax(-1)[:, :-1]
+        init_pred = torch.cat([bos, init_pred], dim=1)
+        padding_mask = F.pad(((init_pred == self.eos_id).cumsum(-1) > 0), (1, 0), "constant", 0)[:, :-1].to(torch.bool) # positions beyond the first <eos> token
+        init_pred = init_pred.masked_fill(padding_mask, self.pad_id)
+        padding_mask = (init_pred == self.pad_id)
+        padding_mask = F.pad(padding_mask, (L_V, L_P + 1), "constant", 0) # +1 for dummy token
+        
+        attn_mask_refine = self.attn_mask_refine.to(self._device)
+        if self.refiner is not None:
+            vis, lan, pos, agg = self.refine(vis, init_pred, pos, dummy_token, attn_mask_refine, padding_mask)
+            logits = self.head(pos)
+            loss_refine = F.cross_entropy(logits.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
+        else:
+            loss_refine = 0
+        
+        loss = loss_dec + loss_refine
         
         # if batch_idx % 100 == 0:
         #     pred = logits.argmax(-1).view(bs, -1)
