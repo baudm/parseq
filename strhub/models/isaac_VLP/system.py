@@ -147,7 +147,7 @@ class Isaac_VLP(CrossEntropySystem):
             attn_LL = zero_attn(L_L)
         if 'P' in QK_L:
             if not refine_layer:
-                attn_LP = causal_attn(L_L, L_P)
+                attn_LP = causal_attn(L_L, L_P, include_self=False)
             else:
                 attn_LP = full_attn(L_L, L_P)
         else:
@@ -273,7 +273,8 @@ class Isaac_VLP(CrossEntropySystem):
                attn_mask:torch.Tensor, padding_mask:Optional[Tensor]=None):
         """
         Further refines initial decoder prediction.
-        Stop gradient is applied to received tokens.
+        Stop gradient is applied to language and positional tokens,
+        to prevent information leak from future steps.
         
         Args:
             vis : Visual tokens. Shape: N, L_V, D
@@ -292,7 +293,7 @@ class Isaac_VLP(CrossEntropySystem):
         
         dummy_token = dummy_token.expand(bs, -1, -1)
         
-        return self.decoder(vis.detach(), lan.detach(), pos.detach(), dummy_token, attn_mask=attn_mask, padding_mask=padding_mask)
+        return self.decoder(vis, lan.detach(), pos.detach(), dummy_token, attn_mask=attn_mask, padding_mask=padding_mask)
 
     def forward_logits_loss(self, images: Tensor, labels: List[str]) -> Tuple[Tensor, Tensor, int]:
         """Override function defined in CrossEntropySystem, because initial prediction might be longer than target."""
@@ -401,7 +402,7 @@ class Isaac_VLP(CrossEntropySystem):
             vis, lan, pos, agg = self.refine(vis, init_pred, pos, dummy_token, attn_mask_refine, padding_mask)
             logits = self.head(pos)
             loss_refine = F.cross_entropy(logits.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
-            loss = loss_refine
+            loss = loss_dec + loss_refine
         else:
             loss_refine = 0
             loss = loss_dec
