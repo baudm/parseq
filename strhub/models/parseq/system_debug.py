@@ -179,14 +179,13 @@ class PARSeq(CrossEntropySystem):
             tgt_in = torch.full((bs, 1), self.bos_id, dtype=torch.long, device=self._device)
             tgt_out, _ = self.decode(tgt_in, memory, tgt_query=pos_queries)
             logits = self.head(tgt_out)
-        
         if sa_weights[0] is not None:
             sa_weights = [s[0][0] for s in sa_weights]
-            sa_weights = pad_sequence(sa_weights).T
+            sa_weights = pad_sequence(sa_weights).Tsa
         else:
             sa_weights = None
         if ca_weights[0] is not None:
-            ca_weights = torch.cat(ca_weights, dim=1)
+            ca_weights = torch.cat(ca_weights, dim=1) # Shape : 1, L_P, L_V
         else:
             ca_weights = None
 

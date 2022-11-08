@@ -33,298 +33,272 @@ from strhub.models.base import CrossEntropySystem
 from strhub.models.utils import init_weights
 from .modules_debug import DecoderLayer, Decoder, Encoder, TokenEmbedding
 
-DEBUG_LAYER_INDEX = 0
-
 @dataclass
-class System_Data:
-    sa_weights: torch.Tensor = None
-    ca_weights: torch.Tensor = None
-    main_pt_1: torch.Tensor = None
-    main_pt_2: torch.Tensor = None
-    main_pt_3: torch.Tensor = None
-    main_pt_4: torch.Tensor = None
-    main_pt_5: torch.Tensor = None
-    res_pt_1: torch.Tensor = None
-    res_pt_2: torch.Tensor = None
-    res_pt_3: torch.Tensor = None
-    res_pt_4: torch.Tensor = None
-    memory: torch.Tensor = None
-    content: torch.Tensor = None
+class System_Data():
+    ca_weights:Tensor=None
 
-
-class PARSeq(CrossEntropySystem):
+class Isaac_PV_VF(CrossEntropySystem):
 
     def __init__(self, charset_train: str, charset_test: str, max_label_length: int,
                  batch_size: int, lr: float, warmup_pct: float, weight_decay: float,
                  img_size: Sequence[int], patch_size: Sequence[int], embed_dim: int,
                  enc_num_heads: int, enc_mlp_ratio: int, enc_depth: int,
                  dec_num_heads: int, dec_mlp_ratio: int, dec_depth: int,
-                 perm_num: int, perm_forward: bool, perm_mirrored: bool,
-                 decode_ar: bool, refine_iters: int, dropout: float, **kwargs: Any) -> None:
+                 dropout: float, **kwargs: Any) -> None:
         super().__init__(charset_train, charset_test, batch_size, lr, warmup_pct, weight_decay)
-        print('Model : PARSeq')
+        print('Model : Isaac_PV_VF')
         self.save_hyperparameters()
 
         self.max_label_length = max_label_length
-        self.decode_ar = decode_ar
-        self.refine_iters = refine_iters
 
         self.encoder = Encoder(img_size, patch_size, embed_dim=embed_dim, depth=enc_depth, num_heads=enc_num_heads,
                                mlp_ratio=enc_mlp_ratio)
         decoder_layer = DecoderLayer(embed_dim, dec_num_heads, embed_dim * dec_mlp_ratio, dropout)
         self.decoder = Decoder(decoder_layer, num_layers=dec_depth, norm=nn.LayerNorm(embed_dim))
 
-        # Perm/attn mask stuff
-        self.rng = np.random.default_rng()
-        self.max_gen_perms = perm_num // 2 if perm_mirrored else perm_num
-        self.perm_forward = perm_forward
-        self.perm_mirrored = perm_mirrored
-
-        # We don't predict <bos> nor <pad>
-        self.head = nn.Linear(embed_dim, len(self.tokenizer) - 2)
+        self.head = nn.Linear(embed_dim, len(self.tokenizer) - 2) # We don't predict [B], [P]
         self.text_embed = TokenEmbedding(len(self.tokenizer), embed_dim)
 
         # +1 for <eos>
-        self.pos_queries = nn.Parameter(torch.Tensor(1, max_label_length + 1, embed_dim))
+        self.pos_embed = nn.Parameter(torch.Tensor(1, max_label_length + 1, embed_dim))
         self.dropout = nn.Dropout(p=dropout)
+        
         # Encoder has its own init.
         named_apply(partial(init_weights, exclude=['encoder']), self)
-        nn.init.trunc_normal_(self.pos_queries, std=.02)
+        nn.init.trunc_normal_(self.pos_embed, std=.02)
+        
+        # attn_mask
+        self.attn_mask = self.get_attn_mask(img_size, patch_size)
+        self.visualize_attn_mask()
+        self.dummy_token = torch.zeros((1, 1, embed_dim))
+        
+    # def get_attn_mask(self, img_size, patch_size):
+    #     L_V = int(img_size[0] * img_size[1] / (patch_size[0] * patch_size[1]))
+    #     L_L = L_P = self.max_label_length + 1 # +1 for eos
+    #     L_T = L_V + L_L + L_P
+    #     attn_mask_LP = torch.triu(torch.full((L_P, L_P), float('-inf')), 1)
+    #     attn_mask_LP = attn_mask_LP.repeat(2, 2)
+    #     attn_mask = torch.zeros((L_T, L_T))
+    #     attn_mask[-L_L - L_P:, -L_L - L_P:] = attn_mask_LP
+    #     return attn_mask
+    
+    def get_attn_mask(self, img_size, patch_size):
+        L_V = int(img_size[0] * img_size[1] / (patch_size[0] * patch_size[1]))
+        L_L = L_P = self.max_label_length + 1 # +1 for eos
+        L_T = L_V + L_L + L_P
+        def full_attn(h, w=None):
+            w = w if w is not None else h
+            return torch.zeros((h, w))
+        def zero_attn(h, w=None):
+            w = w if w is not None else h
+            return torch.full((h, w), float('-inf'))
+        def causal_attn(h, include_self=True):
+            diagonal = 1 if include_self == True else 0
+            return torch.triu(torch.full((h, h), float('-inf')), diagonal)
+        def diag_attn(h):
+            triu = torch.triu(torch.full((h, h), float('-inf'), 1))
+            tril = torch.tril(torch.full((h, h), float('-inf'), -1))
+            return triu + tril
+        
+        attn_VV = zero_attn(L_V)
+        attn_VL = zero_attn(L_V, L_L)
+        attn_VP = zero_attn(L_V, L_P)
+        attn_V = torch.cat((attn_VV, attn_VL, attn_VP), dim=1)
+        
+        attn_LV = zero_attn(L_L, L_V)
+        attn_LL = zero_attn(L_L)
+        attn_LP = zero_attn(L_L, L_P)
+        attn_L = torch.cat((attn_LV, attn_LL, attn_LP), dim=1)
+        
+        attn_PV = full_attn(L_P, L_V)
+        attn_PL = zero_attn(L_P, L_L)
+        attn_PP = zero_attn(L_P)
+        attn_P = torch.cat((attn_PV, attn_PL, attn_PP), dim=1)
+        
+        attn_mask = torch.cat((attn_V, attn_L, attn_P), dim=0)
+        attn_mask = self.add_dummy_attn(attn_mask)
+        
+        return attn_mask
+    
+    def add_dummy_attn(self, attn_mask):
+        """ Add attention to dummy token (extra fixed zero token) to get around the
+        gradient error caused by all keys being masked. When all keys are masked,
+        attention to the dummy token is enabled.
+        """
+        attn_mask = F.pad(attn_mask, (0, 0, 0, 1), 'constant', float('-inf'))
+        attn_mask = F.pad(attn_mask, (0, 1), 'constant', 0)
+        for i, row in enumerate(attn_mask):
+            if torch.any(row[:-1] != float('-inf')):
+                attn_mask[i, -1] = float('-inf')
+        return attn_mask
+
+    def visualize_attn_mask(self):
+        import seaborn as sns
+        import pandas as pd
+        from mpl_toolkits.axes_grid1 import make_axes_locatable
+        import matplotlib.pyplot as plt
+        # L_L = L_P = self.max_label_length + 1
+        # win = L_L + L_P
+        win = self.attn_mask.shape[0]
+        df = pd.DataFrame(torch.where(self.attn_mask == 0, 1, 0).numpy()[-win:, -win:], index=list(range(win)), columns=list(range(win)))
+        s = 1.0
+        plt.figure(figsize=(30 * s, 30 * s), dpi=300)
+        annot_size = 10 * s
+        tick_size = 5 * s
+        labelsize = 15 * s
+        save_path = f'./attn.png'
+        ax = plt.gca()
+        # ax_pos = [0.15, 0.01, 0.84, 0.84]
+        # ax.set_position(ax_pos)
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad="5%")
+        sa = sns.heatmap(df,
+                        vmin=0,
+                        vmax=1,
+                        # annot=True,
+                        # fmt='.2f',
+                        # annot_kws={'size': annot_size},
+                        ax=ax,
+                        cbar_ax=cax,
+                        cbar=True,
+                        linewidths=0.5,
+                        )
+        cbar = sa.collections[0].colorbar
+        cbar.ax.tick_params(labelsize=labelsize)
+        sa.xaxis.tick_top()
+        sa.set_xticklabels(sa.get_xmajorticklabels(), fontsize=tick_size, rotation=0)
+        sa.set_yticklabels(sa.get_ymajorticklabels(), fontsize=tick_size, rotation=0)
+        plt.savefig(save_path); plt.clf()
 
     @torch.jit.ignore
     def no_weight_decay(self):
-        param_names = {'text_embed.embedding.weight', 'pos_queries'}
+        param_names = {'text_embed.embedding.weight', 'pos_embed'}
         enc_param_names = {'encoder.' + n for n in self.encoder.no_weight_decay()}
         return param_names.union(enc_param_names)
 
     def encode(self, img: torch.Tensor):
         return self.encoder(img)
 
-    def decode(self, tgt: torch.Tensor, memory: torch.Tensor, tgt_mask: Optional[Tensor] = None,
-               tgt_padding_mask: Optional[Tensor] = None, tgt_query: Optional[Tensor] = None,
-               tgt_query_mask: Optional[Tensor] = None):
-        N, L = tgt.shape
-        # <bos> stands for the null context. We only supply position information for characters after <bos>.
-        null_ctx = self.text_embed(tgt[:, :1])
-        tgt_emb = self.pos_queries[:, :L - 1] + self.text_embed(tgt[:, 1:])
-        tgt_emb = self.dropout(torch.cat([null_ctx, tgt_emb], dim=1))
-        if tgt_query is None:
-            tgt_query = self.pos_queries[:, :L].expand(N, -1, -1)
-        tgt_query = self.dropout(tgt_query)
-        # tgt_query : pos
-        # tgt_emb : pos_meb + tok_emb : content
-        # memory : memory
-        # tgt_query_mask : query_mask
-        # tgt_mask : content_mask
-        # tgt_padding_mask : pad + eos mask of tgt_in
-        return self.decoder(tgt_query, tgt_emb, memory, tgt_query_mask, tgt_mask, tgt_padding_mask)
-
-    def forward(self, images: Tensor, max_length: Optional[int] = None) -> Tensor:
-        agg = System_Data()
+    def decode(self, vis:torch.Tensor, lan_ind:torch.Tensor,  pos:torch.Tensor, dummy_token:torch.Tensor,
+               attn_mask:torch.Tensor, padding_mask:Optional[Tensor]=None):
+        """
+        Generate language / position tokens.
+        Run Decoder.
         
+        Args:
+            vis : Visual tokens. Shape: N, L_V, D
+            lan_ind : Language token indices. Shape: N, L_L
+            pos : Positional tokens. Shape: N, L_P, D
+        
+        """
+        # Add positional encoding to language tokens.
+        # <bos> stands for the null context. We only supply position information for characters after <bos>.
+        bs, L_L = lan_ind.shape
+        null_ctx = self.text_embed(lan_ind[:, :1])
+        lan = self.pos_embed[:, :L_L - 1] + self.text_embed(lan_ind[:, 1:])
+        lan = self.dropout(torch.cat([null_ctx, lan], dim=1))
+        
+        pos = self.dropout(pos)
+        
+        dummy_token = dummy_token.expand(bs, -1, -1)
+        
+        return self.decoder(vis, lan, pos, dummy_token, attn_mask=attn_mask, padding_mask=padding_mask)
+
+    def forward(self, images:Tensor, max_length: Optional[int] = None) -> Tensor:
+        """
+        Forward-pass for val & test.
+        
+        Args:
+            max_length: Max sequence length in batch, for efficient decoding in validation.
+        """
+        agg = System_Data()
         testing = max_length is None
         max_length = self.max_label_length if max_length is None else min(max_length, self.max_label_length)
         bs = images.shape[0]
-        # +1 for <eos> at end of sequence.
-        num_steps = max_length + 1
-        memory = self.encode(images)
-
-        # Query positions up to `num_steps`
-        pos_queries = self.pos_queries[:, :num_steps].expand(bs, -1, -1)
-
-        # Special case for the forward permutation. Faster than using `generate_attn_masks()`
-        tgt_mask = query_mask = torch.triu(torch.full((num_steps, num_steps), float('-inf'), device=self._device), 1)
-
-        sa_weights = []
+        num_steps = max_length + 1 # +1 for eos
+        L_L = L_P = self.max_label_length + 1 # +1 for eos
+        
+        # prepare tokens
+        vis = self.encode(images)
+        L_V = vis.shape[1]
+        lan = torch.full((bs, L_L), self.pad_id, dtype=torch.long, device=self._device)
+        lan[:, 0] = self.bos_id
+        pos_in = self.pos_embed[:, :L_P].expand(bs, -1, -1)
+        
+        attn_mask = self.attn_mask.to(self._device)
+        dummy_token = self.dummy_token.to(self._device)
+        
+        
+        
+        logits = []
+        aggs = []
+        for i in range(num_steps):
+            j = i + 1 # next token index
+            pos_out, _aggs = self.decode(vis, lan, pos_in, dummy_token, attn_mask=attn_mask)
+            aggs.append(_aggs)
+            p_i = self.head(pos_out[:, i:j])
+            logits.append(p_i)
+            max_time_step = i
+            if j < num_steps:
+                # greedy decode. add the next token index to the target input
+                lan[:, j] = p_i.squeeze().argmax(-1)
+                # Efficient batch decoding: If all output words have at least one EOS token, end decoding.
+                if testing and (lan == self.eos_id).any(dim=-1).all():
+                    break
+        logits = torch.cat(logits, dim=1)
+        
+        # debug
+        DEC_IDX = 1
         ca_weights = []
-        main_pt_1, main_pt_2, main_pt_3, main_pt_4, res_pt_1, res_pt_2, res_pt_3 = ([] for _ in range(7))
-        
-        if self.decode_ar:
-            tgt_in = torch.full((bs, num_steps), self.pad_id, dtype=torch.long, device=self._device)
-            tgt_in[:, 0] = self.bos_id
-
-            logits = []
-            for i in range(num_steps):
-                j = i + 1  # next token index
-                # Efficient decoding:
-                # Input the context up to the ith token. We use only one query (at position = i) at a time.
-                # This works because of the lookahead masking effect of the canonical (forward) AR context.
-                # Past tokens have no access to future tokens, hence are fixed once computed.
-                tgt_out, _aggs = self.decode(tgt_in[:, :j], memory, tgt_mask[:j, :j], tgt_query=pos_queries[:, i:j],
-                                      tgt_query_mask=query_mask[i:j, :j])
-                _agg = _aggs[DEBUG_LAYER_INDEX]
-                sa_weights.append(_agg.sa_weights)
-                ca_weights.append(_agg.ca_weights)
-                main_pt_1.append(_agg.main_pt_1)
-                main_pt_2.append(_agg.main_pt_2)
-                main_pt_3.append(_agg.main_pt_3)
-                main_pt_4.append(_agg.main_pt_4)
-                res_pt_1.append(_agg.res_pt_1)
-                res_pt_2.append(_agg.res_pt_2)
-                res_pt_3.append(_agg.res_pt_3)
-                
-                # the next token probability is in the output's ith token position
-                p_i = self.head(tgt_out)
-                logits.append(p_i)
-                if j < num_steps:
-                    # greedy decode. add the next token index to the target input
-                    tgt_in[:, j] = p_i.squeeze().argmax(-1)
-                    # Efficient batch decoding: If all output words have at least one EOS token, end decoding.
-                    if testing and (tgt_in == self.eos_id).any(dim=-1).all():
-                        break
-
-            logits = torch.cat(logits, dim=1)
-        else:
-            # No prior context, so input is just <bos>. We query all positions.
-            tgt_in = torch.full((bs, 1), self.bos_id, dtype=torch.long, device=self._device)
-            tgt_out, _ = self.decode(tgt_in, memory, tgt_query=pos_queries)
-            logits = self.head(tgt_out)
-        
-        if sa_weights[0] is not None:
-            sa_weights = [s[0][0] for s in sa_weights]
-            sa_weights = pad_sequence(sa_weights).T
-        else:
-            sa_weights = None
-        if ca_weights[0] is not None:
-            ca_weights = torch.cat(ca_weights, dim=1)
-        else:
-            ca_weights = None
-
-        if self.refine_iters:
-            # For iterative refinement, we always use a 'cloze' mask.
-            # We can derive it from the AR forward mask by unmasking the token context to the right.
-            query_mask[torch.triu(torch.ones(num_steps, num_steps, dtype=torch.bool, device=self._device), 2)] = 0
-            bos = torch.full((bs, 1), self.bos_id, dtype=torch.long, device=self._device)
-            for i in range(self.refine_iters):
-                # Prior context is the previous output.
-                tgt_in = torch.cat([bos, logits[:, :-1].argmax(-1)], dim=1)
-                tgt_padding_mask = ((tgt_in == self.eos_id).cumsum(-1) > 0)  # mask tokens beyond the first EOS token.
-                tgt_out, _ = self.decode(tgt_in, memory, tgt_mask[:tgt_in.shape[1], :tgt_in.shape[1]], tgt_padding_mask,
-                                      tgt_query=pos_queries, tgt_query_mask=query_mask[:, :tgt_in.shape[1]])
-                logits = self.head(tgt_out)
-
-        # aggregate inspection data
-        agg.sa_weights = sa_weights
+        for i in range(max_time_step + 1):
+            _ca_weights = aggs[i][DEC_IDX].ca_weights[0][i]
+            ca_weights.append(_ca_weights)
+        ca_weights = torch.stack(ca_weights)
         agg.ca_weights = ca_weights
-        agg.main_pt_1 = torch.cat(main_pt_1, dim=1)
-        agg.main_pt_2 = torch.cat(main_pt_2, dim=1)
-        agg.main_pt_3 = torch.cat(main_pt_3, dim=1)
-        agg.main_pt_4 = torch.cat(main_pt_4, dim=1)
-        agg.res_pt_1 = torch.cat(res_pt_1, dim=1)
-        agg.res_pt_2 = torch.cat(res_pt_2, dim=1)
-        agg.res_pt_3 = torch.cat(res_pt_3, dim=1)
-        agg.memory = memory
-        agg.content = _agg.content
-        
+            
         return logits, agg
-
-    def gen_tgt_perms(self, tgt):
-        """Generate shared permutations for the whole batch.
-           This works because the same attention mask can be used for the shorter sequences
-           because of the padding mask.
-        """
-        # We don't permute the position of BOS, we permute EOS separately
-        max_num_chars = tgt.shape[1] - 2
-        # Special handling for 1-character sequences
-        if max_num_chars == 1:
-            return torch.arange(3, device=self._device).unsqueeze(0)
-        perms = [torch.arange(max_num_chars, device=self._device)] if self.perm_forward else []
-        # Additional permutations if needed
-        max_perms = math.factorial(max_num_chars)
-        if self.perm_mirrored:
-            max_perms //= 2
-        num_gen_perms = min(self.max_gen_perms, max_perms)
-        # For 4-char sequences and shorter, we generate all permutations and sample from the pool to avoid collisions
-        # Note that this code path might NEVER get executed since the labels in a mini-batch typically exceed 4 chars.
-        if max_num_chars < 5:
-            # Pool of permutations to sample from. We only need the first half (if complementary option is selected)
-            # Special handling for max_num_chars == 4 which correctly divides the pool into the flipped halves
-            if max_num_chars == 4 and self.perm_mirrored:
-                selector = [0, 3, 4, 6, 9, 10, 12, 16, 17, 18, 19, 21]
-            else:
-                selector = list(range(max_perms))
-            perm_pool = torch.as_tensor(list(permutations(range(max_num_chars), max_num_chars)), device=self._device)[selector]
-            # If the forward permutation is always selected, no need to add it to the pool for sampling
-            if self.perm_forward:
-                perm_pool = perm_pool[1:]
-            perms = torch.stack(perms)
-            if len(perm_pool):
-                i = self.rng.choice(len(perm_pool), size=num_gen_perms - len(perms), replace=False)
-                perms = torch.cat([perms, perm_pool[i]])
-        else:
-            perms.extend([torch.randperm(max_num_chars, device=self._device) for _ in range(num_gen_perms - len(perms))])
-            perms = torch.stack(perms)
-        if self.perm_mirrored:
-            # Add complementary pairs
-            comp = perms.flip(-1)
-            # Stack in such a way that the pairs are next to each other.
-            perms = torch.stack([perms, comp]).transpose(0, 1).reshape(-1, max_num_chars)
-        # NOTE:
-        # The only meaningful way of permuting the EOS position is by moving it one character position at a time.
-        # However, since the number of permutations = T! and number of EOS positions = T + 1, the number of possible EOS
-        # positions will always be much less than the number of permutations (unless a low perm_num is set).
-        # Thus, it would be simpler to just train EOS using the full and null contexts rather than trying to evenly
-        # distribute it across the chosen number of permutations.
-        # Add position indices of BOS and EOS
-        bos_idx = perms.new_zeros((len(perms), 1))
-        eos_idx = perms.new_full((len(perms), 1), max_num_chars + 1)
-        perms = torch.cat([bos_idx, perms + 1, eos_idx], dim=1)
-        # Special handling for the reverse direction. This does two things:
-        # 1. Reverse context for the characters
-        # 2. Null context for [EOS] (required for learning to predict [EOS] in NAR mode)
-        if len(perms) > 1:
-            perms[1, 1:] = max_num_chars + 1 - torch.arange(max_num_chars + 1, device=self._device)
-        return perms
-
-    def generate_attn_masks(self, perm):
-        """Generate attention masks given a sequence permutation (includes pos. for bos and eos tokens)
-        :param perm: the permutation sequence. i = 0 is always the BOS
-        :return: lookahead attention masks
-        """
-        sz = perm.shape[0]
-        mask = torch.zeros((sz, sz), device=self._device)
-        for i in range(sz):
-            query_idx = perm[i]
-            masked_keys = perm[i + 1:]
-            mask[query_idx, masked_keys] = float('-inf')
-        # content_mask : Used in content -> content attention.
-        # query starts from [B], ends with char_last. key starts from [B], ends with char_last.
-        content_mask = mask[:-1, :-1].clone()
-        mask[torch.eye(sz, dtype=torch.bool, device=self._device)] = float('-inf')  # mask "self"
-        # query mask : Used in content -> pos attention.
-        # query starts from char_first, ends with [E]. key starts from [B], ends with char_last.c
-        query_mask = mask[1:, :-1]
-        return content_mask, query_mask
 
     def training_step(self, batch, batch_idx) -> STEP_OUTPUT:
         images, labels = batch
+        
+        bs = images.shape[0]
+        vis = self.encode(images)
+        L_V = vis.shape[1]
+        
         tgt = self.tokenizer.encode(labels, self._device)
-
-        # Encode the source sequence (i.e. the image codes)
-        memory = self.encode(images)
-
+        L_L = L_P = self.max_label_length + 1 # +1 for <eos>
+        tgt = F.pad(tgt, (0, L_L + 1 - tgt.shape[1]), "constant", self.pad_id)
         # Prepare the target sequences (input and output)
-        tgt_perms = self.gen_tgt_perms(tgt)
         tgt_in = tgt[:, :-1]
         tgt_out = tgt[:, 1:]
-        # The [EOS] token is not depended upon by any other token in any permutation ordering
-        tgt_padding_mask = (tgt_in == self.pad_id) | (tgt_in == self.eos_id)
-
-        loss = 0
-        loss_numel = 0
-        n = (tgt_out != self.pad_id).sum().item()
-        for i, perm in enumerate(tgt_perms):
-            tgt_mask, query_mask = self.generate_attn_masks(perm)
-            out, _ = self.decode(tgt_in, memory, tgt_mask, tgt_padding_mask, tgt_query_mask=query_mask)
-            logits = self.head(out).flatten(end_dim=1)
-            loss += n * F.cross_entropy(logits, tgt_out.flatten(), ignore_index=self.pad_id)
-            loss_numel += n
-            # After the second iteration (i.e. done with canonical and reverse orderings),
-            # remove the [EOS] tokens for the succeeding perms
-            if i == 1:
-                tgt_out = torch.where(tgt_out == self.eos_id, self.pad_id, tgt_out)
-                n = (tgt_out != self.pad_id).sum().item()
-        loss /= loss_numel
-
+        padding_mask = (tgt_in == self.pad_id) | (tgt_in == self.eos_id)
+        padding_mask = F.pad(padding_mask, (L_V, L_P + 1), "constant", 0) # +1 for dummy token
+        
+        pos = self.pos_embed[:, :L_P].expand(bs, -1, -1)
+        
+        attn_mask = self.attn_mask.to(self._device)
+        dummy_token = self.dummy_token.to(self._device)
+        
+        pos, agg = self.decode(vis, tgt_in, pos, dummy_token, attn_mask, padding_mask)
+        logits = self.head(pos).flatten(end_dim=1)
+        loss = F.cross_entropy(logits, tgt_out.flatten(), ignore_index=self.pad_id)
+        
+        # if batch_idx % 100 == 0:
+        #     pred = logits.argmax(-1).view(bs, -1)
+        #     print('tgt_out')
+        #     print(tgt_out)
+        #     print('pred')
+        #     print(pred)
+            # chr_emb = self.text_embed(torch.LongTensor([0, 1, 2]).to(self._device))[:, :8]
+            # print('chr_emb')
+            # print(chr_emb)
+            # pos_emb = self.pos_embed[0][:3][:, :8]
+            # print('pos_emb')
+            # print(pos_emb)
+            # print('sa_weights')
+            # print(agg.sa_weights[0][:5])
+            # print(agg.sa_weights[0][-5:])
+        
         self.log('loss', loss)
+        
         return loss

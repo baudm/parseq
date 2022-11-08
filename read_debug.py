@@ -45,8 +45,6 @@ def main():
     parser.add_argument('checkpoint', help="Model checkpoint (or 'pretrained=<model_id>')")
     parser.add_argument('--images', nargs='+', help='Images to read')
     parser.add_argument('--device', default='cuda')
-    parser.add_argument('--sa', type=str2bool, default=True, help='Output self-attention maps')
-    parser.add_argument('--ca', type=str2bool, default=True, help='Output cross-attention maps')
     args, unknown = parser.parse_known_args()
     kwargs = parse_model_args(unknown)
     print(f'Additional keyword arguments: {kwargs}')
@@ -71,6 +69,7 @@ def main():
     model.load_state_dict(torch.load(args.checkpoint)['state_dict'])
     model.eval().to(args.device)
     img_transform = SceneTextDataModule.get_transform(model.hparams.img_size)
+    vis_size = [a//b for (a, b) in zip(model.hparams.img_size, model.hparams.patch_size)]
     
     debug_dir = f'{exp_dir}/debug'
     init_dir(f'{debug_dir}/demo_images')
@@ -88,19 +87,27 @@ def main():
         p = logits.softmax(-1)
         pred, p_seq = model.tokenizer.decode(p)
         
-        # visualize_text_embed_sim_with_head(model, image_save_path)
+        ## char_emb
+        # visualize_char_probs(pred, p, model, image_save_path)
         # visualize_head_self_sim(model, image_save_path)
+        # visualize_text_embed_sim_with_head(model, image_save_path)
+        # visualize_tsne(model, image_save_path)
+        
+        ## forward pass
         # visualize_sim_with_pe(model.pos_queries, ['*'*25], model, image_save_path, sim_scale=1.0)
         # visualize_sim_with_pe(agg.res_pt_1, pred, model, image_save_path, sim_scale=1.0)
         # for attr in ['main_pt_1', 'main_pt_2', 'main_pt_3', 'main_pt_4', 'res_pt_1', 'res_pt_2', 'res_pt_3']:
         # for attr in ['content']:
         #     visualize_sim_with_head(attr, agg, pred, model, image_save_path, sim_scale=2.0)
-        # visualize_sim_with_memory(image, agg.res_pt_2, agg.memory, image_save_path)
-        visualize_char_probs(pred, p, model, image_save_path)
-        # visualize_attn(args, image, agg.sa_weights, agg.ca_weights, image_save_path)
+        
+        ## attention
         # visualize_self_attn(pred, agg.sa_weights, image_save_path)
-        # visualize_cross_attn(image, agg.ca_weights, image_save_path)
-        # visualize_tsne(model, image_save_path)
+        # visualize_self_attn(pred, agg.sa_weights_dec, image_save_path, tag='_dec')
+        # visualize_self_attn(pred, agg.sa_weights_ref, image_save_path, tag='_ref')
+        visualize_cross_attn(image, agg.ca_weights, vis_size, image_save_path)
+        # visualize_sim_with_memory(image, agg.res_pt_2, agg.memory, image_save_path)
+        
+        
         print(f'{fname}: {pred[0]}')
 
 
@@ -237,29 +244,25 @@ def visualize_similarity(target, source, rows, cols, image_save_path, sim_scale=
     sa.set_xticklabels(sa.get_xmajorticklabels(), fontsize=tick_size, rotation=0)
     sa.set_yticklabels(sa.get_ymajorticklabels(), fontsize=tick_size, rotation=0)
     plt.savefig(save_path); plt.close()
+
     
-        
-def visualize_attn(args, image, sa_weights, ca_weights, image_save_path):
-    image.save(image_save_path)
-    if args.sa:
-        visualize_self_attn(sa_weights, image_save_path)
-    if args.ca:
-        visualize_cross_attn(image, ca_weights, image_save_path)
-    
-    
-def visualize_self_attn(pred, sa_weights, image_save_path):
+def visualize_self_attn(pred, sa_weights, image_save_path, tag=''):
     if sa_weights is None: return
     filename_path, ext = os.path.splitext(image_save_path)
-    cols = ['[B]'] + list(pred[0])
+    # cols = ['[B]'] + list(pred[0])
     # rows = ['[B]'] + list(pred[0])
-    rows = list(pred[0]) + ['[E]']
+    # rows = list(pred[0]) + ['[E]']
+    if sa_weights.dim() == 3:
+        sa_weights = sa_weights[0]
+    sa_weights /= sa_weights[:-1, :-1].max()
+    rows = list(range(sa_weights.shape[0]))
+    cols = list(range(sa_weights.shape[1]))
     df = pd.DataFrame(sa_weights.detach().cpu().numpy(), index=rows, columns=cols)
-    s = 1.0
-    plt.figure(figsize=(15 * s, 15 * s), dpi=300)
-    annot_size = 20 * s
-    tick_size = 20 * s
-    labelsize = 20 * s
-    save_path = f'{filename_path}_sa{ext}'
+    plt.figure(figsize=(30, 30), dpi=300)
+    annot_size = 20
+    tick_size = 20
+    labelsize = 1
+    save_path = f'{filename_path}_sa{tag}{ext}'
     ax = plt.gca()
     # ax_pos = [0.15, 0.01, 0.84, 0.84]
     # ax.set_position(ax_pos)
@@ -268,7 +271,7 @@ def visualize_self_attn(pred, sa_weights, image_save_path):
     sa = sns.heatmap(df,
                     vmin=0,
                     vmax=1,
-                    annot=True,
+                    # annot=True,
                     fmt='.2f',
                     annot_kws={'size': annot_size},
                     ax=ax,
@@ -283,16 +286,16 @@ def visualize_self_attn(pred, sa_weights, image_save_path):
     plt.savefig(save_path); plt.clf()
     
     
-def visualize_cross_attn(image, ca_weights, image_save_path):
+def visualize_cross_attn(image, ca_weights, vis_size, image_save_path, tag=''):
     filename_path, ext = os.path.splitext(image_save_path)
     if ca_weights is None: return
-    ca_weights = ca_weights.view(-1, 8, 16)
+    ca_weights = ca_weights.view(-1, vis_size[0], vis_size[1])
     ca_weights = ca_weights.detach().cpu().numpy()
     
     cm = plt.get_cmap('jet')
     for i, attn in enumerate(ca_weights):
         i += 1
-        save_path = f'{filename_path}_ca_{i:02d}{ext}'
+        save_path = f'{filename_path}_ca{tag}_{i:02d}{ext}'
         # attn *= 10
         attn = (attn - attn.min()) / (attn.max() - attn.min())
         attn = np.clip(attn, 0.0, 1.0)

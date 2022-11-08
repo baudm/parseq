@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import math
-from typing import Optional
+from typing import Optional, List
 from dataclasses import dataclass
 
 import torch
@@ -24,126 +24,22 @@ from torch.nn.modules import transformer
 
 from timm.models.vision_transformer import VisionTransformer, PatchEmbed
 
+from strhub.models.attention import MultiheadAttention
+
 
 @dataclass
 class Module_Data:
-    main_pt_1: torch.Tensor = None # input
-    main_pt_2: torch.Tensor = None # after sa
-    main_pt_3: torch.Tensor = None # after ca
-    main_pt_4: torch.Tensor = None # after ff
-    res_pt_1: torch.Tensor = None # residual result of sa
-    res_pt_2: torch.Tensor = None # residual result of ca
-    res_pt_3: torch.Tensor = None # residual result of ff
-    content: torch.Tensor = None
-    sa_weights: torch.Tensor = None
-    ca_weights: torch.Tensor = None
-    
+    sa_weights: Tensor = None
 
-class DecoderLayer(nn.Module):
-    """A Transformer decoder layer supporting two-stream attention (XLNet)
-       This implements a pre-LN decoder, as opposed to the post-LN default in PyTorch."""
+class TokenEmbedding(nn.Module):
 
-    def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1, activation='gelu',
-                 layer_norm_eps=1e-5):
+    def __init__(self, charset_size: int, embed_dim: int):
         super().__init__()
-        self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
-        self.cross_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
-        # Implementation of Feedforward model
-        self.linear1 = nn.Linear(d_model, dim_feedforward)
-        self.dropout = nn.Dropout(dropout)
-        self.linear2 = nn.Linear(dim_feedforward, d_model)
+        self.embedding = nn.Embedding(charset_size, embed_dim)
+        self.embed_dim = embed_dim
 
-        self.norm1 = nn.LayerNorm(d_model, eps=layer_norm_eps)
-        self.norm2 = nn.LayerNorm(d_model, eps=layer_norm_eps)
-        self.norm_q = nn.LayerNorm(d_model, eps=layer_norm_eps)
-        self.norm_c = nn.LayerNorm(d_model, eps=layer_norm_eps)
-        self.dropout1 = nn.Dropout(dropout)
-        self.dropout2 = nn.Dropout(dropout)
-        self.dropout3 = nn.Dropout(dropout)
-
-        self.activation = transformer._get_activation_fn(activation)        
-
-    def __setstate__(self, state):
-        if 'activation' not in state:
-            state['activation'] = F.gelu
-        super().__setstate__(state)
-
-    def forward_stream(self, tgt: Tensor, tgt_norm: Tensor, tgt_kv: Tensor, memory: Tensor, tgt_mask: Optional[Tensor],
-                       tgt_key_padding_mask: Optional[Tensor]):
-        """Forward pass for a single stream (i.e. content or query)
-        tgt_norm is just a LayerNorm'd tgt. Added as a separate parameter for efficiency.
-        Both tgt_kv and memory are expected to be LayerNorm'd too.
-        memory is LayerNorm'd by ViT.
-        """
-        agg = Module_Data()
-        agg.content = tgt_kv
-        
-        # S -> P
-        agg.main_pt_1 = tgt
-        tgt2, sa_weights = self.self_attn(tgt_norm, tgt_kv, tgt_kv, attn_mask=tgt_mask,
-                                          key_padding_mask=tgt_key_padding_mask)
-        agg.res_pt_1 = tgt2
-        agg.sa_weights = sa_weights
-        tgt = tgt + self.dropout1(tgt2)
-        agg.main_pt_2 = tgt
-
-        # V -> P
-        tgt2, ca_weights = self.cross_attn(self.norm1(tgt), memory, memory)
-        agg.res_pt_2 = tgt2
-        agg.ca_weights = ca_weights
-        tgt = tgt + self.dropout2(tgt2)
-        agg.main_pt_3 = tgt
-
-        # FF
-        tgt2 = self.linear2(self.dropout(self.activation(self.linear1(self.norm2(tgt)))))
-        agg.res_pt_3 = tgt2
-        tgt = tgt + self.dropout3(tgt2)
-        agg.main_pt_4 = tgt
-        
-        return tgt, agg
-
-    def forward(self, query, content, memory, query_mask: Optional[Tensor] = None, content_mask: Optional[Tensor] = None,
-                content_key_padding_mask: Optional[Tensor] = None, update_content: bool = True):
-        query_norm = self.norm_q(query)
-        content_norm = self.norm_c(content)
-        # query_mask : Used in content -> pos.
-        query, agg = self.forward_stream(query, query_norm, content_norm, memory, query_mask, content_key_padding_mask)
-        if update_content:
-            # content_mask : Used in content -> content.
-            # content can be updated with the same decoder, with context as query instead of pos. The updated content
-            # is used for content input for next decoder layer, if there are more than 1 deocder layers.
-            # Basically, a self-attn casual mask with permutation ordering (including self) = LM
-            # plus a cross-attn with no mask to memory = vis -> content.
-            content, _ = self.forward_stream(content, content_norm, content_norm, memory, content_mask,
-                                          content_key_padding_mask)
-        return query, content, agg
-
-
-class Decoder(nn.Module):
-    __constants__ = ['norm']
-
-    def __init__(self, decoder_layer, num_layers, norm):
-        super().__init__()
-        self.layers = transformer._get_clones(decoder_layer, num_layers)
-        self.num_layers = num_layers
-        self.norm = norm
-
-    def forward(self, query, content, memory, query_mask: Optional[Tensor] = None, content_mask: Optional[Tensor] = None,
-                content_key_padding_mask: Optional[Tensor] = None):
-        # query : pos
-        # content : content
-        # memory : memory
-        # query_mask : query_mask
-        # content_mask : content_mask
-        # content_key_padding_mask : tgt_padding_mask
-        aggs = []
-        for i, mod in enumerate(self.layers):
-            last = i == len(self.layers) - 1
-            query, content, agg = mod(query, content, memory, query_mask, content_mask, content_key_padding_mask,
-                                 update_content=not last)
-            aggs.append(agg)
-        query = self.norm(query)
-        return query, aggs
+    def forward(self, tokens: torch.Tensor):
+        return math.sqrt(self.embed_dim) * self.embedding(tokens)
 
 
 class Encoder(VisionTransformer):
@@ -158,14 +54,99 @@ class Encoder(VisionTransformer):
     def forward(self, x):
         # Return all tokens
         return self.forward_features(x)
+    
 
+class Decoder(nn.Module):
+    __constants__ = ['norm']
 
-class TokenEmbedding(nn.Module):
-
-    def __init__(self, charset_size: int, embed_dim: int):
+    def __init__(self, decoder_layer, num_layers, norm):
         super().__init__()
-        self.embedding = nn.Embedding(charset_size, embed_dim)
-        self.embed_dim = embed_dim
+        self.layers = transformer._get_clones(decoder_layer, num_layers)
+        self.num_layers = num_layers
+        self.norm = norm
 
-    def forward(self, tokens: torch.Tensor):
-        return math.sqrt(self.embed_dim) * self.embedding(tokens)
+    def forward(self, vis, lan, pos, dummy, attn_mask:Optional[Tensor]=None, padding_mask:Optional[Tensor]=None):
+        aggs = []
+        for i, dec_layer in enumerate(self.layers):
+            vis, lan, pos, agg = dec_layer(vis, lan, pos, dummy, attn_mask, padding_mask)
+            aggs.append(agg)
+        vis = self.norm(vis)
+        lan = self.norm(lan)
+        pos = self.norm(pos)
+        return vis, lan, pos, aggs
+    
+
+class DecoderLayer(nn.Module):
+    """A Transformer decoder layer supporting two-stream attention (XLNet)
+       This implements a pre-LN decoder, as opposed to the post-LN default in PyTorch."""
+
+    def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1, activation='gelu',
+                 layer_norm_eps=1e-5):
+        super().__init__()
+        # self.self_attn = MultiheadAttention([256, 26, 26], d_model, nhead, dropout=dropout, batch_first=True)
+        self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
+        # self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
+        
+        self.ff_v = FeedForwardLayer(d_model, dim_feedforward, dropout, activation)
+        self.ff_l = FeedForwardLayer(d_model, dim_feedforward, dropout, activation)
+        self.ff_p = FeedForwardLayer(d_model, dim_feedforward, dropout, activation)
+        
+        self.norm_l = nn.LayerNorm(d_model, eps=layer_norm_eps)
+        self.norm_p = nn.LayerNorm(d_model, eps=layer_norm_eps)
+        
+        self.dropout1 = nn.Dropout(dropout)
+        self.dropout2 = nn.Dropout(dropout)
+
+        self.dummy_token = torch.zeros((1, d_model))
+        
+
+    def forward(self, vis_tokens:Tensor, lan_tokens:Tensor, pos_tokens:Tensor, dummy_token:Tensor,
+                attn_mask:Optional[Tensor]=None, padding_mask:Optional[Tensor]=None):
+        """
+        Vision-Langauge-Position Transformer decoder.
+        
+        Dummy token is added to handle the softmax gradient error when all keys are masked.
+        Residual outputs (MHA, FF) are explicitly set to zero where all keys are masked.
+        
+        """
+        L_V = vis_tokens.shape[1]
+        L_L = lan_tokens.shape[1]
+        L_P = pos_tokens.shape[1]
+        
+        tokens = torch.cat([vis_tokens, lan_tokens, pos_tokens, dummy_token], dim=1)
+        tokens_norm = torch.cat([vis_tokens, self.norm_l(lan_tokens), self.norm_p(pos_tokens), dummy_token], dim=1)
+        
+        # SA
+        tokens_res, sa_weights = self.self_attn(tokens_norm, tokens_norm, tokens_norm, attn_mask=attn_mask, key_padding_mask=padding_mask)
+        tokens_res = tokens_res.masked_fill(~attn_mask[:, -1].unsqueeze(1).to(torch.bool), 0)
+        tokens = tokens + self.dropout1(tokens_res)
+        
+        # FF
+        vis_tokens, lan_tokens, pos_tokens, _ = torch.split(tokens, [L_V, L_L, L_P, 1], dim=1)
+        vis_tokens_res = self.ff_v(vis_tokens)
+        lan_tokens_res = self.ff_l(lan_tokens)
+        pos_tokens_res = self.ff_p(pos_tokens)
+        tokens_res = torch.cat([vis_tokens_res, lan_tokens_res, pos_tokens_res, dummy_token], dim=1)
+        tokens_res = tokens_res.masked_fill(~attn_mask[:, -1].unsqueeze(1).to(torch.bool), 0)
+        tokens = tokens + self.dropout2(tokens_res)
+        vis_tokens, lan_tokens, pos_tokens, _ = torch.split(tokens, [L_V, L_L, L_P, 1], dim=1)
+        
+        agg = Module_Data()
+        agg.sa_weights = sa_weights
+        # agg = None
+        return vis_tokens, lan_tokens, pos_tokens, agg
+    
+
+class FeedForwardLayer(nn.Module):
+    """Transformer position-wise feed-forward layer"""
+    
+    def __init__(self, d_model, dim_feedforward=2048, dropout=0.1, activation='gelu', layer_norm_eps=1e-5):
+        super().__init__()
+        self.norm = nn.LayerNorm(d_model, eps=layer_norm_eps)
+        self.linear1 = nn.Linear(d_model, dim_feedforward)
+        self.activation = transformer._get_activation_fn(activation)
+        self.dropout = nn.Dropout(dropout)
+        self.linear2 = nn.Linear(dim_feedforward, d_model)
+        
+    def forward(self, x):
+        return self.linear2(self.dropout(self.activation(self.linear1(self.norm(x)))))
