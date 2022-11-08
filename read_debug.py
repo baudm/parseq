@@ -102,8 +102,9 @@ def main():
         
         ## attention
         # visualize_self_attn(pred, agg.sa_weights, image_save_path)
-        for i, sa_weights_dec in enumerate(agg.sa_weights_dec):      
-            visualize_self_attn(pred, sa_weights_dec, image_save_path, tag=f'_dec{i:02d}')
+        for i, sa_weights_dec in enumerate(agg.sa_weights_dec):
+            import ipdb; ipdb.set_trace(context=21) # #FF0000
+            visualize_self_attn(pred, sa_weights_dec[-26-26-1:-1,-26-26-1:-1], image_save_path, tag=f'_dec{i:02d}')
         # for i, sa_weights_ref in enumerate(agg.sa_weights_ref):      
         #     visualize_self_attn(pred, sa_weights_ref, image_save_path, tag=f'_ref{i:02d}')
         # visualize_cross_attn(image, agg.ca_weights, vis_size, image_save_path)
@@ -113,6 +114,45 @@ def main():
         print(f'{fname}: {pred[0]}')
 
 
+def visualize_self_attn(pred, sa_weights, image_save_path, tag=''):
+    if sa_weights is None: return
+    filename_path, ext = os.path.splitext(image_save_path)
+    # cols = ['[B]'] + list(pred[0])
+    # rows = ['[B]'] + list(pred[0])
+    # rows = list(pred[0]) + ['[E]']
+    rows = list(range(sa_weights.shape[0]))
+    cols = list(range(sa_weights.shape[1]))
+    df = pd.DataFrame(sa_weights.detach().cpu().numpy(), index=rows, columns=cols)
+    plt.figure(figsize=(15, 15), dpi=96)
+    annot_size = 20
+    tick_size = 20
+    labelsize = 20
+    save_path = f'{filename_path}_sa{tag}{ext}'
+    ax = plt.gca()
+    # ax_pos = [0.15, 0.01, 0.84, 0.84]
+    # ax.set_position(ax_pos)
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad="5%")
+    sa = sns.heatmap(df,
+                    vmin=0,
+                    vmax=1,
+                    # annot=True,
+                    fmt='.2f',
+                    annot_kws={'size': annot_size},
+                    ax=ax,
+                    cbar_ax=cax,
+                    cbar=True,
+                    linewidths=1,
+                    )
+    cbar = sa.collections[0].colorbar
+    # cbar.ax.tick_params(labelsize=labelsize)
+    # sa.xaxis.tick_top()
+    sa.set_xticklabels(sa.get_xmajorticklabels(), rotation=90)
+    # sa.set_xticklabels(sa.get_xmajorticklabels(), fontsize=tick_size, rotation=0)
+    # sa.set_yticklabels(sa.get_ymajorticklabels(), fontsize=tick_size, rotation=0)
+    plt.savefig(save_path); plt.clf()
+    
+    
 def visualize_tsne(model, image_save_path):
     filename_path, ext = os.path.splitext(image_save_path)
     from sklearn.manifold import TSNE
@@ -130,7 +170,6 @@ def visualize_tsne(model, image_save_path):
         ax.text(row['x'] + .02, row['y'], row['char'])
     save_path = f'{filename_path}_sc{ext}'
     plt.savefig(save_path); plt.clf()
-    
 
 
 def visualize_head_self_sim(model, image_save_path):
@@ -247,43 +286,6 @@ def visualize_similarity(target, source, rows, cols, image_save_path, sim_scale=
     sa.set_yticklabels(sa.get_ymajorticklabels(), fontsize=tick_size, rotation=0)
     plt.savefig(save_path); plt.close()
 
-    
-def visualize_self_attn(pred, sa_weights, image_save_path, tag=''):
-    if sa_weights is None: return
-    filename_path, ext = os.path.splitext(image_save_path)
-    # cols = ['[B]'] + list(pred[0])
-    # rows = ['[B]'] + list(pred[0])
-    # rows = list(pred[0]) + ['[E]']
-    rows = list(range(sa_weights.shape[0]))
-    cols = list(range(sa_weights.shape[1]))
-    df = pd.DataFrame(sa_weights.detach().cpu().numpy(), index=rows, columns=cols)
-    plt.figure(figsize=(30, 30), dpi=96)
-    annot_size = 20
-    tick_size = 20
-    labelsize = 20
-    save_path = f'{filename_path}_sa{tag}{ext}'
-    ax = plt.gca()
-    # ax_pos = [0.15, 0.01, 0.84, 0.84]
-    # ax.set_position(ax_pos)
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes("right", size="5%", pad="5%")
-    sa = sns.heatmap(df,
-                    vmin=0,
-                    vmax=1,
-                    # annot=True,
-                    fmt='.2f',
-                    annot_kws={'size': annot_size},
-                    ax=ax,
-                    cbar_ax=cax,
-                    cbar=True
-                    )
-    cbar = sa.collections[0].colorbar
-    # cbar.ax.tick_params(labelsize=labelsize)
-    # sa.xaxis.tick_top()
-    sa.set_xticklabels(sa.get_xmajorticklabels(), rotation=90)
-    # sa.set_xticklabels(sa.get_xmajorticklabels(), fontsize=tick_size, rotation=0)
-    # sa.set_yticklabels(sa.get_ymajorticklabels(), fontsize=tick_size, rotation=0)
-    plt.savefig(save_path); plt.clf()
     
     
 def visualize_cross_attn(image, ca_weights, vis_size, image_save_path, tag=''):

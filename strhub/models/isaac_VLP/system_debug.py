@@ -337,7 +337,7 @@ class Isaac_VLP(CrossEntropySystem):
         attn_mask = self.attn_mask.to(self._device)
         dummy_token = self.dummy_token.to(self._device)
         
-        # inital text prediction
+        ## inital text prediction
         logits = []
         aggs = []
         for i in range(num_steps):
@@ -355,10 +355,8 @@ class Isaac_VLP(CrossEntropySystem):
                     break
         logits = torch.cat(logits, dim=1)
         
-        
-        
         # debug
-        DEC_IDX = 1
+        DEC_IDX = 0
         sa_weights = []
         for i in range(max_time_step + 1):
             _sa_weights = aggs[i][DEC_IDX].sa_weights[0]
@@ -366,7 +364,7 @@ class Isaac_VLP(CrossEntropySystem):
         sa_weights = torch.stack(sa_weights)
         agg.sa_weights_dec = sa_weights
         
-        # refinement
+        ## refinement
         if self.refiner is not None:
             bos = torch.full((logits.shape[0], 1), self.bos_id).to(self._device)
             init_pred = logits.argmax(-1)[:, :-1]
