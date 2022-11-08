@@ -33,7 +33,7 @@ from strhub.models.base import CrossEntropySystem
 from strhub.models.utils import init_weights
 from .modules import DecoderLayer, Decoder, Encoder, TokenEmbedding
 
-class Isaac_VLP(CrossEntropySystem):
+class Isaac_VLP_U(CrossEntropySystem):
 
     def __init__(self, charset_train: str, charset_test: str, max_label_length: int,
                  batch_size: int, lr: float, warmup_pct: float, weight_decay: float,
@@ -54,7 +54,7 @@ class Isaac_VLP(CrossEntropySystem):
                 Language and positional tokens are always causal, including self.
         """
         super().__init__(charset_train, charset_test, batch_size, lr, warmup_pct, weight_decay)
-        print('Model : Isaac_VLP')
+        print('Model : Isaac_VLP_U')
         self.save_hyperparameters()
 
         self.max_label_length = max_label_length
