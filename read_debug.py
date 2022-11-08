@@ -102,9 +102,11 @@ def main():
         
         ## attention
         # visualize_self_attn(pred, agg.sa_weights, image_save_path)
-        # visualize_self_attn(pred, agg.sa_weights_dec, image_save_path, tag='_dec')
-        # visualize_self_attn(pred, agg.sa_weights_ref, image_save_path, tag='_ref')
-        visualize_cross_attn(image, agg.ca_weights, vis_size, image_save_path)
+        for i, sa_weights_dec in enumerate(agg.sa_weights_dec):      
+            visualize_self_attn(pred, sa_weights_dec, image_save_path, tag=f'_dec{i:02d}')
+        # for i, sa_weights_ref in enumerate(agg.sa_weights_ref):      
+        #     visualize_self_attn(pred, sa_weights_ref, image_save_path, tag=f'_ref{i:02d}')
+        # visualize_cross_attn(image, agg.ca_weights, vis_size, image_save_path)
         # visualize_sim_with_memory(image, agg.res_pt_2, agg.memory, image_save_path)
         
         
@@ -252,16 +254,13 @@ def visualize_self_attn(pred, sa_weights, image_save_path, tag=''):
     # cols = ['[B]'] + list(pred[0])
     # rows = ['[B]'] + list(pred[0])
     # rows = list(pred[0]) + ['[E]']
-    if sa_weights.dim() == 3:
-        sa_weights = sa_weights[0]
-    sa_weights /= sa_weights[:-1, :-1].max()
     rows = list(range(sa_weights.shape[0]))
     cols = list(range(sa_weights.shape[1]))
     df = pd.DataFrame(sa_weights.detach().cpu().numpy(), index=rows, columns=cols)
-    plt.figure(figsize=(30, 30), dpi=300)
+    plt.figure(figsize=(30, 30), dpi=96)
     annot_size = 20
     tick_size = 20
-    labelsize = 1
+    labelsize = 20
     save_path = f'{filename_path}_sa{tag}{ext}'
     ax = plt.gca()
     # ax_pos = [0.15, 0.01, 0.84, 0.84]
@@ -279,10 +278,11 @@ def visualize_self_attn(pred, sa_weights, image_save_path, tag=''):
                     cbar=True
                     )
     cbar = sa.collections[0].colorbar
-    cbar.ax.tick_params(labelsize=labelsize)
-    sa.xaxis.tick_top()
-    sa.set_xticklabels(sa.get_xmajorticklabels(), fontsize=tick_size, rotation=0)
-    sa.set_yticklabels(sa.get_ymajorticklabels(), fontsize=tick_size, rotation=0)
+    # cbar.ax.tick_params(labelsize=labelsize)
+    # sa.xaxis.tick_top()
+    sa.set_xticklabels(sa.get_xmajorticklabels(), rotation=90)
+    # sa.set_xticklabels(sa.get_xmajorticklabels(), fontsize=tick_size, rotation=0)
+    # sa.set_yticklabels(sa.get_ymajorticklabels(), fontsize=tick_size, rotation=0)
     plt.savefig(save_path); plt.clf()
     
     
@@ -294,7 +294,6 @@ def visualize_cross_attn(image, ca_weights, vis_size, image_save_path, tag=''):
     
     cm = plt.get_cmap('jet')
     for i, attn in enumerate(ca_weights):
-        i += 1
         save_path = f'{filename_path}_ca{tag}_{i:02d}{ext}'
         # attn *= 10
         attn = (attn - attn.min()) / (attn.max() - attn.min())
