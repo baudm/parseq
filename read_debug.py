@@ -23,6 +23,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import pandas as pd
 from PIL import Image
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 from sklearn.preprocessing import normalize
 from scipy.special import softmax
 
@@ -35,6 +36,8 @@ from omegaconf import OmegaConf
 from strhub.data.module_debug import SceneTextDataModule
 from strhub.models.utils import parse_model_args, init_dir
 
+import warnings
+warnings.filterwarnings('ignore')
 
 
 @torch.inference_mode()
@@ -92,7 +95,7 @@ def main():
         
         ## embeddings
         # visualize_head_self_sim(model, image_save_path)
-        visualize_pe_self_sim(pred, model, image_save_path)
+        # visualize_pe_self_sim(pred, model, image_save_path)
         # visualize_text_embed_sim_with_head(model, image_save_path)
         # visualize_tsne(model, image_save_path)
         
@@ -105,16 +108,156 @@ def main():
         
         ## attention
         # visualize_self_attn(pred, agg.sa_weights, image_save_path)
-        # for i, sa_weights_dec in enumerate(agg.sa_weights_dec):
-        #     visualize_self_attn(pred, sa_weights_dec[-26-26-1:-1,-26-26-1:-1], image_save_path, tag=f'_dec{i:02d}')
-        # for i, sa_weights_ref in enumerate(agg.sa_weights_ref):      
-        #     visualize_self_attn(pred, sa_weights_ref, image_save_path, tag=f'_ref{i:02d}')
-        # visualize_cross_attn(image, agg.ca_weights, vis_size, image_save_path)
-        # visualize_sim_with_memory(image, agg.res_pt_2, agg.memory, image_save_path)
-        
+        visualize_self_attn_VLP(pred, agg.sa_weights_dec, vis_size, image, image_save_path, Q='P', K='V', tag=f'_dec')
+        # visualize_cross_attn(agg.ca_weights, vis_size, image, image_save_path)
+        # visualize_sim_with_memory(agg.res_pt_2, agg.memory, image, image_save_path)
         
         print(f'{fname}: {pred[0]}')
 
+
+def visualize_self_attn_VLP(pred, sa_weights, vis_size, image, image_save_path, tag='', Q='VLP', K='VLP', sim_scale=1.0):
+    """
+    Self-attn visualization of multi-modal Transformer.
+    
+    Args:
+        Q : Query. e.g. 'V', 'L', 'P'
+        K : Key. e.g. 'V', 'L', 'P'
+    """
+    if sa_weights is None: return
+    filename_path, ext = os.path.splitext(image_save_path)
+    pred = list(pred[0])
+    L_V, L_L, L_P = 256, 26, 26
+    L_T = L_V + L_L + L_P
+    assert sa_weights.shape[-1] == L_T + 1 # +1 for dummy token
+    rows = list(range(L_T + 1))
+    for i in range(L_L + L_P):
+        rows[L_V + i] = '[P]'
+    for i in range(len(pred) + 1):
+        rows[L_V + i] = (['[B]'] + pred)[i]
+    for i in range (len(pred) + 1):
+        rows[L_V + L_L + i] = (pred + ['[E]'])[i]
+    rows[-1] = '[D]'
+    rows_V = rows[:L_V]
+    rows_L = rows[L_V:L_V + L_L]
+    rows_P = rows[L_V + L_L:L_V + L_L + L_P]
+    V_ind = list(range(L_V))
+    L_ind = list(range(L_V, L_V + L_L))
+    P_ind = list(range(L_V + L_L, L_V + L_L + L_P))
+    rows, cols, row_ind, col_ind = [], [], [], []
+    if 'V' in Q:
+        rows.extend(rows_V)
+        row_ind.extend(V_ind)
+    if 'L' in Q:
+        rows.extend(rows_L)
+        row_ind.extend(L_ind)
+    if 'P' in Q:
+        rows.extend(rows_P)
+        row_ind.extend(P_ind)
+    if 'V' in K:
+        cols.extend(rows_V)
+        col_ind.extend(V_ind)
+    if 'L' in K:
+        cols.extend(rows_L)
+        col_ind.extend(L_ind)
+    if 'P' in K:
+        cols.extend(rows_P)
+        col_ind.extend(P_ind)
+        
+    
+    if Q + K in ['LL', 'LP', 'PL', 'PP']:
+        for t, sa_weights_t in enumerate(sa_weights):
+            tag_t = f'{tag}{t:02d}'
+            sa_weights_t = sa_weights_t[row_ind, :][:, col_ind].detach().cpu().numpy()
+            sa_weights_t_temp = np.zeros_like(sa_weights_t)
+            sa_weights_t_temp[:t + 1, :t + 1] = sa_weights_t[:t + 1, :t + 1]
+            
+            sa_weights_t = sa_weights_t_temp
+            rows_t = rows
+            if 'L' in Q:
+                if 'V' in Q:
+                    for i in range(L_V + i + 1, L_V + L_L):
+                        rows_t[i] = '[P]'
+                else:
+                    for i in range(i + 1, L_L):
+                        rows_t[i] = '[P]'
+            cols_t = cols
+            if 'L' in Q:
+                if 'V' in Q:
+                    for i in range(L_V + i + 1, L_V + L_L):
+                        cols_t[i] = '[P]'
+                else:
+                    for i in range(i + 1, L_L):
+                        cols_t[i] = '[P]'
+            sa_weights_t *= sim_scale
+            df = pd.DataFrame(sa_weights_t, index=rows_t, columns=cols_t)
+            fig = plt.figure(figsize=(15, 15), dpi=96)
+            plt.title(f'{Q}-{K}')
+            # annot_size = 20
+            tick_size = 20
+            labelsize = 20
+            save_path = f'{filename_path}_sa{tag_t}{ext}'
+            ax = plt.gca()
+            # ax_pos = [0.15, 0.01, 0.84, 0.84]
+            # ax.set_position(ax_pos)
+            divider = make_axes_locatable(ax)
+            cax = divider.append_axes("right", size="5%", pad="5%")
+            sa = sns.heatmap(df,
+                            vmin=0,
+                            vmax=1,
+                            # annot=True,
+                            fmt='.2f',
+                            # annot_kws={'size': annot_size},
+                            ax=ax,
+                            cbar_ax=cax,
+                            cbar=True,
+                            # linewidths=1,
+                            )
+            cbar = sa.collections[0].colorbar
+            rect = patches.Rectangle((0, 0,), t + 1, t + 1, edgecolor='w', facecolor='none')
+            sa.add_patch(rect)
+            # cbar.ax.tick_params(labelsize=labelsize)
+            sa.xaxis.tick_top()
+            sa.set_xticklabels(sa.get_xmajorticklabels(), rotation=0)
+            sa.set_yticklabels(sa.get_ymajorticklabels(), rotation=0)
+            plt.savefig(save_path)
+            plt.close(fig)
+    elif Q + K in ['PV', 'LV']:
+        cm = plt.get_cmap('jet')
+        for t, sa_weights_t in enumerate(sa_weights):
+            tag_t = f'{tag}{t:02d}'
+            save_path = f'{filename_path}_sa{tag_t}{ext}'
+            sa_weights_t = sa_weights_t[row_ind, :][:, col_ind]
+            sa_weights_t = sa_weights_t[t]
+            sa_weights_t = sa_weights_t.view(*vis_size)
+            attn = sa_weights_t.detach().cpu().numpy()
+            attn = (attn - attn.min()) / (attn.max() - attn.min())
+            attn = np.clip(attn, 0.0, 1.0)
+            attn = cm(attn)
+            attn = Image.fromarray((attn * 255).astype(np.uint8)).convert('RGB')
+            attn = attn.resize(image.size)
+            blend = Image.blend(image, attn, alpha=0.7)
+            blend.save(save_path)
+    elif Q + K in ['VV']:
+        cm = plt.get_cmap('jet')
+        sa_weights = sa_weights[0] # VV attn doesn't depend on time step.
+        sa_weights = sa_weights[row_ind, :][:, col_ind]
+        for pix in range(sa_weights.shape[0]):
+            tag_t = f'{tag}{pix:02d}'
+            save_path = f'{filename_path}_sa{tag_t}{ext}'
+            sa_weights_t = sa_weights[pix]
+            sa_weights_t = sa_weights_t.view(*vis_size)
+            attn = sa_weights_t.detach().cpu().numpy()
+            attn = (attn - attn.min()) / (attn.max() - attn.min())
+            attn = np.clip(attn, 0.0, 1.0)
+            attn = cm(attn)
+            attn[pix // vis_size[1], pix % vis_size[1]] = [1, 0, 1, 1] # query pixel is magenta
+            attn = Image.fromarray((attn * 255).astype(np.uint8)).convert('RGB')
+            attn = attn.resize(image.size, resample=Image.NEAREST)
+            blend = Image.blend(image, attn, alpha=0.5)
+            blend.save(save_path)
+    else:
+        raise NotImplementedError
+        
 
 def visualize_self_attn(pred, sa_weights, image_save_path, tag=''):
     if sa_weights is None: return
@@ -165,13 +308,14 @@ def visualize_tsne(model, image_save_path):
     tsne = TSNE(n_components=2).fit_transform(head)
     tsne = pd.DataFrame(tsne, index=rows, columns=cols)
     tsne['char'] = rows
-    plt.figure(figsize=(30, 30), dpi=300)
+    fig = plt.figure(figsize=(30, 30), dpi=300)
     sc = sns.scatterplot(data=tsne, x='x', y='y', hue='char', style='char')
     ax = plt.gca()
     for _, row in tsne.iterrows():
         ax.text(row['x'] + .02, row['y'], row['char'])
     save_path = f'{filename_path}_sc{ext}'
-    plt.savefig(save_path); plt.clf()
+    plt.savefig(save_path)
+    plt.close(fig)
 
 
 def visualize_head_self_sim(model, image_save_path):
@@ -189,7 +333,7 @@ def visualize_char_probs(pred, p, model, image_save_path):
     cols = ['[E]'] + list(charset_train)
     df = pd.DataFrame(p, index=rows, columns=cols)
     s = 1.0
-    plt.figure(figsize=(30 * s, len(rows) * s), dpi=300)
+    fig = plt.figure(figsize=(30 * s, len(rows) * s), dpi=300)
     annot_size = 10 * s
     tick_size = 15 * s
     labelsize = 15 * s
@@ -215,7 +359,8 @@ def visualize_char_probs(pred, p, model, image_save_path):
     sa.xaxis.tick_top()
     sa.set_xticklabels(sa.get_xmajorticklabels(), fontsize=tick_size, rotation=0)
     sa.set_yticklabels(sa.get_ymajorticklabels(), fontsize=tick_size, rotation=0)
-    plt.savefig(save_path); plt.clf()
+    plt.savefig(save_path)
+    plt.close(fig)
     
 
 def visualize_sim_with_head(attr, agg, pred, model, image_save_path, sim_scale=1.0):
@@ -265,7 +410,7 @@ def visualize_similarity(target, source, rows, cols, image_save_path, sim_scale=
     similarity_mtx *= sim_scale
     df = pd.DataFrame(similarity_mtx, index=rows, columns=cols) # [tgt x src]
     fig_scale = 1.0
-    plt.figure(figsize=(min(len(cols), 30) * fig_scale, min(len(rows), 30) * fig_scale), dpi=300)
+    fig = plt.figure(figsize=(min(len(cols), 30) * fig_scale, min(len(rows), 30) * fig_scale), dpi=300)
     annot_size = 10 * fig_scale
     tick_size = 10 * fig_scale
     labelsize = 10 * fig_scale
@@ -290,11 +435,12 @@ def visualize_similarity(target, source, rows, cols, image_save_path, sim_scale=
     sa.xaxis.tick_top()
     sa.set_xticklabels(sa.get_xmajorticklabels(), fontsize=tick_size, rotation=0)
     sa.set_yticklabels(sa.get_ymajorticklabels(), fontsize=tick_size, rotation=0)
-    plt.savefig(save_path); plt.close()
+    plt.savefig(save_path)
+    plt.close(fig)
 
     
     
-def visualize_cross_attn(image, ca_weights, vis_size, image_save_path, tag=''):
+def visualize_cross_attn(ca_weights, vis_size, image, image_save_path, tag=''):
     filename_path, ext = os.path.splitext(image_save_path)
     if ca_weights is None: return
     ca_weights = ca_weights.view(-1, vis_size[0], vis_size[1])
@@ -313,7 +459,7 @@ def visualize_cross_attn(image, ca_weights, vis_size, image_save_path, tag=''):
         blend.save(save_path)
     
 
-def visualize_sim_with_memory(image, target, memory, image_save_path):
+def visualize_sim_with_memory(target, memory, image, image_save_path):
     filename_path, ext = os.path.splitext(image_save_path)
     cm = plt.get_cmap('jet')
     memory = memory.view(-1, 384).detach().cpu().numpy()
