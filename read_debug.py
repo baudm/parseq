@@ -87,9 +87,12 @@ def main():
         p = logits.softmax(-1)
         pred, p_seq = model.tokenizer.decode(p)
         
-        ## char_emb
+        ## prediction
         # visualize_char_probs(pred, p, model, image_save_path)
+        
+        ## embeddings
         # visualize_head_self_sim(model, image_save_path)
+        visualize_pe_self_sim(pred, model, image_save_path)
         # visualize_text_embed_sim_with_head(model, image_save_path)
         # visualize_tsne(model, image_save_path)
         
@@ -102,9 +105,8 @@ def main():
         
         ## attention
         # visualize_self_attn(pred, agg.sa_weights, image_save_path)
-        for i, sa_weights_dec in enumerate(agg.sa_weights_dec):
-            import ipdb; ipdb.set_trace(context=21) # #FF0000
-            visualize_self_attn(pred, sa_weights_dec[-26-26-1:-1,-26-26-1:-1], image_save_path, tag=f'_dec{i:02d}')
+        # for i, sa_weights_dec in enumerate(agg.sa_weights_dec):
+        #     visualize_self_attn(pred, sa_weights_dec[-26-26-1:-1,-26-26-1:-1], image_save_path, tag=f'_dec{i:02d}')
         # for i, sa_weights_ref in enumerate(agg.sa_weights_ref):      
         #     visualize_self_attn(pred, sa_weights_ref, image_save_path, tag=f'_ref{i:02d}')
         # visualize_cross_attn(image, agg.ca_weights, vis_size, image_save_path)
@@ -142,7 +144,7 @@ def visualize_self_attn(pred, sa_weights, image_save_path, tag=''):
                     ax=ax,
                     cbar_ax=cax,
                     cbar=True,
-                    linewidths=1,
+                    # linewidths=1,
                     )
     cbar = sa.collections[0].colorbar
     # cbar.ax.tick_params(labelsize=labelsize)
@@ -175,8 +177,7 @@ def visualize_tsne(model, image_save_path):
 def visualize_head_self_sim(model, image_save_path):
     head = model.head.weight.detach().cpu().numpy()
     charset_train = model.hparams.charset_train
-    # rows = cols = ['[E]'] + list(charset_train)
-    rows = cols = ['[E]'] + list(charset_train) + ['[B]', '[P]']
+    rows = cols = (['[E]'] + list(charset_train) + ['[B]', '[P]'])[:head.shape[0]]
     visualize_similarity(head, head, rows, cols, image_save_path)        
 
 
@@ -231,7 +232,14 @@ def visualize_sim_with_head(attr, agg, pred, model, image_save_path, sim_scale=1
     target = getattr(agg, attr)
     target = target.detach().cpu().numpy()[0]
     visualize_similarity(target, head, rows, cols, image_save_path, sim_scale=sim_scale, tag='_' + attr)
-    
+
+
+def visualize_pe_self_sim(pred, model, image_save_path, sim_scale=1.0):
+    pred = list(pred[0]) + ['[E]']
+    # pos_queries = model.pos_queries.detach().cpu().numpy()[0][:len(pred), :]
+    pos_queries = model.pos_embed.detach().cpu().numpy()[0][:len(pred), :]
+    rows = cols = list(range(1, len(pred) + 1))
+    visualize_similarity(pos_queries, pos_queries, rows, cols, image_save_path, sim_scale, annot=True)
     
 def visualize_sim_with_pe(target, pred, model, image_save_path, sim_scale=1.0):
     rows = pred = list(pred[0]) + ['[E]']
@@ -245,9 +253,7 @@ def visualize_text_embed_sim_with_head(model, image_save_path):
     text_embed = model.text_embed.embedding.weight.detach().cpu().numpy() # [charset_size, embed_dim]
     head = model.head.weight.detach().cpu().numpy()
     charset_train = model.hparams.charset_train
-    rows = ['[E]'] + list(charset_train) + ['[B]', '[P]']
-    cols = ['[E]'] + list(charset_train) + ['[B]', '[P]']
-    # cols = ['[E]'] + list(charset_train)
+    rows = cols = (['[E]'] + list(charset_train) + ['[B]', '[P]'])[:head.shape[0]]
     visualize_similarity(text_embed, head, rows, cols, image_save_path)
             
 
