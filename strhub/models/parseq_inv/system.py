@@ -169,7 +169,7 @@ class PARSeq_inv(CrossEntropySystem):
                                       tgt_query=pos_queries, tgt_query_mask=query_mask[:, :tgt_in.shape[1]])
                 logits = self.head(tgt_out)
 
-        return logits
+        return logits, None
 
     def gen_tgt_perms(self, tgt):
         """Generate shared permutations for the whole batch.

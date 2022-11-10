@@ -136,7 +136,15 @@ def main():
     }
     if args.new:
         result_groups.update({'New': SceneTextDataModule.TEST_NEW})
-    with open(args.checkpoint + '.log.txt', 'w') as f:
+    
+    log_tag = ''
+    for k, v in kwargs.items():
+        if k == 'charset_test':
+            continue
+        else:
+            log_tag += '.' + str(k) + '=' + str(v)
+            
+    with open(args.checkpoint + log_tag + '.log.txt', 'w') as f:
         for out in [f, sys.stdout]:
             for group, subset in result_groups.items():
                 print(f'{group} set:', file=out)
