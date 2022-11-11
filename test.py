@@ -96,10 +96,11 @@ def main():
     if cfg.model.perm_num == 1:
         if kwargs.get('refine_iters') is None:
             cfg.model.refine_iters = 0
+        if kwargs.get('perm_mirrored') is None:
+            cfg.model.perm_mirrored = False
     for k, v in kwargs.items():
         setattr(cfg.model, k, v)
-    
-    
+        
     model = instantiate(cfg.model)
     hp = model.hparams
     print(model.hparams)

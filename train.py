@@ -61,6 +61,7 @@ def main(config: DictConfig):
             config.model.refine_iters = 0
     
     model: BaseSystem = hydra.utils.instantiate(config.model)
+    print(model.hparams)
     print(summarize(model, max_depth=1))
 
     datamodule: SceneTextDataModule = hydra.utils.instantiate(config.data)
