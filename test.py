@@ -86,12 +86,16 @@ def main():
     if args.punctuation:
         charset_test += string.punctuation
     kwargs.update({'charset_test': charset_test})
+        
     print(f'Additional keyword arguments: {kwargs}')
     # model = load_from_checkpoint(args.checkpoint, **kwargs).eval().to(args.device)
     ckpt_split = args.checkpoint.split('/')
     exp_dir = '/'.join(ckpt_split[:ckpt_split.index('checkpoints')])
     initialize(config_path=f'{exp_dir}/config', version_base='1.2')
     cfg = compose(config_name='config')
+    if cfg.model.perm_num == 1:
+        if kwargs.get('refine_iters') is None:
+            cfg.model.refine_iters = 0
     for k, v in kwargs.items():
         setattr(cfg.model, k, v)
     
