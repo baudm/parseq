@@ -6,6 +6,7 @@ ray_results/
 # other
 config/
 train_ddp*
+attn*
 
 
 # Byte-compiled / optimized / DLL files
