@@ -334,7 +334,6 @@ class Isaac_VLP(CrossEntropySystem):
         logits = []
         for i in range(num_steps):
             j = i + 1 # next token index
-            import ipdb; ipdb.set_trace(context=21) # #FF0000
             vis_out, lan_out, pos_out, agg = self.decode(vis, lan, pos, dummy_token, attn_mask=attn_mask)
             p_i = self.head(pos_out[:, i:j])
             logits.append(p_i)
