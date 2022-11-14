@@ -93,11 +93,12 @@ def main():
     exp_dir = '/'.join(ckpt_split[:ckpt_split.index('checkpoints')])
     initialize(config_path=f'{exp_dir}/config', version_base='1.2')
     cfg = compose(config_name='config')
-    if cfg.model.perm_num == 1:
-        if kwargs.get('refine_iters') is None:
-            cfg.model.refine_iters = 0
-        if kwargs.get('perm_mirrored') is None:
-            cfg.model.perm_mirrored = False
+    if cfg.model.get('perm_num') is not None:
+        if cfg.model.perm_num == 1:
+            if kwargs.get('refine_iters') is None:
+                cfg.model.refine_iters = 0
+            if kwargs.get('perm_mirrored') is None:
+                cfg.model.perm_mirrored = False
     for k, v in kwargs.items():
         setattr(cfg.model, k, v)
         
