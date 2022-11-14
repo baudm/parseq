@@ -46,7 +46,7 @@ def main():
         return x.lower() == 'true'
     parser = argparse.ArgumentParser()
     parser.add_argument('checkpoint', help="Model checkpoint (or 'pretrained=<model_id>')")
-    parser.add_argument('--images', nargs='+', help='Images to read')
+    parser.add_argument('--images', nargs='+', required=True, help='Images to read')
     parser.add_argument('--device', default='cuda')
     args, unknown = parser.parse_known_args()
     kwargs = parse_model_args(unknown)
@@ -72,7 +72,8 @@ def main():
     model.load_state_dict(torch.load(args.checkpoint)['state_dict'])
     model.eval().to(args.device)
     img_transform = SceneTextDataModule.get_transform(model.hparams.img_size)
-    vis_size = [a//b for (a, b) in zip(model.hparams.img_size, model.hparams.patch_size)]
+    
+    hparams = model.hparams
     
     debug_dir = f'{exp_dir}/debug'
     init_dir(f'{debug_dir}/demo_images')
@@ -108,14 +109,14 @@ def main():
         
         ## attention
         # visualize_self_attn(pred, agg.sa_weights, image_save_path)
-        visualize_self_attn_VLP(pred, agg.sa_weights_dec, vis_size, image, image_save_path, Q='P', K='V', tag=f'_dec')
-        # visualize_cross_attn(agg.ca_weights, vis_size, image, image_save_path)
+        visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='V', K='P', tag=f'_dec')
+        # visualize_cross_attn(agg.ca_weights, hparams, image, image_save_path)
         # visualize_sim_with_memory(agg.res_pt_2, agg.memory, image, image_save_path)
         
         print(f'{fname}: {pred[0]}')
 
 
-def visualize_self_attn_VLP(pred, sa_weights, vis_size, image, image_save_path, tag='', Q='VLP', K='VLP', sim_scale=1.0):
+def visualize_self_attn_VLP(pred, sa_weights, hparams, image, image_save_path, tag='', Q='VLP', K='VLP', sim_scale=1.0):
     """
     Self-attn visualization of multi-modal Transformer.
     
@@ -126,7 +127,9 @@ def visualize_self_attn_VLP(pred, sa_weights, vis_size, image, image_save_path, 
     if sa_weights is None: return
     filename_path, ext = os.path.splitext(image_save_path)
     pred = list(pred[0])
-    L_V, L_L, L_P = 256, 26, 26
+    vis_size = [a // b for (a, b) in zip(hparams.img_size, hparams.patch_size)]
+    L_V = vis_size[0] * vis_size[1]
+    L_L = L_P = hparams.max_label_length + 1
     L_T = L_V + L_L + L_P
     assert sa_weights.shape[-1] == L_T + 1 # +1 for dummy token
     rows = list(range(L_T + 1))
@@ -255,6 +258,8 @@ def visualize_self_attn_VLP(pred, sa_weights, vis_size, image, image_save_path, 
             attn = attn.resize(image.size, resample=Image.NEAREST)
             blend = Image.blend(image, attn, alpha=0.5)
             blend.save(save_path)
+    elif Q + K in ['VP', 'VL']:
+        raise NotImplementedError # V cannot attend to P, L in base stage.
     else:
         raise NotImplementedError
         
@@ -440,9 +445,10 @@ def visualize_similarity(target, source, rows, cols, image_save_path, sim_scale=
 
     
     
-def visualize_cross_attn(ca_weights, vis_size, image, image_save_path, tag=''):
+def visualize_cross_attn(ca_weights, hparams, image, image_save_path, tag=''):
     filename_path, ext = os.path.splitext(image_save_path)
     if ca_weights is None: return
+    vis_size = [a // b for (a, b) in zip(hparams.img_size, hparams.patch_size)]
     ca_weights = ca_weights.view(-1, vis_size[0], vis_size[1])
     ca_weights = ca_weights.detach().cpu().numpy()
     

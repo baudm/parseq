@@ -118,7 +118,6 @@ class DecoderLayer(nn.Module):
         
         # SA
         tokens_res, sa_weights = self.self_attn(tokens_norm, tokens_norm, tokens_norm, attn_mask=attn_mask, key_padding_mask=padding_mask)
-        tokens_res = tokens_res.masked_fill(~attn_mask[:, -1].unsqueeze(1).to(torch.bool), 0)
         tokens = tokens + self.dropout1(tokens_res)
         
         # FF
@@ -127,7 +126,6 @@ class DecoderLayer(nn.Module):
         lan_tokens_res = self.ff_l(lan_tokens)
         pos_tokens_res = self.ff_p(pos_tokens)
         tokens_res = torch.cat([vis_tokens_res, lan_tokens_res, pos_tokens_res, dummy_token], dim=1)
-        tokens_res = tokens_res.masked_fill(~attn_mask[:, -1].unsqueeze(1).to(torch.bool), 0)
         tokens = tokens + self.dropout2(tokens_res)
         vis_tokens, lan_tokens, pos_tokens, _ = torch.split(tokens, [L_V, L_L, L_P, 1], dim=1)
         
