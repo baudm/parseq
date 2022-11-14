@@ -31,7 +31,7 @@ class MultiheadAttention(Module):
         self.head_dim = embed_dim // num_heads
         self.split_lengths = split_lengths
         assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
-        assert len(self.split_lengths) == 3, "only supports split_lengths of 3"
+        assert len(self.split_lengths) == 4, "only supports split_lengths of 4"
 
         self.in_proj_weight_1 = Parameter(torch.empty((3 * embed_dim, embed_dim), **factory_kwargs))
         self.in_proj_weight_2 = Parameter(torch.empty((3 * embed_dim, embed_dim), **factory_kwargs))
@@ -60,7 +60,7 @@ class MultiheadAttention(Module):
 
     def forward(self, query: Tensor, key: Tensor, value: Tensor, key_padding_mask: Optional[Tensor] = None,
                 need_weights: bool = True, attn_mask: Optional[Tensor] = None,
-                average_attn_weights: bool = True) -> Tuple[Tensor, Optional[Tensor]]:
+                average_attn_weights: bool = True, dummy: bool = True) -> Tuple[Tensor, Optional[Tensor]]:
         
         is_batched = query.dim() == 3
         if self.batch_first and is_batched:
@@ -73,7 +73,7 @@ class MultiheadAttention(Module):
                     value = key
             else:
                 query, key, value = [x.transpose(1, 0) for x in (query, key, value)]
-        
+       
         assert query.shape[0] == sum(self.split_lengths), f"seq_len {query.shape[0]} does not match split_lengths {sum(self.split_lengths)}"
         
         attn_output, attn_output_weights = multi_head_attention_forward(
@@ -88,7 +88,8 @@ class MultiheadAttention(Module):
             self.out_proj_3.weight, self.out_proj_3.bias,
             training=self.training,
             key_padding_mask=key_padding_mask, need_weights=need_weights,
-            attn_mask=attn_mask, average_attn_weights=average_attn_weights)
+            attn_mask=attn_mask, average_attn_weights=average_attn_weights,
+            dummy=dummy)
         if self.batch_first and is_batched:
             return attn_output.transpose(1, 0), attn_output_weights
         else:
@@ -119,7 +120,8 @@ def multi_head_attention_forward(
     key_padding_mask: Optional[Tensor] = None,
     need_weights: bool = True,
     attn_mask: Optional[Tensor] = None,
-    average_attn_weights: bool = True
+    average_attn_weights: bool = True,
+    dummy: bool = True
 ) -> Tuple[Tensor, Optional[Tensor]]:
     # set up shape vars
     tgt_len, bsz, embed_dim = query.shape
@@ -131,12 +133,16 @@ def multi_head_attention_forward(
     assert key.shape == value.shape, f"key shape {key.shape} does not match value shape {value.shape}"
     
     # compute in-projection
-    query1, query2, query3 = torch.split(query, split_lengths, dim=0)
-    key1, key2, key3 = torch.split(key, split_lengths, dim=0)
-    value1, value2, value3 = torch.split(value, split_lengths, dim=0)
+    query1, query2, query3, dummy_token = torch.split(query, split_lengths, dim=0)
+    key1, key2, key3, _ = torch.split(key, split_lengths, dim=0)
+    value1, value2, value3, _ = torch.split(value, split_lengths, dim=0)
     q1, k1, v1 = F._in_projection_packed(query1, key1, value1, in_proj_weight_1, in_proj_bias_1)
     q2, k2, v2 = F._in_projection_packed(query2, key2, value2, in_proj_weight_2, in_proj_bias_2)
     q3, k3, v3 = F._in_projection_packed(query3, key3, value3, in_proj_weight_3, in_proj_bias_3)
+    q = torch.cat([q1, q2, q3, dummy_token], dim=0)
+    k = torch.cat([k1, k2, k3, dummy_token], dim=0)
+    v = torch.cat([v1, v2, v3, dummy_token], dim=0)
+    
     if attn_mask is not None:
         assert attn_mask.is_floating_point() or attn_mask.dtype == torch.bool, \
             f"Only float, byte, and bool types are supported for attn_mask, not {attn_mask.dtype}"
@@ -153,18 +159,9 @@ def multi_head_attention_forward(
         key_padding_mask = key_padding_mask.to(torch.bool)
 
     # reshape q, k, v for multihead attention and make em batch first
-    q1 = q1.contiguous().view(q1.shape[0], bsz * num_heads, head_dim).transpose(0, 1)
-    q2 = q2.contiguous().view(q2.shape[0], bsz * num_heads, head_dim).transpose(0, 1)
-    q3 = q3.contiguous().view(q3.shape[0], bsz * num_heads, head_dim).transpose(0, 1)
-    k1 = k1.contiguous().view(k1.shape[0], bsz * num_heads, head_dim).transpose(0, 1)
-    k2 = k2.contiguous().view(k2.shape[0], bsz * num_heads, head_dim).transpose(0, 1)
-    k3 = k3.contiguous().view(k3.shape[0], bsz * num_heads, head_dim).transpose(0, 1)
-    v1 = v1.contiguous().view(v1.shape[0], bsz * num_heads, head_dim).transpose(0, 1)
-    v2 = v2.contiguous().view(v2.shape[0], bsz * num_heads, head_dim).transpose(0, 1)
-    v3 = v3.contiguous().view(v3.shape[0], bsz * num_heads, head_dim).transpose(0, 1)
-    q = torch.cat([q1, q2, q3], dim=1)
-    k = torch.cat([k1, k2, k3], dim=1)
-    v = torch.cat([v1, v2, v3], dim=1)
+    q = q.contiguous().view(tgt_len, bsz * num_heads, head_dim).transpose(0, 1)
+    k = k.contiguous().view(src_len, bsz * num_heads, head_dim).transpose(0, 1)
+    v = v.contiguous().view(src_len, bsz * num_heads, head_dim).transpose(0, 1)
 
     # update source sequence length after adjustments
     src_len = k.size(1)
@@ -195,7 +192,7 @@ def multi_head_attention_forward(
     # calculate attention and out projection
     attn_output, attn_output_weights = _scaled_dot_product_attention(q, k, v, attn_mask, dropout_p)
     attn_output = attn_output.transpose(0, 1).contiguous()
-    attn_output1, attn_output2, attn_output3 = torch.split(attn_output, split_lengths, dim=0)
+    attn_output1, attn_output2, attn_output3, attn_output_dummy = torch.split(attn_output, split_lengths, dim=0)
     attn_output1 = attn_output1.view(split_lengths[0] * bsz, embed_dim)
     attn_output2 = attn_output2.view(split_lengths[1] * bsz, embed_dim)
     attn_output3 = attn_output3.view(split_lengths[2] * bsz, embed_dim)
@@ -205,7 +202,8 @@ def multi_head_attention_forward(
     attn_output1 = attn_output1.view(split_lengths[0], bsz, embed_dim)
     attn_output2 = attn_output2.view(split_lengths[1], bsz, embed_dim)
     attn_output3 = attn_output3.view(split_lengths[2], bsz, embed_dim)
-    attn_output = torch.cat([attn_output1, attn_output2, attn_output3], dim=0)
+    attn_output_dummy = attn_output_dummy.view(split_lengths[3], bsz, embed_dim)
+    attn_output = torch.cat([attn_output1, attn_output2, attn_output3, attn_output_dummy], dim=0)
 
     if need_weights:
         # optionally average attention weights over heads
@@ -235,8 +233,6 @@ def _scaled_dot_product_attention(
         attn = torch.bmm(q, k.transpose(-2, -1))
 
     attn = F.softmax(attn, dim=-1)
-    # remove nan
-    attn = torch.nan_to_num(attn, 0)
     
     if dropout_p > 0.0:
         attn = F.dropout(attn, p=dropout_p)

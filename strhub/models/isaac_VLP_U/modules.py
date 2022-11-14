@@ -103,8 +103,6 @@ class DecoderLayer(nn.Module):
         Vision-Langauge-Position Transformer decoder.
         
         Dummy token is added to handle the softmax gradient error when all keys are masked.
-        Residual outputs (MHA, FF) are explicitly set to zero where all keys are masked.
-        
         """
         L_V = vis_tokens.shape[1]
         L_L = lan_tokens.shape[1]
@@ -115,12 +113,10 @@ class DecoderLayer(nn.Module):
         
         # SA
         tokens_res, sa_weights = self.self_attn(tokens_norm, tokens_norm, tokens_norm, attn_mask=attn_mask, key_padding_mask=padding_mask)
-        tokens_res = tokens_res.masked_fill(~attn_mask[:, -1].unsqueeze(1).to(torch.bool), 0)
         tokens = tokens + self.dropout1(tokens_res)
         
         # FF
         tokens_res = self.ff(tokens)
-        tokens_res = tokens_res.masked_fill(~attn_mask[:, -1].unsqueeze(1).to(torch.bool), 0)
         tokens = tokens + self.dropout2(tokens_res)
         vis_tokens, lan_tokens, pos_tokens, _ = torch.split(tokens, [L_V, L_L, L_P, 1], dim=1)
         

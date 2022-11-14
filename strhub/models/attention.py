@@ -49,7 +49,7 @@ class MultiheadAttention(Module):
 
     def forward(self, query: Tensor, key: Tensor, value: Tensor, key_padding_mask: Optional[Tensor] = None,
                 need_weights: bool = True, attn_mask: Optional[Tensor] = None,
-                average_attn_weights: bool = True, dummy=True) -> Tuple[Tensor, Optional[Tensor]]:
+                average_attn_weights: bool = True) -> Tuple[Tensor, Optional[Tensor]]:
         is_batched = query.dim() == 3
 
         if self.batch_first and is_batched:
@@ -69,8 +69,7 @@ class MultiheadAttention(Module):
             self.dropout, self.out_proj.weight, self.out_proj.bias,
             training=self.training,
             key_padding_mask=key_padding_mask, need_weights=need_weights,
-            attn_mask=attn_mask, average_attn_weights=average_attn_weights,
-            dummy=dummy)
+            attn_mask=attn_mask, average_attn_weights=average_attn_weights)
         if self.batch_first and is_batched:
             return attn_output.transpose(1, 0), attn_output_weights
         else:
@@ -92,8 +91,7 @@ def multi_head_attention_forward(
     key_padding_mask: Optional[Tensor] = None,
     need_weights: bool = True,
     attn_mask: Optional[Tensor] = None,
-    average_attn_weights: bool = True,
-    dummy: bool = True
+    average_attn_weights: bool = True
 ) -> Tuple[Tensor, Optional[Tensor]]:
     # set up shape vars
     tgt_len, bsz, embed_dim = query.shape
@@ -106,9 +104,12 @@ def multi_head_attention_forward(
     
     # compute in-projection
     assert in_proj_weight is not None, "use_separate_proj_weight is False but in_proj_weight is None"
-    q, k, v = F._in_projection_packed(query, key, value, in_proj_weight, in_proj_bias)
-    if dummy:
-        v.contiguous()[-1] = 0
+    q1, k1, v1 = F._in_projection_packed(query[:-1], key[:-1], value[:-1], in_proj_weight, in_proj_bias)
+    dummy_token = query[-1].unsqueeze(0)
+    q = torch.cat([q1, dummy_token], dim=0)
+    k = torch.cat([k1, dummy_token], dim=0)
+    v = torch.cat([v1, dummy_token], dim=0)
+    
     if attn_mask is not None:
         assert attn_mask.is_floating_point() or attn_mask.dtype == torch.bool, \
             f"Only float, byte, and bool types are supported for attn_mask, not {attn_mask.dtype}"
@@ -126,8 +127,8 @@ def multi_head_attention_forward(
 
     # reshape q, k, v for multihead attention and make em batch first
     q = q.contiguous().view(tgt_len, bsz * num_heads, head_dim).transpose(0, 1)
-    k = k.contiguous().view(k.shape[0], bsz * num_heads, head_dim).transpose(0, 1)
-    v = v.contiguous().view(v.shape[0], bsz * num_heads, head_dim).transpose(0, 1)
+    k = k.contiguous().view(src_len, bsz * num_heads, head_dim).transpose(0, 1)
+    v = v.contiguous().view(src_len, bsz * num_heads, head_dim).transpose(0, 1)
 
     # update source sequence length after adjustments
     src_len = k.size(1)

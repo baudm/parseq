@@ -61,7 +61,10 @@ class Isaac_VLP_SA(CrossEntropySystem):
 
         self.encoder = Encoder(img_size, patch_size, embed_dim=embed_dim, depth=enc_depth, num_heads=enc_num_heads,
                                mlp_ratio=enc_mlp_ratio)
-        decoder_layer = DecoderLayer(embed_dim, dec_num_heads, embed_dim * dec_mlp_ratio, dropout)
+        vis_size = [img_size[0] // patch_size[0], img_size[1] // patch_size[1]]
+        L_V = vis_size[0] * vis_size[1]
+        L_L = L_P = max_label_length + 1
+        decoder_layer = DecoderLayer(embed_dim, dec_num_heads, embed_dim * dec_mlp_ratio, dropout, L_V=L_V, L_L=L_L, L_P=L_P)
         self.decoder = Decoder(decoder_layer, num_layers=dec_depth, norm=nn.LayerNorm(embed_dim))
         self.refiner = Decoder(decoder_layer, num_layers=ref_depth, norm=nn.LayerNorm(embed_dim)) if ref_depth > 0 else None
 

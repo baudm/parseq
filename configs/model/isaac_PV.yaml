@@ -2,7 +2,7 @@ name: isaac_PV
 _target_: strhub.models.isaac_PV.system.Isaac_PV
 
 # Data
-patch_size: [ 4, 4 ]  # [ height, width ]
+patch_size: [ 4, 8 ]  # [ height, width ]
 
 # Architecture
 embed_dim: 384

@@ -80,9 +80,9 @@ class DecoderLayer(nn.Module):
        This implements a pre-LN decoder, as opposed to the post-LN default in PyTorch."""
 
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1, activation='gelu',
-                 layer_norm_eps=1e-5):
+                 layer_norm_eps=1e-5, L_V=256, L_L=26, L_P=26):
         super().__init__()
-        self.self_attn = MultiheadAttention([256, 26, 26], d_model, nhead, dropout=dropout, batch_first=True)
+        self.self_attn = MultiheadAttention([L_V, L_L, L_P, 1], d_model, nhead, dropout=dropout, batch_first=True)
         # self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
         # self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
         
@@ -105,8 +105,6 @@ class DecoderLayer(nn.Module):
         Vision-Langauge-Position Transformer decoder.
         
         Dummy token is added to handle the softmax gradient error when all keys are masked.
-        Residual outputs (MHA, FF) are explicitly set to zero where all keys are masked.
-        
         """
         L_V = vis_tokens.shape[1]
         L_L = lan_tokens.shape[1]
@@ -117,7 +115,6 @@ class DecoderLayer(nn.Module):
         
         # SA
         tokens_res, sa_weights = self.self_attn(tokens_norm, tokens_norm, tokens_norm, attn_mask=attn_mask, key_padding_mask=padding_mask)
-        tokens_res = tokens_res.masked_fill(~attn_mask[:, -1].unsqueeze(1).to(torch.bool), 0)
         tokens = tokens + self.dropout1(tokens_res)
         
         # FF
@@ -126,7 +123,6 @@ class DecoderLayer(nn.Module):
         lan_tokens_res = self.ff_l(lan_tokens)
         pos_tokens_res = self.ff_p(pos_tokens)
         tokens_res = torch.cat([vis_tokens_res, lan_tokens_res, pos_tokens_res, dummy_token], dim=1)
-        tokens_res = tokens_res.masked_fill(~attn_mask[:, -1].unsqueeze(1).to(torch.bool), 0)
         tokens = tokens + self.dropout2(tokens_res)
         vis_tokens, lan_tokens, pos_tokens, _ = torch.split(tokens, [L_V, L_L, L_P, 1], dim=1)
         
