@@ -109,7 +109,7 @@ def main():
         
         ## attention
         # visualize_self_attn(pred, agg.sa_weights, image_save_path)
-        visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='V', K='P', tag=f'_dec')
+        visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='P', K='L', tag=f'_dec')
         # visualize_cross_attn(agg.ca_weights, hparams, image, image_save_path)
         # visualize_sim_with_memory(agg.res_pt_2, agg.memory, image, image_save_path)
         

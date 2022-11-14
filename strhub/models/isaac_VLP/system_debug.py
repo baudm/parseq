@@ -298,7 +298,7 @@ class Isaac_VLP(CrossEntropySystem):
         
         dummy_token = dummy_token.expand(bs, -1, -1)
         
-        return self.decoder(vis, lan.detach(), pos.detach(), dummy_token, attn_mask=attn_mask, padding_mask=padding_mask)
+        return self.refiner(vis, lan.detach(), pos.detach(), dummy_token, attn_mask=attn_mask, padding_mask=padding_mask)
 
     def forward_logits_loss(self, images: Tensor, labels: List[str]) -> Tuple[Tensor, Tensor, int]:
         """Override function defined in CrossEntropySystem, because initial prediction might be longer than target."""
@@ -356,7 +356,7 @@ class Isaac_VLP(CrossEntropySystem):
         logits = torch.cat(logits, dim=1)
         
         # debug
-        DEC_IDX = 1
+        DEC_IDX = 0
         sa_weights = []
         for i in range(max_time_step + 1):
             _sa_weights = aggs[i][DEC_IDX].sa_weights[0]
@@ -434,22 +434,6 @@ class Isaac_VLP(CrossEntropySystem):
         else:
             loss_refine = 0
             loss = loss_dec
-        
-        # if batch_idx % 100 == 0:
-        #     pred = logits.argmax(-1).view(bs, -1)
-        #     print('tgt_out')
-        #     print(tgt_out)
-        #     print('pred')
-        #     print(pred)
-            # chr_emb = self.text_embed(torch.LongTensor([0, 1, 2]).to(self._device))[:, :8]
-            # print('chr_emb')
-            # print(chr_emb)
-            # pos_emb = self.pos_embed[0][:3][:, :8]
-            # print('pos_emb')
-            # print(pos_emb)
-            # print('sa_weights')
-            # print(agg.sa_weights[0][:5])
-            # print(agg.sa_weights[0][-5:])
         
         self.log('loss', loss)
         self.log('loss_ref', loss_refine)

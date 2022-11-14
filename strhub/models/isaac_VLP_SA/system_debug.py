@@ -298,7 +298,7 @@ class Isaac_VLP(CrossEntropySystem):
         
         dummy_token = dummy_token.expand(bs, -1, -1)
         
-        return self.decoder(vis, lan.detach(), pos.detach(), dummy_token, attn_mask=attn_mask, padding_mask=padding_mask)
+        return self.refiner(vis, lan.detach(), pos.detach(), dummy_token, attn_mask=attn_mask, padding_mask=padding_mask)
 
     def forward_logits_loss(self, images: Tensor, labels: List[str]) -> Tuple[Tensor, Tensor, int]:
         """Override function defined in CrossEntropySystem, because initial prediction might be longer than target."""
