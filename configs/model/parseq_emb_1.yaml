@@ -1,5 +1,5 @@
-name: parseq_emb_NS
-_target_: strhub.models.parseq_emb_no_scale.system.PARSeq_emb_NS
+name: parseq_emb_1
+_target_: strhub.models.parseq_emb_1.system.PARSeq_emb_1
 
 # Data
 patch_size: [ 4, 8 ]  # [ height, width ]

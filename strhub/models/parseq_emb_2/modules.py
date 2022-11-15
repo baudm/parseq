@@ -61,7 +61,6 @@ class DecoderLayer(nn.Module):
         Both tgt_kv and memory are expected to be LayerNorm'd too.
         memory is LayerNorm'd by ViT.
         """
-        
         # S -> P
         tgt2, sa_weights = self.self_attn(tgt_norm, tgt_kv, tgt_kv, attn_mask=tgt_mask,
                                           key_padding_mask=tgt_key_padding_mask)

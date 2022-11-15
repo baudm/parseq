@@ -435,22 +435,6 @@ class Isaac_VLP(CrossEntropySystem):
             loss_refine = 0
             loss = loss_dec
         
-        # if batch_idx % 100 == 0:
-        #     pred = logits.argmax(-1).view(bs, -1)
-        #     print('tgt_out')
-        #     print(tgt_out)
-        #     print('pred')
-        #     print(pred)
-            # chr_emb = self.text_embed(torch.LongTensor([0, 1, 2]).to(self._device))[:, :8]
-            # print('chr_emb')
-            # print(chr_emb)
-            # pos_emb = self.pos_embed[0][:3][:, :8]
-            # print('pos_emb')
-            # print(pos_emb)
-            # print('sa_weights')
-            # print(agg.sa_weights[0][:5])
-            # print(agg.sa_weights[0][-5:])
-        
         self.log('loss', loss)
         self.log('loss_ref', loss_refine)
         self.log('loss_dec', loss_dec)

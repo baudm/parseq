@@ -141,4 +141,4 @@ class TokenEmbedding(nn.Module):
         self.embed_dim = embed_dim
 
     def forward(self, tokens: torch.Tensor):
-        return math.sqrt(self.embed_dim) * self.embedding(tokens)
+        return self.embedding(tokens)

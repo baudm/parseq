@@ -23,7 +23,7 @@ from torch.nn import functional as F
 from torch.nn.modules import transformer
 
 from timm.models.vision_transformer import VisionTransformer, PatchEmbed
-    
+
 
 class DecoderLayer(nn.Module):
     """A Transformer decoder layer supporting two-stream attention (XLNet)
@@ -141,4 +141,4 @@ class TokenEmbedding(nn.Module):
         self.embed_dim = embed_dim
 
     def forward(self, tokens: torch.Tensor):
-        return math.sqrt(self.embed_dim) * self.embedding(tokens)
+        return self.embedding(tokens)

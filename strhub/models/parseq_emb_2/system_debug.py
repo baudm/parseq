@@ -31,10 +31,23 @@ from timm.models.helpers import named_apply
 
 from strhub.models.base import CrossEntropySystem
 from strhub.models.utils import init_weights
-from .modules import DecoderLayer, Decoder, Encoder, TokenEmbedding
+from .modules_debug import DecoderLayer, Decoder, Encoder, TokenEmbedding
+
+@dataclass
+class System_Data:
+    sa_weights: torch.Tensor = None
+    ca_weights: torch.Tensor = None
+    main_pt_1: torch.Tensor = None # input
+    main_pt_2: torch.Tensor = None # after sa
+    main_pt_3: torch.Tensor = None # after ca
+    main_pt_4: torch.Tensor = None # after ff
+    res_pt_1: torch.Tensor = None # residual result of sa
+    res_pt_2: torch.Tensor = None # residual result of ca
+    res_pt_3: torch.Tensor = None # residual result of ff
+    memory: torch.Tensor = None # visual features
 
 
-class PARSeq_emb(CrossEntropySystem):
+class PARSeq_emb_2(CrossEntropySystem):
     """
     PARSeq with share weights between char_embedding and final prediction head.
     """
@@ -47,7 +60,7 @@ class PARSeq_emb(CrossEntropySystem):
                  perm_num: int, perm_forward: bool, perm_mirrored: bool,
                  decode_ar: bool, refine_iters: int, dropout: float, **kwargs: Any) -> None:
         super().__init__(charset_train, charset_test, batch_size, lr, warmup_pct, weight_decay)
-        print('Model : PARSeq_emb')
+        print('Model : PARSeq_emb_2')
         self.save_hyperparameters()
 
         self.max_label_length = max_label_length
@@ -68,7 +81,6 @@ class PARSeq_emb(CrossEntropySystem):
         self.head = nn.Linear(embed_dim, len(self.tokenizer))
         self.text_embed = TokenEmbedding(len(self.tokenizer), embed_dim)
         self.head.weight = self.text_embed.embedding.weight
-        self.head_scale = math.sqrt(self.text_embed.embed_dim)
 
         # +1 for <eos>
         self.pos_queries = nn.Parameter(torch.Tensor(1, max_label_length + 1, embed_dim))
@@ -106,6 +118,7 @@ class PARSeq_emb(CrossEntropySystem):
         return self.decoder(tgt_query, tgt_emb, memory, tgt_query_mask, tgt_mask, tgt_padding_mask)
 
     def forward(self, images: Tensor, max_length: Optional[int] = None) -> Tensor:
+        agg = System_Data()
         
         testing = max_length is None
         max_length = self.max_label_length if max_length is None else min(max_length, self.max_label_length)
@@ -119,6 +132,10 @@ class PARSeq_emb(CrossEntropySystem):
 
         # Special case for the forward permutation. Faster than using `generate_attn_masks()`
         tgt_mask = query_mask = torch.triu(torch.full((num_steps, num_steps), float('-inf'), device=self._device), 1)
+
+        sa_weights = []
+        ca_weights = []
+        main_pt_1, main_pt_2, main_pt_3, main_pt_4, res_pt_1, res_pt_2, res_pt_3 = [], [], [], [], [], [], []
         
         if self.decode_ar:
             tgt_in = torch.full((bs, num_steps), self.pad_id, dtype=torch.long, device=self._device)
@@ -134,8 +151,18 @@ class PARSeq_emb(CrossEntropySystem):
                 tgt_out, _agg = self.decode(tgt_in[:, :j], memory, tgt_mask[:j, :j], tgt_query=pos_queries[:, i:j],
                                       tgt_query_mask=query_mask[i:j, :j])
                 
+                sa_weights.append(_agg.sa_weights)
+                ca_weights.append(_agg.ca_weights)
+                main_pt_1.append(_agg.main_pt_1)
+                main_pt_2.append(_agg.main_pt_2)
+                main_pt_3.append(_agg.main_pt_3)
+                main_pt_4.append(_agg.main_pt_4)
+                res_pt_1.append(_agg.res_pt_1)
+                res_pt_2.append(_agg.res_pt_2)
+                res_pt_3.append(_agg.res_pt_3)
+                
                 # the next token probability is in the output's ith token position
-                p_i = self.head_scale * self.head(tgt_out)
+                p_i = self.head(tgt_out)
                 logits.append(p_i)
                 if j < num_steps:
                     # greedy decode. add the next token index to the target input
@@ -149,8 +176,17 @@ class PARSeq_emb(CrossEntropySystem):
             # No prior context, so input is just <bos>. We query all positions.
             tgt_in = torch.full((bs, 1), self.bos_id, dtype=torch.long, device=self._device)
             tgt_out, _ = self.decode(tgt_in, memory, tgt_query=pos_queries)
-            logits = self.head_scale * self.head(tgt_out)
+            logits = self.head(tgt_out)
         
+        if sa_weights[0] is not None:
+            sa_weights = [s[0][0] for s in sa_weights]
+            sa_weights = pad_sequence(sa_weights).T
+        else:
+            sa_weights = None
+        if ca_weights[0] is not None:
+            ca_weights = torch.cat(ca_weights, dim=1)
+        else:
+            ca_weights = None
 
         if self.refine_iters:
             # For iterative refinement, we always use a 'cloze' mask.
@@ -163,9 +199,21 @@ class PARSeq_emb(CrossEntropySystem):
                 tgt_padding_mask = ((tgt_in == self.eos_id).cumsum(-1) > 0)  # mask tokens beyond the first EOS token.
                 tgt_out, _ = self.decode(tgt_in, memory, tgt_mask[:tgt_in.shape[1], :tgt_in.shape[1]], tgt_padding_mask,
                                       tgt_query=pos_queries, tgt_query_mask=query_mask[:, :tgt_in.shape[1]])
-                logits = self.head_scale * self.head(tgt_out)
+                logits = self.head(tgt_out)
+
+        # aggregate inspection data
+        agg.sa_weights = sa_weights
+        agg.ca_weights = ca_weights
+        agg.main_pt_1 = torch.cat(main_pt_1, dim=1)
+        agg.main_pt_2 = torch.cat(main_pt_2, dim=1)
+        agg.main_pt_3 = torch.cat(main_pt_3, dim=1)
+        agg.main_pt_4 = torch.cat(main_pt_4, dim=1)
+        agg.res_pt_1 = torch.cat(res_pt_1, dim=1)
+        agg.res_pt_2 = torch.cat(res_pt_2, dim=1)
+        agg.res_pt_3 = torch.cat(res_pt_3, dim=1)
+        agg.memory = memory
         
-        return logits, None
+        return logits, agg
 
     def gen_tgt_perms(self, tgt):
         """Generate shared permutations for the whole batch.
@@ -265,7 +313,7 @@ class PARSeq_emb(CrossEntropySystem):
         for i, perm in enumerate(tgt_perms):
             tgt_mask, query_mask = self.generate_attn_masks(perm)
             out, _ = self.decode(tgt_in, memory, tgt_mask, tgt_padding_mask, tgt_query_mask=query_mask)
-            logits = self.head_scale * self.head(out).flatten(end_dim=1)
+            logits = self.head(out).flatten(end_dim=1)
             loss += n * F.cross_entropy(logits, tgt_out.flatten(), ignore_index=self.pad_id)
             loss_numel += n
             # After the second iteration (i.e. done with canonical and reverse orderings),

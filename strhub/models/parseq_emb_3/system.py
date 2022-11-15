@@ -34,7 +34,7 @@ from strhub.models.utils import init_weights
 from .modules import DecoderLayer, Decoder, Encoder, TokenEmbedding
 
 
-class PARSeq_emb(CrossEntropySystem):
+class PARSeq_emb_3(CrossEntropySystem):
     """
     PARSeq with share weights between char_embedding and final prediction head.
     """
@@ -47,7 +47,7 @@ class PARSeq_emb(CrossEntropySystem):
                  perm_num: int, perm_forward: bool, perm_mirrored: bool,
                  decode_ar: bool, refine_iters: int, dropout: float, **kwargs: Any) -> None:
         super().__init__(charset_train, charset_test, batch_size, lr, warmup_pct, weight_decay)
-        print('Model : PARSeq_emb')
+        print('Model : PARSeq_emb_3')
         self.save_hyperparameters()
 
         self.max_label_length = max_label_length
