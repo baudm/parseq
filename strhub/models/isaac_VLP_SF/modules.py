@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import math
-from typing import Optional, List
+from typing import Optional
 from dataclasses import dataclass
 
 import torch
@@ -29,7 +29,8 @@ from strhub.models.attention import MultiheadAttention
 
 @dataclass
 class Module_Data:
-    sa_weights: Tensor = None
+    sa_weights: torch.Tensor=None
+
 
 class TokenEmbedding(nn.Module):
 
@@ -66,14 +67,12 @@ class Decoder(nn.Module):
         self.norm = norm
 
     def forward(self, vis, lan, pos, dummy, attn_mask:Optional[Tensor]=None, padding_mask:Optional[Tensor]=None):
-        aggs = []
         for i, dec_layer in enumerate(self.layers):
             vis, lan, pos, agg = dec_layer(vis, lan, pos, dummy, attn_mask, padding_mask)
-            aggs.append(agg)
         vis = self.norm(vis)
         lan = self.norm(lan)
         pos = self.norm(pos)
-        return vis, lan, pos, aggs
+        return vis, lan, pos, agg
     
 
 class DecoderLayer(nn.Module):
@@ -87,7 +86,9 @@ class DecoderLayer(nn.Module):
         self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
         # self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
         
-        self.ff = FeedForwardLayer(d_model, dim_feedforward, dropout, activation)
+        self.ff_v = FeedForwardLayer(d_model, dim_feedforward, dropout, activation)
+        self.ff_l = FeedForwardLayer(d_model, dim_feedforward, dropout, activation)
+        self.ff_p = FeedForwardLayer(d_model, dim_feedforward, dropout, activation)
         
         self.norm_l = nn.LayerNorm(d_model, eps=layer_norm_eps)
         self.norm_p = nn.LayerNorm(d_model, eps=layer_norm_eps)
@@ -104,8 +105,6 @@ class DecoderLayer(nn.Module):
         Vision-Langauge-Position Transformer decoder.
         
         Dummy token is added to handle the softmax gradient error when all keys are masked.
-        Residual outputs (MHA, FF) are explicitly set to zero where all keys are masked.
-        
         """
         L_V = vis_tokens.shape[1]
         L_L = lan_tokens.shape[1]
@@ -116,18 +115,20 @@ class DecoderLayer(nn.Module):
         
         # SA
         tokens_res, sa_weights = self.self_attn(tokens_norm, tokens_norm, tokens_norm, attn_mask=attn_mask, key_padding_mask=padding_mask)
-        tokens_res = tokens_res.masked_fill(~attn_mask[:, -1].unsqueeze(1).to(torch.bool), 0)
         tokens = tokens + self.dropout1(tokens_res)
         
         # FF
-        tokens_res = self.ff(tokens)
-        tokens_res = tokens_res.masked_fill(~attn_mask[:, -1].unsqueeze(1).to(torch.bool), 0)
+        vis_tokens, lan_tokens, pos_tokens, _ = torch.split(tokens, [L_V, L_L, L_P, 1], dim=1)
+        vis_tokens_res = self.ff_v(vis_tokens)
+        lan_tokens_res = self.ff_l(lan_tokens)
+        pos_tokens_res = self.ff_p(pos_tokens)
+        tokens_res = torch.cat([vis_tokens_res, lan_tokens_res, pos_tokens_res, dummy_token], dim=1)
         tokens = tokens + self.dropout2(tokens_res)
         vis_tokens, lan_tokens, pos_tokens, _ = torch.split(tokens, [L_V, L_L, L_P, 1], dim=1)
         
-        agg = Module_Data()
-        agg.sa_weights = sa_weights
-        # agg = None
+        # agg = Module_Data()
+        # agg.sa_weights = sa_weights
+        agg = None
         return vis_tokens, lan_tokens, pos_tokens, agg
     
 

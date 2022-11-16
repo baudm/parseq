@@ -1,5 +1,6 @@
-name: isaac_VLP_U
-_target_: strhub.models.isaac_VLP_U.system.Isaac_VLP_U
+# Separate FF
+name: isaac_VLP_SF
+_target_: strhub.models.isaac_VLP_SF.system.Isaac_VLP_SF
 
 # Data
 patch_size: [ 4, 8 ]  # [ height, width ]
