@@ -40,7 +40,7 @@ class Isaac_VLP(CrossEntropySystem):
                  img_size: Sequence[int], patch_size: Sequence[int], embed_dim: int,
                  enc_num_heads: int, enc_mlp_ratio: int, enc_depth: int,
                  dec_num_heads: int, dec_mlp_ratio: int, dec_depth: int, ref_depth: int,
-                 dropout: float, QK: List[List[str]], **kwargs: Any) -> None:
+                 dropout: float, QK: List[List[str]], ref_loss_scale: int, **kwargs: Any) -> None:
         """
         Args:
             QK : Specifies allowed attention. "VV" stands for self-attention of visual tokens.
@@ -64,6 +64,7 @@ class Isaac_VLP(CrossEntropySystem):
         decoder_layer = DecoderLayer(embed_dim, dec_num_heads, embed_dim * dec_mlp_ratio, dropout)
         self.decoder = Decoder(decoder_layer, num_layers=dec_depth, norm=nn.LayerNorm(embed_dim))
         self.refiner = Decoder(decoder_layer, num_layers=ref_depth, norm=nn.LayerNorm(embed_dim)) if ref_depth > 0 else None
+        self.ref_loss_scale = ref_loss_scale
 
         self.head = nn.Linear(embed_dim, len(self.tokenizer) - 2) # We don't predict [B], [P]
         self.text_embed = TokenEmbedding(len(self.tokenizer), embed_dim)
@@ -407,7 +408,7 @@ class Isaac_VLP(CrossEntropySystem):
             vis, lan, pos, agg = self.refine(vis, init_pred, pos, dummy_token, attn_mask_refine, padding_mask)
             logits = self.head(pos)
             loss_refine = F.cross_entropy(logits.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
-            loss_refine = 50 * loss_refine
+            loss_refine = self.ref_loss_scale * loss_refine
             loss = loss_dec + loss_refine
         else:
             loss_refine = 0
