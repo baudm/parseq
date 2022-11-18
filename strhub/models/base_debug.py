@@ -112,12 +112,17 @@ class BaseSystem(pl.LightningModule, ABC):
             # in the train-time charset but not in the test-time charset. For example, "aishahaleyes.blogspot.com"
             # is exactly 25 characters, but if processed by CharsetAdapter for the 36-char set, it becomes 23 characters
             # long only, which sets max_label_length = 23. This will cause the model prediction to be truncated.
-            logits, agg = self.forward(images)
+            # logits, agg = self.forward(images)
+            logits, logits_inter, agg = self.forward(images, return_intermediate_logits=True)
             loss = loss_numel = None  # Only used for validation; not needed at test-time.
 
         probs = logits.softmax(-1)
+        probs_inter = logits_inter.softmax(-1)
         preds, probs = self.tokenizer.decode(probs)
+        preds_inter, probs_inter = self.tokenizer.decode(probs_inter)
         preds = [self.charset_adapter(pred) for pred in preds]
+        preds_inter = [self.charset_adapter(pred_inter) for pred_inter in preds_inter]
+        import ipdb; ipdb.set_trace(context=21) # #FF0000
         for pred, prob, gt, img_key, img_orig in zip(preds, probs, labels, img_keys, img_origs):
             confidence += prob.prod().item()
             # Follow ICDAR 2019 definition of N.E.D.

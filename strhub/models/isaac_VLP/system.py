@@ -301,13 +301,13 @@ class Isaac_VLP(CrossEntropySystem):
         targets = targets[:, 1:]  # Discard <bos>
         L_L = self.max_label_length + 1 # +1 for <eos>
         targets = F.pad(targets, (0, L_L - targets.shape[1]), "constant", self.pad_id)
-        max_len = targets.shape[-1]
+        max_len = L_L - 1
         logits = self.forward(images, max_len)[0]
         loss = F.cross_entropy(logits.flatten(end_dim=1), targets.flatten(), ignore_index=self.pad_id)
         loss_numel = (targets != self.pad_id).sum()
         return logits, loss, loss_numel
     
-    def forward(self, images:Tensor, max_length: Optional[int] = None) -> Tensor:
+    def forward(self, images:Tensor, max_length: Optional[int] = None, return_intermediate_logits: Optional[bool] = False) -> Tensor:
         """
         Forward-pass for val & test.
         
@@ -323,8 +323,8 @@ class Isaac_VLP(CrossEntropySystem):
         # prepare tokens
         vis = self.encode(images)
         L_V = vis.shape[1]
-        lan = torch.full((bs, L_L), self.pad_id, dtype=torch.long, device=self._device)
-        lan[:, 0] = self.bos_id
+        lan_ind = torch.full((bs, L_L), self.pad_id, dtype=torch.long, device=self._device)
+        lan_ind[:, 0] = self.bos_id
         pos = self.pos_embed[:, :L_P].expand(bs, -1, -1)
         
         attn_mask = self.attn_mask.to(self._device)
@@ -334,16 +334,17 @@ class Isaac_VLP(CrossEntropySystem):
         logits = []
         for i in range(num_steps):
             j = i + 1 # next token index
-            vis_out, lan_out, pos_out, agg = self.decode(vis, lan, pos, dummy_token, attn_mask=attn_mask)
+            vis_out, lan_out, pos_out, agg = self.decode(vis, lan_ind, pos, dummy_token, attn_mask=attn_mask)
             p_i = self.head(pos_out[:, i:j])
             logits.append(p_i)
             if j < num_steps:
                 # greedy decode. add the next token index to the target input
-                lan[:, j] = p_i.squeeze().argmax(-1)
+                lan_ind[:, j] = p_i.squeeze().argmax(-1)
                 # Efficient batch decoding: If all output words have at least one EOS token, end decoding.
-                if testing and (lan == self.eos_id).any(dim=-1).all():
+                if testing and (lan_ind == self.eos_id).any(dim=-1).all():
                     break
         logits = torch.cat(logits, dim=1)
+        logits_inter = logits
         
         # refinement
         if self.refiner is not None:
@@ -361,6 +362,9 @@ class Isaac_VLP(CrossEntropySystem):
             vis_out2, lan_out2, pos_out2, agg = self.refine(vis_out, init_pred, pos_out, dummy_token, attn_mask_refine, padding_mask)
             logits = self.head(pos_out2)
             
+        if return_intermediate_logits:
+            return logits, logits_inter, None
+        
         return logits, None
 
     def training_step(self, batch, batch_idx) -> STEP_OUTPUT:
@@ -398,12 +402,12 @@ class Isaac_VLP(CrossEntropySystem):
         padding_mask = (init_pred == self.pad_id)
         padding_mask = F.pad(padding_mask, (L_V, L_P + 1), "constant", 0) # +1 for dummy token
         
-        import ipdb; ipdb.set_trace(context=21) # #FF0000
         attn_mask_refine = self.attn_mask_refine.to(self._device)
         if self.refiner is not None:
             vis, lan, pos, agg = self.refine(vis, init_pred, pos, dummy_token, attn_mask_refine, padding_mask)
             logits = self.head(pos)
             loss_refine = F.cross_entropy(logits.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
+            loss_refine = 50 * loss_refine
             loss = loss_dec + loss_refine
         else:
             loss_refine = 0

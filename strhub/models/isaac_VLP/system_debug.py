@@ -312,7 +312,7 @@ class Isaac_VLP(CrossEntropySystem):
         loss_numel = (targets != self.pad_id).sum()
         return logits, loss, loss_numel
     
-    def forward(self, images:Tensor, max_length: Optional[int] = None) -> Tensor:
+    def forward(self, images:Tensor, max_length: Optional[int] = None, return_intermediate_logits: Optional[bool] = False) -> Tensor:
         """
         Forward-pass for val & test.
         
@@ -354,6 +354,7 @@ class Isaac_VLP(CrossEntropySystem):
                 if testing and (lan == self.eos_id).any(dim=-1).all():
                     break
         logits = torch.cat(logits, dim=1)
+        logits_inter = logits
         
         # debug
         DEC_IDX = 0
@@ -388,6 +389,9 @@ class Isaac_VLP(CrossEntropySystem):
                 sa_weights.append(_sa_weights)
             sa_weights = torch.stack(sa_weights)
             agg.sa_weights_ref = sa_weights
+        
+        if return_intermediate_logits:
+            return logits, logits_inter, agg
         
         return logits, agg
 
