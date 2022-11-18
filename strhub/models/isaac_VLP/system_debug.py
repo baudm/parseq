@@ -29,7 +29,7 @@ from torch.nn.utils.rnn import pad_sequence
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 from timm.models.helpers import named_apply
 
-from strhub.models.base import CrossEntropySystem
+from strhub.models.base_debug import CrossEntropySystem
 from strhub.models.utils import init_weights
 from .modules_debug import DecoderLayer, Decoder, Encoder, TokenEmbedding
 

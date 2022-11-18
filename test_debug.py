@@ -128,6 +128,7 @@ def main():
             ned += res.ned
             confidence += res.confidence
             label_length += res.label_length
+        import ipdb; ipdb.set_trace(context=21) # #FF0000
         accuracy = 100 * correct / total
         mean_ned = 100 * (1 - ned / total)
         mean_conf = 100 * confidence / total

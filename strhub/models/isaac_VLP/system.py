@@ -370,7 +370,7 @@ class Isaac_VLP(CrossEntropySystem):
         vis = self.encode(images)
         L_V = vis.shape[1]
         
-        # Prepare the target sequences (input and output)
+        ## decoding stage.
         tgt = self.tokenizer.encode(labels, self._device)
         L_L = L_P = self.max_label_length + 1 # +1 for <eos>
         tgt = F.pad(tgt, (0, L_L + 1 - tgt.shape[1]), "constant", self.pad_id) # +1 for <bos>
@@ -389,6 +389,7 @@ class Isaac_VLP(CrossEntropySystem):
         loss_dec = F.cross_entropy(logits.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
         
         
+        ## refinement stage.
         bos = torch.full((logits.shape[0], 1), self.bos_id).to(self._device)
         init_pred = logits.argmax(-1)[:, :-1]
         init_pred = torch.cat([bos, init_pred], dim=1)
@@ -397,6 +398,7 @@ class Isaac_VLP(CrossEntropySystem):
         padding_mask = (init_pred == self.pad_id)
         padding_mask = F.pad(padding_mask, (L_V, L_P + 1), "constant", 0) # +1 for dummy token
         
+        import ipdb; ipdb.set_trace(context=21) # #FF0000
         attn_mask_refine = self.attn_mask_refine.to(self._device)
         if self.refiner is not None:
             vis, lan, pos, agg = self.refine(vis, init_pred, pos, dummy_token, attn_mask_refine, padding_mask)
@@ -406,22 +408,6 @@ class Isaac_VLP(CrossEntropySystem):
         else:
             loss_refine = 0
             loss = loss_dec
-        
-        # if batch_idx % 100 == 0:
-        #     pred = logits.argmax(-1).view(bs, -1)
-        #     print('tgt_out')
-        #     print(tgt_out)
-        #     print('pred')
-        #     print(pred)
-            # chr_emb = self.text_embed(torch.LongTensor([0, 1, 2]).to(self._device))[:, :8]
-            # print('chr_emb')
-            # print(chr_emb)
-            # pos_emb = self.pos_embed[0][:3][:, :8]
-            # print('pos_emb')
-            # print(pos_emb)
-            # print('sa_weights')
-            # print(agg.sa_weights[0][:5])
-            # print(agg.sa_weights[0][-5:])
         
         self.log('loss', loss)
         self.log('loss_ref', loss_refine)
