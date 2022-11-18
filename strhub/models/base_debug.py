@@ -95,8 +95,8 @@ class BaseSystem(pl.LightningModule, ABC):
     def optimizer_zero_grad(self, epoch: int, batch_idx: int, optimizer: Optimizer, optimizer_idx: int):
         optimizer.zero_grad(set_to_none=True)
 
-    def _eval_step(self, batch, validation: bool) -> Optional[STEP_OUTPUT]:
-        images, labels = batch
+    def _eval_step(self, batch, validation: bool, debug_dir, dname) -> Optional[STEP_OUTPUT]:
+        images, labels, img_keys, img_origs = batch
 
         correct = 0
         total = 0
@@ -117,16 +117,19 @@ class BaseSystem(pl.LightningModule, ABC):
 
         probs = logits.softmax(-1)
         preds, probs = self.tokenizer.decode(probs)
-        for pred, prob, gt in zip(preds, probs, labels):
+        preds = [self.charset_adapter(pred) for pred in preds]
+        for pred, prob, gt, img_key, img_orig in zip(preds, probs, labels, img_keys, img_origs):
             confidence += prob.prod().item()
-            pred = self.charset_adapter(pred)
             # Follow ICDAR 2019 definition of N.E.D.
             ned += edit_distance(pred, gt) / max(len(pred), len(gt))
-            # print(gt, pred)
             if pred == gt:
                 correct += 1
+            else:
+                # Save error images
+                img_orig.save(f'{debug_dir}/images/{dname}/{img_key}_{pred.replace("/", chr(0x2215))}_{gt.replace("/", chr(0x2215))}.png')
             total += 1
             label_length += len(pred)
+            
         return dict(output=BatchResult(total, correct, ned, confidence, label_length, loss, loss_numel))
 
     @staticmethod
@@ -160,8 +163,8 @@ class BaseSystem(pl.LightningModule, ABC):
         self.log('val_loss', loss, sync_dist=True)
         self.log('hp_metric', acc, sync_dist=True)
 
-    def test_step(self, batch, batch_idx) -> Optional[STEP_OUTPUT]:
-        return self._eval_step(batch, False)
+    def test_step(self, batch, batch_idx, debug_dir, dname) -> Optional[STEP_OUTPUT]:
+        return self._eval_step(batch, False, debug_dir, dname)
 
 
 class CrossEntropySystem(BaseSystem):
@@ -178,26 +181,7 @@ class CrossEntropySystem(BaseSystem):
         targets = self.tokenizer.encode(labels, self.device)
         targets = targets[:, 1:]  # Discard <bos>
         max_len = targets.shape[1] - 1  # exclude <eos> from count
-        logits = self.forward(images, max_len)[0]
+        logits = self.forward(images, max_len)
         loss = F.cross_entropy(logits.flatten(end_dim=1), targets.flatten(), ignore_index=self.pad_id)
         loss_numel = (targets != self.pad_id).sum()
         return logits, loss, loss_numel
-
-
-class CTCSystem(BaseSystem):
-
-    def __init__(self, charset_train: str, charset_test: str,
-                 batch_size: int, lr: float, warmup_pct: float, weight_decay: float) -> None:
-        tokenizer = CTCTokenizer(charset_train)
-        super().__init__(tokenizer, charset_test, batch_size, lr, warmup_pct, weight_decay)
-        self.blank_id = tokenizer.blank_id
-
-    def forward_logits_loss(self, images: Tensor, labels: List[str]) -> Tuple[Tensor, Tensor, int]:
-        targets = self.tokenizer.encode(labels, self.device)
-        logits = self.forward(images)
-        log_probs = logits.log_softmax(-1).transpose(0, 1)  # swap batch and seq. dims
-        T, N, _ = log_probs.shape
-        input_lengths = torch.full(size=(N,), fill_value=T, dtype=torch.long, device=self.device)
-        target_lengths = torch.as_tensor(list(map(len, labels)), dtype=torch.long, device=self.device)
-        loss = F.ctc_loss(log_probs, targets, input_lengths, target_lengths, blank=self.blank_id, zero_infinity=True)
-        return logits, loss, N
