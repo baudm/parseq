@@ -31,6 +31,7 @@ from timm.models.helpers import named_apply
 
 from strhub.models.base import CrossEntropySystem
 from strhub.models.utils import init_weights
+from strhub.models.loss import cross_entropy
 from .modules import DecoderLayer, Decoder, Encoder, TokenEmbedding
 
 class Isaac_VLP(CrossEntropySystem):
@@ -66,7 +67,7 @@ class Isaac_VLP(CrossEntropySystem):
         self.refiner = Decoder(decoder_layer, num_layers=ref_depth, norm=nn.LayerNorm(embed_dim)) if ref_depth > 0 else None
         self.ref_loss_scale = ref_loss_scale
 
-        self.head = nn.Linear(embed_dim, len(self.tokenizer) - 2) # We don't predict [B], [P]
+        self.head = nn.Linear(embed_dim, len(self.tokenizer))
         self.text_embed = TokenEmbedding(len(self.tokenizer), embed_dim)
 
         # +1 for <eos>
@@ -391,7 +392,8 @@ class Isaac_VLP(CrossEntropySystem):
         
         vis, lan, pos, agg = self.decode(vis, tgt_in, pos, dummy_token, attn_mask, padding_mask)
         logits = self.head(pos)
-        loss_dec = F.cross_entropy(logits.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
+        # loss_dec = F.cross_entropy(logits.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
+        loss_dec = cross_entropy(logits, tgt_out, self._device, ignore_index=self.pad_id)
         
         
         ## refinement stage.
@@ -407,7 +409,8 @@ class Isaac_VLP(CrossEntropySystem):
         if self.refiner is not None:
             vis, lan, pos, agg = self.refine(vis, init_pred, pos, dummy_token, attn_mask_refine, padding_mask)
             logits = self.head(pos)
-            loss_refine = F.cross_entropy(logits.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
+            # loss_refine = F.cross_entropy(logits.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
+            loss_refine = cross_entropy(logits, tgt_out, self._device, ignore_index=self.pad_id)
             loss_refine = self.ref_loss_scale * loss_refine
             loss = loss_dec + loss_refine
         else:
