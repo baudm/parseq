@@ -39,6 +39,7 @@ trainer:
   gradient_clip_val: 20
   gpus: 1
   sync_batchnorm: True
+  detect_anomaly: False
 
 ckpt_path: null
 pretrained: null

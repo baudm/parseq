@@ -83,8 +83,8 @@ class BaseSystem(pl.LightningModule, ABC):
         raise NotImplementedError
 
     def configure_optimizers(self):
-        agb = self.trainer.accumulate_grad_batches
         # Linear scaling so that the effective learning rate is constant regardless of the number of GPUs used with DDP.
+        agb = self.trainer.accumulate_grad_batches # 1
         lr_scale = agb * math.sqrt(self.trainer.num_devices) * self.batch_size / 256.
         lr = lr_scale * self.lr
         optim = create_optimizer_v2(self, 'adamw', lr, self.weight_decay)
