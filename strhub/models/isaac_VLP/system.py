@@ -419,6 +419,10 @@ class Isaac_VLP(CrossEntropySystem):
         self.log('loss', loss)
         self.log('loss_ref', loss_refine)
         self.log('loss_dec', loss_dec)
-        import ipdb; ipdb.set_trace(context=21) # #FF0000
+        
+        # import pandas as pd
+        # pd.DataFrame(tgt_out.cpu().numpy()).to_csv('./tgt_out.csv')
+        # pd.DataFrame(init_pred.cpu().numpy()).to_csv('./init_pred.csv')
+        # pd.DataFrame(logits.argmax(-1).cpu().numpy()).to_csv('./logits.csv')
         
         return loss
