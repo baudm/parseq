@@ -70,7 +70,7 @@ class Isaac_VLP(CrossEntropySystem):
         self.decoder = Decoder(decoder_layer, num_layers=dec_depth, norm=nn.LayerNorm(embed_dim))
         self.refiner = Decoder(decoder_layer, num_layers=ref_depth, norm=nn.LayerNorm(embed_dim)) if ref_depth > 0 else None
 
-        self.head = nn.Linear(embed_dim, len(self.tokenizer) - 2) # We don't predict [B], [P]
+        self.head = nn.Linear(embed_dim, len(self.tokenizer))
         self.text_embed = TokenEmbedding(len(self.tokenizer), embed_dim)
 
         # +1 for <eos>

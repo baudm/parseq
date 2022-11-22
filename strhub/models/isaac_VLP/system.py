@@ -294,7 +294,6 @@ class Isaac_VLP(CrossEntropySystem):
         pos = self.dropout(pos)
         
         dummy_token = dummy_token.expand(bs, -1, -1)
-        
         return self.refiner(vis, lan.detach(), pos.detach(), dummy_token, attn_mask=attn_mask, padding_mask=padding_mask)
 
     def forward_logits_loss(self, images: Tensor, labels: List[str]) -> Tuple[Tensor, Tensor, int]:
@@ -420,5 +419,6 @@ class Isaac_VLP(CrossEntropySystem):
         self.log('loss', loss)
         self.log('loss_ref', loss_refine)
         self.log('loss_dec', loss_dec)
+        import ipdb; ipdb.set_trace(context=21) # #FF0000
         
         return loss
