@@ -40,6 +40,7 @@ trainer:
   gpus: 1
   sync_batchnorm: True
   detect_anomaly: False
+  precision: 16
 
 ckpt_path: null
 pretrained: null

@@ -38,9 +38,6 @@ def main(config: DictConfig):
         config.data.root_dir = hydra.utils.to_absolute_path(config.data.root_dir)
         # Special handling for GPU-affected config
         gpus = config.trainer.get('gpus', 0)
-        if gpus:
-            # Use mixed-precision training
-            config.trainer.precision = 16
         if isinstance(gpus, int):
             num_gpus = gpus
         else:
