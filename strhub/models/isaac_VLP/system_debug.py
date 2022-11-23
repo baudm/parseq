@@ -152,7 +152,7 @@ class Isaac_VLP(CrossEntropySystem):
             attn_LL = zero_attn(L_L)
         if 'P' in QK_L:
             if not refine_layer:
-                attn_LP = causal_attn(L_L, L_P, include_self=False)
+                attn_LP = causal_attn(L_L, L_P)
             else:
                 attn_LP = full_attn(L_L, L_P)
         else:

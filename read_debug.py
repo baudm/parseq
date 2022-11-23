@@ -109,7 +109,7 @@ def main():
         
         ## attention
         # visualize_self_attn(pred, agg.sa_weights, image_save_path)
-        visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='P', K='P', tag=f'_dec')
+        visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='P', K='L', tag=f'_dec')
         # visualize_cross_attn(agg.ca_weights, hparams, image, image_save_path)
         # visualize_sim_with_memory(agg.res_pt_2, agg.memory, image, image_save_path)
         
@@ -216,7 +216,7 @@ def visualize_self_attn_VLP(pred, sa_weights, hparams, image, image_save_path, t
             sa_weights_t_temp[:t + 1, :t + 1] = sa_weights_t[:t + 1, :t + 1]
             sa_weights_t = sa_weights_t_temp
             rect = patches.Rectangle((0, 0,), t + 1, t + 1, edgecolor='w', facecolor='none')
-            save_heatmap(sa_weights_t, rows, cols, f'{Q}-{K}', f'{filename_path}_sa{tag_t}{ext}', sim_scale, rect=rect)
+            save_heatmap(sa_weights_t, rows, cols, f'{Q}-{K}', f'{filename_path}_sa{tag_t}{ext}', sim_scale, rect=rect, annot=True)
     elif Q + K in ['PV', 'LV']:
         cm = plt.get_cmap('jet')
         for t, sa_weights_t in enumerate(sa_weights):
