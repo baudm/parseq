@@ -362,7 +362,7 @@ class Isaac_VLP(CrossEntropySystem):
         logits_inter = logits
         
         # refinement
-        if self.refiner is not None:
+        if self.refiner is not None and self.refine_iters > 0:
             bos = torch.full((logits.shape[0], 1), self.bos_id).to(self._device)
             init_pred = logits.argmax(-1)[:, :-1]
             init_pred = torch.cat([bos, init_pred], dim=1)
@@ -419,7 +419,7 @@ class Isaac_VLP(CrossEntropySystem):
         padding_mask = F.pad(padding_mask, (L_V, L_P + 1), "constant", 0) # +1 for dummy token
         
         attn_mask_refine = self.attn_mask_refine.to(self._device)
-        if self.refiner is not None and self.refine_iters > 0:
+        if self.refiner is not None:
             vis, lan, pos, agg = self.refine(vis, init_pred, pos, dummy_token, attn_mask_refine, padding_mask)
             logits = self.head(pos)
             # loss_refine = F.cross_entropy(logits.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
