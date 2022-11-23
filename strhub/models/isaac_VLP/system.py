@@ -20,6 +20,7 @@ from typing import Sequence, Any, Optional, List, Tuple
 from dataclasses import dataclass
 
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -409,7 +410,15 @@ class Isaac_VLP(CrossEntropySystem):
             vis, lan, pos, agg = self.refine(vis, init_pred, pos, dummy_token, attn_mask_refine, padding_mask)
             logits = self.head(pos)
             # loss_refine = F.cross_entropy(logits.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
-            loss_refine = cross_entropy(logits, tgt_out, self._device, ignore_index=self.pad_id)
+            
+            pd.DataFrame(tgt_out.cpu().numpy()).to_csv('./tgt_out.csv')
+            pd.DataFrame(init_pred.cpu().numpy()).to_csv('./init_pred.csv')
+            # pd.DataFrame(logits.argmax(-1).cpu().numpy()).to_csv('./logits.csv')
+            
+            try:
+                loss_refine = cross_entropy(logits, tgt_out, self._device, ignore_index=self.pad_id)
+            except RuntimeError:
+                import ipdb; ipdb.set_trace(context=21) # #FF0000
             loss_refine = self.ref_loss_scale * loss_refine
             loss = loss_dec + loss_refine
         else:
@@ -420,9 +429,5 @@ class Isaac_VLP(CrossEntropySystem):
         self.log('loss_ref', loss_refine)
         self.log('loss_dec', loss_dec)
         
-        # import pandas as pd
-        # pd.DataFrame(tgt_out.cpu().numpy()).to_csv('./tgt_out.csv')
-        # pd.DataFrame(init_pred.cpu().numpy()).to_csv('./init_pred.csv')
-        # pd.DataFrame(logits.argmax(-1).cpu().numpy()).to_csv('./logits.csv')
         
         return loss

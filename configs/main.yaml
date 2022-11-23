@@ -41,6 +41,8 @@ trainer:
   sync_batchnorm: True
   detect_anomaly: False
   precision: 16
+  amp_backend: 'native'
+  amp_level: null
 
 ckpt_path: null
 pretrained: null

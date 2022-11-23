@@ -109,11 +109,51 @@ def main():
         
         ## attention
         # visualize_self_attn(pred, agg.sa_weights, image_save_path)
-        visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='P', K='L', tag=f'_dec')
+        visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='L', K='P', tag=f'_dec')
         # visualize_cross_attn(agg.ca_weights, hparams, image, image_save_path)
         # visualize_sim_with_memory(agg.res_pt_2, agg.memory, image, image_save_path)
         
         print(f'{fname}: {pred[0]}')
+
+
+def save_heatmap(data, rows, cols, title, save_path, sim_scale, figsize=(15, 15), dpi=96, vmin=0, vmax=1, annot=False, annot_size=10, linewidths=0, labelsize=None, x_rot=0, y_rot=0, rect=None):
+    if isinstance(data, torch.Tensor):
+        data = data.detach().cpu().numpy()
+    data *= sim_scale
+    df = pd.DataFrame(data, index=rows, columns=cols)
+    fig = plt.figure(figsize=figsize, dpi=dpi)
+    plt.title(title)
+    ax = plt.gca()
+    # ax_pos = [0.15, 0.01, 0.84, 0.84]
+    # ax.set_position(ax_pos)
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad="5%")
+    sa = sns.heatmap(df,
+                    vmin=vmin,
+                    vmax=vmax,
+                    annot=annot,
+                    fmt='.2f',
+                    annot_kws={'size': annot_size},
+                    ax=ax,
+                    cbar_ax=cax,
+                    cbar=True,
+                    linewidths=linewidths,
+                    )
+    cbar = sa.collections[0].colorbar
+    if labelsize is not None:
+        cbar.ax.tick_params(labelsize=labelsize)
+    if rect is not None:
+        sa.add_patch(rect)
+    sa.xaxis.tick_top()
+    sa.set_xticklabels(sa.get_xmajorticklabels(), rotation=x_rot)
+    sa.set_yticklabels(sa.get_ymajorticklabels(), rotation=y_rot)
+    plt.savefig(save_path)
+    plt.close(fig)
+    
+
+def save_blended_heatmap():
+    pass
+
 
 
 def visualize_self_attn_VLP(pred, sa_weights, hparams, image, image_save_path, tag='', Q='VLP', K='VLP', sim_scale=1.0):
@@ -165,65 +205,18 @@ def visualize_self_attn_VLP(pred, sa_weights, hparams, image, image_save_path, t
     if 'P' in K:
         cols.extend(rows_P)
         col_ind.extend(P_ind)
-        
     
-    if Q + K in ['LL', 'LP', 'PL', 'PP']:
+    if Q == K == 'VLP':
+        save_heatmap(sa_weights[-1][row_ind, :][:, col_ind], rows, cols, f'{Q}-{K}', f'{filename_path}_sa{tag}{ext}', sim_scale)
+    elif Q + K in ['LL', 'LP', 'PL', 'PP']:
         for t, sa_weights_t in enumerate(sa_weights):
             tag_t = f'{tag}{t:02d}'
             sa_weights_t = sa_weights_t[row_ind, :][:, col_ind].detach().cpu().numpy()
             sa_weights_t_temp = np.zeros_like(sa_weights_t)
             sa_weights_t_temp[:t + 1, :t + 1] = sa_weights_t[:t + 1, :t + 1]
-            
             sa_weights_t = sa_weights_t_temp
-            rows_t = rows
-            if 'L' in Q:
-                if 'V' in Q:
-                    for i in range(L_V + i + 1, L_V + L_L):
-                        rows_t[i] = '[P]'
-                else:
-                    for i in range(i + 1, L_L):
-                        rows_t[i] = '[P]'
-            cols_t = cols
-            if 'L' in Q:
-                if 'V' in Q:
-                    for i in range(L_V + i + 1, L_V + L_L):
-                        cols_t[i] = '[P]'
-                else:
-                    for i in range(i + 1, L_L):
-                        cols_t[i] = '[P]'
-            sa_weights_t *= sim_scale
-            df = pd.DataFrame(sa_weights_t, index=rows_t, columns=cols_t)
-            fig = plt.figure(figsize=(15, 15), dpi=96)
-            plt.title(f'{Q}-{K}')
-            # annot_size = 20
-            tick_size = 20
-            labelsize = 20
-            save_path = f'{filename_path}_sa{tag_t}{ext}'
-            ax = plt.gca()
-            # ax_pos = [0.15, 0.01, 0.84, 0.84]
-            # ax.set_position(ax_pos)
-            divider = make_axes_locatable(ax)
-            cax = divider.append_axes("right", size="5%", pad="5%")
-            sa = sns.heatmap(df,
-                            vmin=0,
-                            vmax=1,
-                            # annot=True,
-                            fmt='.2f',
-                            # annot_kws={'size': annot_size},
-                            ax=ax,
-                            cbar_ax=cax,
-                            cbar=True,
-                            # linewidths=1,
-                            )
-            cbar = sa.collections[0].colorbar
             rect = patches.Rectangle((0, 0,), t + 1, t + 1, edgecolor='w', facecolor='none')
-            sa.add_patch(rect)
-            # cbar.ax.tick_params(labelsize=labelsize)
-            sa.xaxis.tick_top()
-            sa.set_xticklabels(sa.get_xmajorticklabels(), rotation=0)
-            sa.set_yticklabels(sa.get_ymajorticklabels(), rotation=0)
-            plt.savefig(save_path)
-            plt.close(fig)
+            save_heatmap(sa_weights_t, rows, cols, f'{Q}-{K}', f'{filename_path}_sa{tag_t}{ext}', sim_scale, rect=rect)
     elif Q + K in ['PV', 'LV']:
         cm = plt.get_cmap('jet')
         for t, sa_weights_t in enumerate(sa_weights):
@@ -272,6 +265,7 @@ def visualize_self_attn(pred, sa_weights, image_save_path, tag=''):
     # rows = list(pred[0]) + ['[E]']
     rows = list(range(sa_weights.shape[0]))
     cols = list(range(sa_weights.shape[1]))
+    
     df = pd.DataFrame(sa_weights.detach().cpu().numpy(), index=rows, columns=cols)
     plt.figure(figsize=(15, 15), dpi=96)
     annot_size = 20
