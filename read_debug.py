@@ -110,7 +110,7 @@ def main():
         ## attention
         # visualize_self_attn(pred, agg.sa_weights, image_save_path)
         # visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='V', K='V', tag=f'_dec')
-        visualize_self_attn_VLP(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='P', K='P', tag=f'_ref')
+        visualize_self_attn_VLP(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='VLP', K='VLP', tag=f'_ref')
         # visualize_cross_attn(agg.ca_weights, hparams, image, image_save_path)
         # visualize_sim_with_memory(agg.res_pt_2, agg.memory, image, image_save_path)
         
@@ -234,7 +234,7 @@ def visualize_self_attn_VLP(pred, sa_weights, hparams, image, image_save_path, t
             rects.append(patches.Rectangle((x, y,), w, h, edgecolor='green', facecolor='none'))
         t = len(pred)
         for x, y, w, h in [(L_V, L_V, t, t), (L_V + L_L, L_V, t, t), (L_V, L_V + L_L, t, t), (L_V + L_L, L_V + L_L, t, t)]:
-            rects.append(patches.Rectangle((x, y,), w, h, edgecolor='white', facecolor='none'))
+            rects.append(patches.Rectangle((x, y,), w, h, edgecolor='white', facecolor='none', linewidth=0.7))
         save_heatmap(sa_weights[-1][row_ind, :][:, col_ind], rows, cols, f'{Q}-{K}', f'{filename_path}_sa{tag}{ext}', sim_scale, rects=rects)
     elif Q + K in ['LL', 'LP', 'PL', 'PP']:
         if 'dec' in tag:

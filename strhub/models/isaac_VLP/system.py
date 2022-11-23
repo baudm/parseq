@@ -202,8 +202,10 @@ class Isaac_VLP(CrossEntropySystem):
         import pandas as pd
         from mpl_toolkits.axes_grid1 import make_axes_locatable
         import matplotlib.pyplot as plt
-        # L_L = L_P = self.max_label_length + 1
-        # win = L_L + L_P
+        import matplotlib.patches as patches
+        vis_size = [a // b for (a, b) in zip(self.img_size, self.patch_size)]
+        L_V = vis_size[0] * vis_size[1]
+        L_L = L_P = self.max_label_length + 1
         win = attn_mask.shape[0]
         df = pd.DataFrame(torch.where(attn_mask == 0, 1, 0).numpy()[-win:, -win:], index=list(range(win)), columns=list(range(win)))
         s = 1.0
@@ -233,6 +235,13 @@ class Isaac_VLP(CrossEntropySystem):
                         )
         cbar = sa.collections[0].colorbar
         cbar.ax.tick_params(labelsize=labelsize)
+        rects = []
+        for x, y, w, h in [(0, 0, L_V, L_V), (L_V, 0, L_L, L_V), (L_V + L_L, 0, L_P, L_V),
+         (0, L_V, L_V, L_L), (L_V, L_V, L_L, L_L), (L_V + L_L, L_V, L_P, L_L),
+         (0, L_V + L_L, L_V, L_P), (L_V, L_V + L_L, L_L, L_P), (L_V + L_L, L_V + L_L, L_P, L_P)]:
+            rects.append(patches.Rectangle((x, y,), w, h, edgecolor='green', facecolor='none'))
+        for rect in rects:
+            sa.add_patch(rect)
         sa.xaxis.tick_top()
         sa.set_xticklabels(sa.get_xmajorticklabels(), fontsize=tick_size, rotation=0)
         sa.set_yticklabels(sa.get_ymajorticklabels(), fontsize=tick_size, rotation=0)
