@@ -383,11 +383,7 @@ class Isaac_VLP(CrossEntropySystem):
         
             # debug
             REF_IDX = 0
-            sa_weights = []
-            for i in range(max_time_step + 1):
-                _sa_weights = aggs[i][REF_IDX].sa_weights[0]
-                sa_weights.append(_sa_weights)
-            sa_weights = torch.stack(sa_weights)
+            sa_weights = _aggs[REF_IDX].sa_weights[0].unsqueeze(0)
             agg.sa_weights_ref = sa_weights
         
         if return_intermediate_logits:

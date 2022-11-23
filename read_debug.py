@@ -109,14 +109,19 @@ def main():
         
         ## attention
         # visualize_self_attn(pred, agg.sa_weights, image_save_path)
-        visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='P', K='L', tag=f'_dec')
+        # visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='V', K='V', tag=f'_dec')
+        visualize_self_attn_VLP(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='P', K='P', tag=f'_ref')
         # visualize_cross_attn(agg.ca_weights, hparams, image, image_save_path)
         # visualize_sim_with_memory(agg.res_pt_2, agg.memory, image, image_save_path)
         
         print(f'{fname}: {pred[0]}')
 
 
-def save_heatmap(data, rows, cols, title, save_path, sim_scale, figsize=(15, 15), dpi=96, vmin=0, vmax=1, annot=False, annot_size=10, linewidths=0, labelsize=None, x_rot=0, y_rot=0, rect=None):
+def save_heatmap(data, rows, cols, title, save_path, sim_scale,
+                 figsize=(15, 15), dpi=96, vmin=0, vmax=1,
+                 annot=False, annot_size=10, tick_size=None,
+                 linewidths=0, labelsize=None, x_rot=0, y_rot=0,
+                 rects=None):
     if isinstance(data, torch.Tensor):
         data = data.detach().cpu().numpy()
     data *= sim_scale
@@ -142,17 +147,32 @@ def save_heatmap(data, rows, cols, title, save_path, sim_scale, figsize=(15, 15)
     cbar = sa.collections[0].colorbar
     if labelsize is not None:
         cbar.ax.tick_params(labelsize=labelsize)
-    if rect is not None:
-        sa.add_patch(rect)
+    if rects is not None:
+        for rect in rects:
+            sa.add_patch(rect)
     sa.xaxis.tick_top()
-    sa.set_xticklabels(sa.get_xmajorticklabels(), rotation=x_rot)
-    sa.set_yticklabels(sa.get_ymajorticklabels(), rotation=y_rot)
+    if tick_size is not None:
+        sa.set_xticklabels(sa.get_xmajorticklabels(), fontsize=tick_size, rotation=x_rot)
+        sa.set_yticklabels(sa.get_ymajorticklabels(), fontsize=tick_size, rotation=y_rot)
+    else:
+        sa.set_xticklabels(sa.get_xmajorticklabels(), rotation=x_rot)
+        sa.set_yticklabels(sa.get_ymajorticklabels(), rotation=y_rot)
     plt.savefig(save_path)
     plt.close(fig)
     
 
-def save_blended_heatmap():
-    pass
+def save_blended_heatmap(data, image, save_path, alpha=0.7):
+    if isinstance(data, torch.Tensor):
+        data = data.detach().cpu().numpy()
+    cm = plt.get_cmap('jet')
+    attn = data
+    attn = (attn - attn.min()) / (attn.max() - attn.min())
+    attn = np.clip(attn, 0.0, 1.0)
+    attn = cm(attn)
+    attn = Image.fromarray((attn * 255).astype(np.uint8)).convert('RGB')
+    attn = attn.resize(image.size)
+    blend = Image.blend(image, attn, alpha=alpha)
+    blend.save(save_path)
 
 
 
@@ -209,42 +229,55 @@ def visualize_self_attn_VLP(pred, sa_weights, hparams, image, image_save_path, t
     if Q == K == 'VLP':
         save_heatmap(sa_weights[-1][row_ind, :][:, col_ind], rows, cols, f'{Q}-{K}', f'{filename_path}_sa{tag}{ext}', sim_scale)
     elif Q + K in ['LL', 'LP', 'PL', 'PP']:
-        for t, sa_weights_t in enumerate(sa_weights):
-            tag_t = f'{tag}{t:02d}'
-            sa_weights_t = sa_weights_t[row_ind, :][:, col_ind].detach().cpu().numpy()
+        if 'dec' in tag:
+            for t, sa_weights_t in enumerate(sa_weights):
+                tag_t = f'{tag}_{t:02d}'
+                sa_weights_t = sa_weights_t[row_ind, :][:, col_ind].detach().cpu().numpy()
+                sa_weights_t_temp = np.zeros_like(sa_weights_t)
+                sa_weights_t_temp[:t + 1, :t + 1] = sa_weights_t[:t + 1, :t + 1]
+                sa_weights_t = sa_weights_t_temp
+                rects = [patches.Rectangle((0, 0,), t + 1, t + 1, edgecolor='w', facecolor='none')]
+                save_heatmap(sa_weights_t, rows, cols, f'{Q}-{K}', f'{filename_path}_sa{tag_t}{ext}', sim_scale, rects=rects, annot=True)
+        elif 'ref' in tag:
+            t = len(pred)
+            sa_weights_t = sa_weights[0][row_ind, :][:, col_ind].detach().cpu().numpy()
             sa_weights_t_temp = np.zeros_like(sa_weights_t)
             sa_weights_t_temp[:t + 1, :t + 1] = sa_weights_t[:t + 1, :t + 1]
             sa_weights_t = sa_weights_t_temp
-            rect = patches.Rectangle((0, 0,), t + 1, t + 1, edgecolor='w', facecolor='none')
-            save_heatmap(sa_weights_t, rows, cols, f'{Q}-{K}', f'{filename_path}_sa{tag_t}{ext}', sim_scale, rect=rect, annot=True)
+            rects = [patches.Rectangle((0, 0,), t + 1, t + 1, edgecolor='w', facecolor='none')]
+            save_heatmap(sa_weights_t, rows, cols, f'{Q}-{K}', f'{filename_path}_sa{tag}{ext}', sim_scale, rects=rects, annot=True)
+        else:
+            raise NotImplementedError
     elif Q + K in ['PV', 'LV']:
-        cm = plt.get_cmap('jet')
-        for t, sa_weights_t in enumerate(sa_weights):
-            tag_t = f'{tag}{t:02d}'
+        if 'dec' in tag:
+            for t, sa_weights_t in enumerate(sa_weights):
+                tag_t = f'{tag}_{t:02d}'
+                save_path = f'{filename_path}_sa{tag_t}{ext}'
+                sa_weights_t = sa_weights_t[row_ind, :][:, col_ind]
+                sa_weights_t = sa_weights_t[t]
+                sa_weights_t = sa_weights_t.view(*vis_size)
+                save_blended_heatmap(sa_weights_t, image, save_path, tag_t)
+        elif 'ref' in tag:
+            t = len(pred)
             save_path = f'{filename_path}_sa{tag_t}{ext}'
-            sa_weights_t = sa_weights_t[row_ind, :][:, col_ind]
+            sa_weights_t = sa_weights[0][row_ind, :][:, col_ind]
             sa_weights_t = sa_weights_t[t]
             sa_weights_t = sa_weights_t.view(*vis_size)
-            attn = sa_weights_t.detach().cpu().numpy()
-            attn = (attn - attn.min()) / (attn.max() - attn.min())
-            attn = np.clip(attn, 0.0, 1.0)
-            attn = cm(attn)
-            attn = Image.fromarray((attn * 255).astype(np.uint8)).convert('RGB')
-            attn = attn.resize(image.size)
-            blend = Image.blend(image, attn, alpha=0.7)
-            blend.save(save_path)
+            save_blended_heatmap(sa_weights_t, image, save_path, tag)
+        else:
+            raise NotImplementedError
     elif Q + K in ['VV']:
-        cm = plt.get_cmap('jet')
-        sa_weights = sa_weights[0] # VV attn doesn't depend on time step.
+        sa_weights = sa_weights[-1]
         sa_weights = sa_weights[row_ind, :][:, col_ind]
         for pix in range(sa_weights.shape[0]):
-            tag_t = f'{tag}{pix:02d}'
+            tag_t = f'{tag}_{pix:02d}'
             save_path = f'{filename_path}_sa{tag_t}{ext}'
             sa_weights_t = sa_weights[pix]
             sa_weights_t = sa_weights_t.view(*vis_size)
             attn = sa_weights_t.detach().cpu().numpy()
             attn = (attn - attn.min()) / (attn.max() - attn.min())
             attn = np.clip(attn, 0.0, 1.0)
+            cm = plt.get_cmap('jet')
             attn = cm(attn)
             attn[pix // vis_size[1], pix % vis_size[1]] = [1, 0, 1, 1] # query pixel is magenta
             attn = Image.fromarray((attn * 255).astype(np.uint8)).convert('RGB')
@@ -252,7 +285,7 @@ def visualize_self_attn_VLP(pred, sa_weights, hparams, image, image_save_path, t
             blend = Image.blend(image, attn, alpha=0.5)
             blend.save(save_path)
     elif Q + K in ['VP', 'VL']:
-        raise NotImplementedError # V cannot attend to P, L in base stage.
+        raise NotImplementedError
     else:
         raise NotImplementedError
         
@@ -317,50 +350,29 @@ def visualize_tsne(model, image_save_path):
     plt.close(fig)
 
 
-def visualize_head_self_sim(model, image_save_path):
-    head = model.head.weight.detach().cpu().numpy()
-    charset_train = model.hparams.charset_train
-    rows = cols = (['[E]'] + list(charset_train) + ['[B]', '[P]'])[:head.shape[0]]
-    visualize_similarity(head, head, rows, cols, image_save_path)        
-
-
 def visualize_char_probs(pred, p, model, image_save_path):
     filename_path, ext = os.path.splitext(image_save_path)
     rows = pred = list(pred[0]) + ['[E]']
     p = p[0].detach().cpu().numpy()[:len(pred), :] # probs up to [E], [seq_len + 1, len(charset_train) - 2]
     charset_train = model.hparams.charset_train
     cols = ['[E]'] + list(charset_train)
-    df = pd.DataFrame(p, index=rows, columns=cols)
-    s = 1.0
-    fig = plt.figure(figsize=(30 * s, len(rows) * s), dpi=300)
-    annot_size = 10 * s
-    tick_size = 15 * s
-    labelsize = 15 * s
     save_path = f'{filename_path}_p{ext}'
-    ax = plt.gca()
-    # ax_pos = [0.15, 0.01, 0.84, 0.84]
-    # ax.set_position(ax_pos)
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes("right", size="5%", pad="5%")
-    sa = sns.heatmap(df,
-                    # vmin=0,
-                    # vmax=1,
-                    # annot=True,
-                    # fmt='.2f',
-                    # annot_kws={'size': annot_size},
-                    ax=ax,
-                    cbar_ax=cax,
-                    cbar=True,
-                    linewidths=0.5,
-                    )
-    cbar = sa.collections[0].colorbar
-    cbar.ax.tick_params(labelsize=labelsize)
-    sa.xaxis.tick_top()
-    sa.set_xticklabels(sa.get_xmajorticklabels(), fontsize=tick_size, rotation=0)
-    sa.set_yticklabels(sa.get_ymajorticklabels(), fontsize=tick_size, rotation=0)
-    plt.savefig(save_path)
-    plt.close(fig)
-    
+    save_heatmap(p, rows, cols, '', save_path, 1.0, figsize=(30, len(rows)), annot=True, annot_size=10, tick_size=15, labelsize=15, linewidths=1)
+
+def visualize_similarity(target, source, rows, cols, image_save_path, sim_scale=1.0, annot=False, tag=''):
+    filename_path, ext = os.path.splitext(image_save_path)
+    target = normalize(target)
+    source = normalize(source)
+    similarity_mtx = target @  source.T
+    save_heatmap(similarity_mtx, rows, cols, '', f'{filename_path}_sim{tag}{ext}', sim_scale, annot=annot, annot_size=10, tick_size=10, labelsize=10)
+ 
+
+def visualize_head_self_sim(model, image_save_path):
+    head = model.head.weight.detach().cpu().numpy()
+    charset_train = model.hparams.charset_train
+    rows = cols = (['[E]'] + list(charset_train) + ['[B]', '[P]'])[:head.shape[0]]
+    visualize_similarity(head, head, rows, cols, image_save_path) 
+
 
 def visualize_sim_with_head(attr, agg, pred, model, image_save_path, sim_scale=1.0):
     head = model.head.weight.detach().cpu().numpy()
@@ -400,45 +412,7 @@ def visualize_text_embed_sim_with_head(model, image_save_path):
     rows = cols = (['[E]'] + list(charset_train) + ['[B]', '[P]'])[:head.shape[0]]
     visualize_similarity(text_embed, head, rows, cols, image_save_path)
             
-
-def visualize_similarity(target, source, rows, cols, image_save_path, sim_scale=1.0, annot=False, tag=''):
-    filename_path, ext = os.path.splitext(image_save_path)
-    target = normalize(target)
-    source = normalize(source)
-    similarity_mtx = target @  source.T
-    similarity_mtx *= sim_scale
-    df = pd.DataFrame(similarity_mtx, index=rows, columns=cols) # [tgt x src]
-    fig_scale = 1.0
-    fig = plt.figure(figsize=(min(len(cols), 30) * fig_scale, min(len(rows), 30) * fig_scale), dpi=300)
-    annot_size = 10 * fig_scale
-    tick_size = 10 * fig_scale
-    labelsize = 10 * fig_scale
-    save_path = f'{filename_path}_sim{tag}{ext}'
-    ax = plt.gca()
-    # ax_pos = [0.15, 0.01, 0.84, 0.84]
-    # ax.set_position(ax_pos)
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes("right", size="5%", pad="5%")
-    sa = sns.heatmap(df,
-                    vmin=0,
-                    vmax=1,
-                    annot=annot,
-                    fmt='.2f',
-                    annot_kws={'size': annot_size},
-                    ax=ax,
-                    cbar_ax=cax,
-                    cbar=True
-                    )
-    cbar = sa.collections[0].colorbar
-    cbar.ax.tick_params(labelsize=labelsize)
-    sa.xaxis.tick_top()
-    sa.set_xticklabels(sa.get_xmajorticklabels(), fontsize=tick_size, rotation=0)
-    sa.set_yticklabels(sa.get_ymajorticklabels(), fontsize=tick_size, rotation=0)
-    plt.savefig(save_path)
-    plt.close(fig)
-
-    
-    
+   
 def visualize_cross_attn(ca_weights, hparams, image, image_save_path, tag=''):
     filename_path, ext = os.path.splitext(image_save_path)
     if ca_weights is None: return
@@ -446,17 +420,9 @@ def visualize_cross_attn(ca_weights, hparams, image, image_save_path, tag=''):
     ca_weights = ca_weights.view(-1, vis_size[0], vis_size[1])
     ca_weights = ca_weights.detach().cpu().numpy()
     
-    cm = plt.get_cmap('jet')
     for i, attn in enumerate(ca_weights):
         save_path = f'{filename_path}_ca{tag}_{i:02d}{ext}'
-        # attn *= 10
-        attn = (attn - attn.min()) / (attn.max() - attn.min())
-        attn = np.clip(attn, 0.0, 1.0)
-        attn = cm(attn)
-        attn = Image.fromarray((attn * 255).astype(np.uint8)).convert('RGB')
-        attn = attn.resize(image.size)
-        blend = Image.blend(image, attn, alpha=0.8)
-        blend.save(save_path)
+        save_blended_heatmap(attn, image, save_path, alpha=0.8)
     
 
 def visualize_sim_with_memory(target, memory, image, image_save_path):
@@ -468,15 +434,7 @@ def visualize_sim_with_memory(target, memory, image, image_save_path):
     for i, sim_mtx in enumerate(seq_sim_mtx):
         save_path = f'{filename_path}_sm_{i:02d}{ext}'
         attn = softmax(sim_mtx)
-        attn = attn * 10
-        # attn = (attn - attn.min()) / (attn.max() - attn.min())
-        attn = np.clip(attn, 0.0, 1.0)
-        attn = attn.reshape((8, 16))
-        attn = cm(attn)
-        attn = Image.fromarray((attn * 255).astype(np.uint8)).convert('RGB')
-        attn = attn.resize(image.size)
-        blend = Image.blend(image, attn, alpha=0.8)
-        blend.save(save_path)
+        save_blended_heatmap(attn, image, save_path)
 
 if __name__ == '__main__':
     main()
