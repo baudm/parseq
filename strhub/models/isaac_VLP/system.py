@@ -203,9 +203,10 @@ class Isaac_VLP(CrossEntropySystem):
         from mpl_toolkits.axes_grid1 import make_axes_locatable
         import matplotlib.pyplot as plt
         import matplotlib.patches as patches
-        vis_size = [a // b for (a, b) in zip(self.img_size, self.patch_size)]
+        vis_size = [a // b for (a, b) in zip(self.hparams.img_size, self.hparams.patch_size)]
         L_V = vis_size[0] * vis_size[1]
         L_L = L_P = self.max_label_length + 1
+        L_T = L_V + L_L + L_P
         win = attn_mask.shape[0]
         df = pd.DataFrame(torch.where(attn_mask == 0, 1, 0).numpy()[-win:, -win:], index=list(range(win)), columns=list(range(win)))
         s = 1.0
@@ -236,10 +237,12 @@ class Isaac_VLP(CrossEntropySystem):
         cbar = sa.collections[0].colorbar
         cbar.ax.tick_params(labelsize=labelsize)
         rects = []
-        for x, y, w, h in [(0, 0, L_V, L_V), (L_V, 0, L_L, L_V), (L_V + L_L, 0, L_P, L_V),
-         (0, L_V, L_V, L_L), (L_V, L_V, L_L, L_L), (L_V + L_L, L_V, L_P, L_L),
-         (0, L_V + L_L, L_V, L_P), (L_V, L_V + L_L, L_L, L_P), (L_V + L_L, L_V + L_L, L_P, L_P)]:
-            rects.append(patches.Rectangle((x, y,), w, h, edgecolor='green', facecolor='none'))
+        for x, y, w, h in [(0, 0, L_V, L_V), (L_V, 0, L_L, L_V), (L_V + L_L, 0, L_P, L_V), (L_T, 0, 1, L_V),
+         (0, L_V, L_V, L_L), (L_V, L_V, L_L, L_L), (L_V + L_L, L_V, L_P, L_L), (L_T, L_V, 1, L_L),
+         (0, L_V + L_L, L_V, L_P), (L_V, L_V + L_L, L_L, L_P), (L_V + L_L, L_V + L_L, L_P, L_P), (L_T, L_V + L_L, 1, L_P),
+         (0, L_T, L_V, 1), (L_V, L_T, L_L, 1), (L_V + L_L, L_T, L_P, 1), (L_T, L_T, 1, 1),
+         ]:
+            rects.append(patches.Rectangle((x, y,), w, h, edgecolor='green', facecolor='none', linewidth=3))
         for rect in rects:
             sa.add_patch(rect)
         sa.xaxis.tick_top()
