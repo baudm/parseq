@@ -117,9 +117,9 @@ class BaseSystem(pl.LightningModule, ABC):
 
         probs = logits.softmax(-1)
         preds, probs = self.tokenizer.decode(probs)
+        preds = [self.charset_adapter(pred) for pred in preds]
         for pred, prob, gt in zip(preds, probs, labels):
             confidence += prob.prod().item()
-            pred = self.charset_adapter(pred)
             # Follow ICDAR 2019 definition of N.E.D.
             ned += edit_distance(pred, gt) / max(len(pred), len(gt))
             # print(gt, pred)

@@ -14,7 +14,7 @@ dec_mlp_ratio: 4
 dec_depth: 1
 ref_depth: 0
 ref_loss_scale: 1
-refine_iters: 1
+ref_iters: 1
 QK: [['V', 'L', 'P'], ['V', 'L', 'P'], ['V', 'L', 'P']]
 
 # Training
