@@ -12,8 +12,8 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "outputs/parseq/2022-09-22_14-48-51/checkpoints/last.ckpt",
-                "--images", "demo_images/*"
+                "outputs/isaac_VLP/2022-11-24_16-07-16/checkpoints/last.ckpt",
+                "--images", "demo_images_temp/*"
             ]
         }
     ]

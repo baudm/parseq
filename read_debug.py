@@ -110,7 +110,9 @@ def main():
         ## attention
         # visualize_self_attn(pred, agg.sa_weights, image_save_path)
         # visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='VLP', K='VLP', tag=f'_dec')
-        visualize_self_attn_VLP(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='VLP', K='VLP', tag=f'_ref')
+        # visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='P', K='L', tag=f'_dec')
+        # visualize_self_attn_VLP(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='VLP', K='VLP', tag=f'_ref')
+        visualize_self_attn_VLP(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='P', K='L', tag=f'_ref')
         # visualize_cross_attn(agg.ca_weights, hparams, image, image_save_path)
         # visualize_sim_with_memory(agg.res_pt_2, agg.memory, image, image_save_path)
         
@@ -241,17 +243,11 @@ def visualize_self_attn_VLP(pred, sa_weights, hparams, image, image_save_path, t
             for t, sa_weights_t in enumerate(sa_weights):
                 tag_t = f'{tag}_{t:02d}'
                 sa_weights_t = sa_weights_t[row_ind, :][:, col_ind].detach().cpu().numpy()
-                sa_weights_t_temp = np.zeros_like(sa_weights_t)
-                sa_weights_t_temp[:t + 1, :t + 1] = sa_weights_t[:t + 1, :t + 1]
-                sa_weights_t = sa_weights_t_temp
                 rects = [patches.Rectangle((0, 0,), t + 1, t + 1, edgecolor='white', facecolor='none')]
                 save_heatmap(sa_weights_t, rows, cols, f'{Q}-{K}', f'{filename_path}_sa{tag_t}{ext}', sim_scale, rects=rects, annot=True)
         elif 'ref' in tag:
             t = len(pred)
             sa_weights_t = sa_weights[0][row_ind, :][:, col_ind].detach().cpu().numpy()
-            sa_weights_t_temp = np.zeros_like(sa_weights_t)
-            sa_weights_t_temp[:t + 1, :t + 1] = sa_weights_t[:t + 1, :t + 1]
-            sa_weights_t = sa_weights_t_temp
             rects = [patches.Rectangle((0, 0,), t + 1, t + 1, edgecolor='white', facecolor='none')]
             save_heatmap(sa_weights_t, rows, cols, f'{Q}-{K}', f'{filename_path}_sa{tag}{ext}', sim_scale, rects=rects, annot=True)
         else:
@@ -267,7 +263,7 @@ def visualize_self_attn_VLP(pred, sa_weights, hparams, image, image_save_path, t
                 save_blended_heatmap(sa_weights_t, image, save_path)
         elif 'ref' in tag:
             t = len(pred)
-            save_path = f'{filename_path}_sa{tag_t}{ext}'
+            save_path = f'{filename_path}_sa{tag}{ext}'
             sa_weights_t = sa_weights[0][row_ind, :][:, col_ind]
             sa_weights_t = sa_weights_t[t]
             sa_weights_t = sa_weights_t.view(*vis_size)
