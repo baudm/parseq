@@ -69,7 +69,7 @@ class Isaac_VLP(CrossEntropySystem):
         self.ref_loss_scale = ref_loss_scale
         self.ref_iters = ref_iters
 
-        # self.head = nn.Linear(embed_dim, len(self.tokenizer))
+        self.head = nn.Linear(embed_dim, len(self.tokenizer))
         self.text_embed = TokenEmbedding(len(self.tokenizer), embed_dim)
 
         # +1 for <eos>
@@ -469,6 +469,7 @@ class Isaac_VLP(CrossEntropySystem):
             self.log('train_acc_dec', train_acc_dec)
             self.log('train_acc_ref', train_acc_ref)
             self.preds_dec, self.preds_ref, self.results_dec, self.results_ref, self.labels = [], [], [], [], []
+            # import ipdb; ipdb.set_trace(context=21) # #FF0000
         
         self.log('loss', loss)
         self.log('loss_ref', loss_ref)
