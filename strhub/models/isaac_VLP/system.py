@@ -69,7 +69,7 @@ class Isaac_VLP(CrossEntropySystem):
         self.ref_loss_scale = ref_loss_scale
         self.ref_iters = ref_iters
 
-        self.head = nn.Linear(embed_dim, len(self.tokenizer))
+        # self.head = nn.Linear(embed_dim, len(self.tokenizer))
         self.text_embed = TokenEmbedding(len(self.tokenizer), embed_dim)
 
         # +1 for <eos>
@@ -123,9 +123,18 @@ class Isaac_VLP(CrossEntropySystem):
             return torch.triu(torch.full((h, w), float('-inf')), diagonal)
         def diag_attn(h, w=None):
             w = w if w is not None else h
-            triu = torch.triu(torch.full((h, w), float('-inf'), 1))
-            tril = torch.tril(torch.full((h, w), float('-inf'), -1))
+            triu = torch.triu(torch.full((h, w), float('-inf')), 1)
+            tril = torch.tril(torch.full((h, w), float('-inf')), -1)
             return triu + tril
+        def diag_mask(h, w=None, diagonal=0):
+            w = w if w is not None else h
+            base = torch.full((h, w), 1.0)
+            triu = torch.triu(torch.full((h, w), -1.0), diagonal + 1)
+            tril = torch.tril(torch.full((h, w), -1.0), diagonal - 1)
+            mask = base + triu + tril
+            mask = torch.zeros((h, w)).masked_fill(mask.type(torch.bool), float('-inf'))
+            return mask
+            
         
         # query : V
         QK_V = self.QK[0]
@@ -139,7 +148,7 @@ class Isaac_VLP(CrossEntropySystem):
         else:
             attn_VL = zero_attn(L_V, L_L)
         if 'P' in QK_V and not not refine_layer:
-            # VP attention is not allowed inf base layer, due to information leak from future time steps
+            # VP attention is not allowed in base layer, due to information leak from future time steps
             attn_VP = full_attn(L_V, L_P)
         else:
             attn_VP = zero_attn(L_V, L_P)
@@ -317,7 +326,7 @@ class Isaac_VLP(CrossEntropySystem):
         pos = self.dropout(pos)
         
         dummy_token = dummy_token.expand(bs, -1, -1)
-        return self.refiner(vis, lan.detach(), pos.detach(), dummy_token, attn_mask=attn_mask, padding_mask=padding_mask)
+        return self.refiner(vis.detach(), lan.detach(), pos.detach(), dummy_token, attn_mask=attn_mask, padding_mask=padding_mask)
 
     def forward_logits_loss(self, images: Tensor, labels: List[str]) -> Tuple[Tensor, Tensor, int]:
         """Override function defined in CrossEntropySystem, because initial prediction might be longer than target."""

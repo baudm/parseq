@@ -109,8 +109,8 @@ def main():
         
         ## attention
         # visualize_self_attn(pred, agg.sa_weights, image_save_path)
-        # visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='V', K='V', tag=f'_dec')
-        visualize_self_attn_VLP(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='P', K='P', tag=f'_ref')
+        # visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='VLP', K='VLP', tag=f'_dec')
+        visualize_self_attn_VLP(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='VLP', K='VLP', tag=f'_ref')
         # visualize_cross_attn(agg.ca_weights, hparams, image, image_save_path)
         # visualize_sim_with_memory(agg.res_pt_2, agg.memory, image, image_save_path)
         
@@ -264,14 +264,14 @@ def visualize_self_attn_VLP(pred, sa_weights, hparams, image, image_save_path, t
                 sa_weights_t = sa_weights_t[row_ind, :][:, col_ind]
                 sa_weights_t = sa_weights_t[t]
                 sa_weights_t = sa_weights_t.view(*vis_size)
-                save_blended_heatmap(sa_weights_t, image, save_path, tag_t)
+                save_blended_heatmap(sa_weights_t, image, save_path)
         elif 'ref' in tag:
             t = len(pred)
             save_path = f'{filename_path}_sa{tag_t}{ext}'
             sa_weights_t = sa_weights[0][row_ind, :][:, col_ind]
             sa_weights_t = sa_weights_t[t]
             sa_weights_t = sa_weights_t.view(*vis_size)
-            save_blended_heatmap(sa_weights_t, image, save_path, tag)
+            save_blended_heatmap(sa_weights_t, image, save_path)
         else:
             raise NotImplementedError
     elif Q + K in ['VV']:
