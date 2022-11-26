@@ -14,7 +14,8 @@
             "args": [
                 "model=isaac_VLP",
                 "model.ref_depth=1",
-                "model.batch_size=192"
+                "model.batch_size=192",
+                "trainer.gpus=2"
             ]
         }
     ]
