@@ -65,7 +65,8 @@ class PARSeq(CrossEntropySystem):
         self.perm_mirrored = perm_mirrored
 
         # We don't predict <bos> nor <pad>
-        self.head = nn.Linear(embed_dim, len(self.tokenizer) - 2)
+        # self.head = nn.Linear(embed_dim, len(self.tokenizer) - 2)
+        self.head = nn.Linear(embed_dim, len(self.tokenizer))
         self.text_embed = TokenEmbedding(len(self.tokenizer), embed_dim)
 
         # +1 for <eos>
