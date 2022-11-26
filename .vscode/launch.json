@@ -12,8 +12,9 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "outputs/isaac_VLP/2022-11-24_16-07-16/checkpoints/last.ckpt",
-                "--images", "demo_images_temp/*"
+                "model=isaac_VLP",
+                "model.ref_depth=1",
+                "model.batch_size=192"
             ]
         }
     ]
