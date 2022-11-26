@@ -262,7 +262,8 @@ class PARSeq(CrossEntropySystem):
             tgt_mask, query_mask = self.generate_attn_masks(perm)
             out, _ = self.decode(tgt_in, memory, tgt_mask, tgt_padding_mask, tgt_query_mask=query_mask)
             logits = self.head(out).flatten(end_dim=1)
-            loss += n * F.cross_entropy(logits, tgt_out.flatten(), ignore_index=self.pad_id)
+            # loss += n * F.cross_entropy(logits, tgt_out.flatten(), ignore_index=self.pad_id)
+            loss += n * F.cross_entropy(logits, tgt_out.flatten())
             loss_numel += n
             # After the second iteration (i.e. done with canonical and reverse orderings),
             # remove the [EOS] tokens for the succeeding perms
