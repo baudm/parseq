@@ -331,7 +331,8 @@ class Isaac_VLP(CrossEntropySystem):
         targets = F.pad(targets, (0, L_L - targets.shape[1]), "constant", self.pad_id)
         max_len = L_L - 1
         logits = self.forward(images, max_len)[0]
-        loss = F.cross_entropy(logits.flatten(end_dim=1), targets.flatten(), ignore_index=self.pad_id)
+        # loss = F.cross_entropy(logits.flatten(end_dim=1), targets.flatten(), ignore_index=self.pad_id)
+        loss = F.cross_entropy(logits.flatten(end_dim=1), targets.flatten())
         loss_numel = (targets != self.pad_id).sum()
         return logits, loss, loss_numel
     
@@ -397,6 +398,7 @@ class Isaac_VLP(CrossEntropySystem):
 
     def training_step(self, batch, batch_idx) -> STEP_OUTPUT:
         images, labels = batch
+        self.labels.extend(labels)
         
         bs = images.shape[0]
         vis = self.encode(images)
@@ -418,14 +420,18 @@ class Isaac_VLP(CrossEntropySystem):
         
         vis_dec, lan_dec, pos_dec, agg = self.decode(vis, tgt_in, pos, dummy_token, attn_mask, padding_mask)
         logits_dec = self.head(pos_dec)
-        # loss_dec = F.cross_entropy(logits_dec.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
-        loss_dec = F.cross_entropy(logits_dec.flatten(end_dim=1), tgt_out.flatten())
+        loss_dec = F.cross_entropy(logits_dec.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
+        # loss_dec = F.cross_entropy(logits_dec.flatten(end_dim=1), tgt_out.flatten())
         
         probs_dec = logits_dec.softmax(-1)
         preds_dec, probs_dec = self.tokenizer.decode(probs_dec)
         results_dec = [(a == b) for (a, b) in zip(labels, preds_dec)]
         self.preds_dec.extend(preds_dec)
         self.results_dec.extend(results_dec)
+        if len(self.results_dec) > 10000:
+            train_acc_dec = sum(self.results_dec) / len(self.results_dec) * 100
+            self.log('train_acc_dec', train_acc_dec)
+            self.preds_dec, self.results_dec = [], []
         
         ## refinement stage.
         bos = torch.full((bs, 1), self.bos_id).to(self._device)
@@ -445,28 +451,27 @@ class Isaac_VLP(CrossEntropySystem):
             pd.DataFrame(init_pred.cpu().numpy()).to_csv('./init_pred.csv')
             pd.DataFrame(logits_ref.argmax(-1).cpu().numpy()).to_csv('./logits.csv')
             
-            # loss_ref = F.cross_entropy(logits_ref.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
-            loss_ref = F.cross_entropy(logits_ref.flatten(end_dim=1), tgt_out.flatten())
+            loss_ref = F.cross_entropy(logits_ref.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
+            # loss_ref = F.cross_entropy(logits_ref.flatten(end_dim=1), tgt_out.flatten())
             loss_ref = self.ref_loss_scale * loss_ref
             loss = loss_dec + loss_ref
+            
+            probs_ref = logits_ref.softmax(-1)
+            preds_ref, probs_ref = self.tokenizer.decode(probs_ref)
+            results_ref = [(a == b) for (a, b) in zip(labels, preds_ref)]
+            self.preds_ref.extend(preds_ref)
+            self.results_ref.extend(results_ref)
+            
+            if len(self.results_ref) > 10000:
+                train_acc_ref = sum(self.results_ref) / len(self.results_ref) * 100
+                self.log('train_acc_ref', train_acc_ref)
+                self.preds_ref, self.results_ref = [], []
         else:
             loss_ref = 0
             loss = loss_dec
         
-        probs_ref = logits_ref.softmax(-1)
-        preds_ref, probs_ref = self.tokenizer.decode(probs_ref)
-        results_ref = [(a == b) for (a, b) in zip(labels, preds_ref)]
-        self.preds_ref.extend(preds_ref)
-        self.results_ref.extend(results_ref)
-        self.labels.extend(labels)
         
-        if len(self.results_ref) > 10000:
-            train_acc_dec = sum(self.results_dec) / len(self.results_dec) * 100
-            train_acc_ref = sum(self.results_ref) / len(self.results_ref) * 100
-            self.log('train_acc_dec', train_acc_dec)
-            self.log('train_acc_ref', train_acc_ref)
-            self.preds_dec, self.preds_ref, self.results_dec, self.results_ref, self.labels = [], [], [], [], []
-        
+        self.labels = []
         self.log('loss', loss)
         self.log('loss_ref', loss_ref)
         self.log('loss_dec', loss_dec)
