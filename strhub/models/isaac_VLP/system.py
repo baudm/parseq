@@ -321,7 +321,7 @@ class Isaac_VLP(CrossEntropySystem):
         lan = self.dropout(torch.cat([null_ctx, lan], dim=1))
         pos = self.dropout(pos)
         dummy_token = dummy_token.expand(bs, -1, -1)
-        return self.refiner(vis.detach(), lan.detach(), pos.detach(), dummy_token, attn_mask=attn_mask, padding_mask=padding_mask)
+        return self.refiner(vis, lan.detach(), pos.detach(), dummy_token, attn_mask=attn_mask, padding_mask=padding_mask)
 
     def forward_logits_loss(self, images: Tensor, labels: List[str]) -> Tuple[Tensor, Tensor, int]:
         """Override function defined in CrossEntropySystem, because initial prediction might be longer than target."""
@@ -331,8 +331,8 @@ class Isaac_VLP(CrossEntropySystem):
         targets = F.pad(targets, (0, L_L - targets.shape[1]), "constant", self.pad_id)
         max_len = L_L - 1
         logits = self.forward(images, max_len)[0]
-        # loss = F.cross_entropy(logits.flatten(end_dim=1), targets.flatten(), ignore_index=self.pad_id)
-        loss = F.cross_entropy(logits.flatten(end_dim=1), targets.flatten())
+        loss = F.cross_entropy(logits.flatten(end_dim=1), targets.flatten(), ignore_index=self.pad_id)
+        # loss = F.cross_entropy(logits.flatten(end_dim=1), targets.flatten())
         loss_numel = (targets != self.pad_id).sum()
         return logits, loss, loss_numel
     
@@ -360,25 +360,25 @@ class Isaac_VLP(CrossEntropySystem):
         dummy_token = self.dummy_token.to(self._device)
         
         # inital text prediction
-        logits = []
+        logits_dec = []
         for i in range(num_steps):
             j = i + 1 # next token index
-            vis_out, lan_out, pos_out, agg = self.decode(vis, lan_ind, pos, dummy_token, attn_mask=attn_mask)
-            p_i = self.head(pos_out[:, i:j])
-            logits.append(p_i)
+            vis_dec, lan_dec, pos_dec, vis_dec_2, lan_dec_2, pos_dec_2, agg = self.decode(vis, lan_ind, pos, dummy_token, attn_mask=attn_mask)
+            p_i = self.head(pos_dec[:, i:j])
+            logits_dec.append(p_i)
             if j < num_steps:
                 # greedy decode. add the next token index to the target input
                 lan_ind[:, j] = p_i.squeeze().argmax(-1)
                 # Efficient batch decoding: If all output words have at least one EOS token, end decoding.
                 if testing and (lan_ind == self.eos_id).any(dim=-1).all():
                     break
-        logits = torch.cat(logits, dim=1)
-        logits_inter = logits
+        logits_dec = torch.cat(logits_dec, dim=1)
+        logits = logits_dec
         
         # refinement
         if self.refiner is not None and self.ref_iters > 0:
-            bos = torch.full((logits.shape[0], 1), self.bos_id).to(self._device)
-            init_pred = logits.argmax(-1)[:, :-1]
+            bos = torch.full((logits_dec.shape[0], 1), self.bos_id).to(self._device)
+            init_pred = logits_dec.argmax(-1)[:, :-1]
             init_pred = torch.cat([bos, init_pred], dim=1)
             padding_mask = F.pad(((init_pred == self.eos_id).cumsum(-1) > 0), (1, 0), "constant", 0)[:, :-1].to(torch.bool) # positions beyond the first <eos> token
             init_pred = init_pred.masked_fill(padding_mask, self.pad_id)
@@ -388,11 +388,12 @@ class Isaac_VLP(CrossEntropySystem):
             
             attn_mask_refine = self.attn_mask_refine.to(self._device)
 
-            vis_out2, lan_out2, pos_out2, agg = self.refine(vis_out, init_pred, pos_out, dummy_token, attn_mask_refine, padding_mask)
-            logits = self.head(pos_out2)
+            vis_ref, lan_ref, pos_ref, vis_ref_2, lan_ref_2, pos_ref_2, agg = self.refine(vis_dec_2, init_pred, pos_dec, dummy_token, attn_mask_refine, padding_mask)
+            logits_ref = self.head(pos_ref_2)
+            logits = logits_ref
             
         if return_intermediate_logits:
-            return logits, logits_inter, None
+            return logits, logits_dec, None
         
         return logits, None
 
@@ -418,7 +419,7 @@ class Isaac_VLP(CrossEntropySystem):
         attn_mask = self.attn_mask.to(self._device)
         dummy_token = self.dummy_token.to(self._device)
         
-        vis_dec, lan_dec, pos_dec, agg = self.decode(vis, tgt_in, pos, dummy_token, attn_mask, padding_mask)
+        vis_dec, lan_dec, pos_dec, vis_dec_2, lan_dec_2, pos_dec_2, agg = self.decode(vis, tgt_in, pos, dummy_token, attn_mask, padding_mask)
         logits_dec = self.head(pos_dec)
         loss_dec = F.cross_entropy(logits_dec.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
         # loss_dec = F.cross_entropy(logits_dec.flatten(end_dim=1), tgt_out.flatten())
@@ -444,7 +445,7 @@ class Isaac_VLP(CrossEntropySystem):
         
         attn_mask_refine = self.attn_mask_refine.to(self._device)
         if self.refiner is not None:
-            vis_ref, lan_ref, pos_ref, agg = self.refine(vis_dec, init_pred, pos_dec, dummy_token, attn_mask_refine, padding_mask)
+            vis_ref, lan_ref, pos_ref, vis_ref_2, lan_ref_2, pos_ref_2, agg = self.refine(vis_dec_2, init_pred, pos_dec, dummy_token, attn_mask_refine, padding_mask)
             logits_ref = self.head(pos_ref)
             
             pd.DataFrame(tgt_out.cpu().numpy()).to_csv('./tgt_out.csv')

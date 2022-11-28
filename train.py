@@ -46,8 +46,7 @@ def main(config: DictConfig):
             # Use DDP
             config.trainer.strategy = 'ddp'
             # DDP optimizations
-            # trainer_strategy = DDPStrategy(gradient_as_bucket_view=True)
-            trainer_strategy = DDPStrategy()
+            trainer_strategy = DDPStrategy(gradient_as_bucket_view=True)
             # Scale steps-based config
             config.trainer.val_check_interval //= num_gpus
             if config.trainer.get('max_steps', -1) > 0:
