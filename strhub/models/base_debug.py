@@ -122,7 +122,6 @@ class BaseSystem(pl.LightningModule, ABC):
         preds_inter, probs_inter = self.tokenizer.decode(probs_inter)
         preds = [self.charset_adapter(pred) for pred in preds]
         preds_inter = [self.charset_adapter(pred_inter) for pred_inter in preds_inter]
-        import ipdb; ipdb.set_trace(context=21) # #FF0000
         for pred, prob, gt, img_key, img_orig in zip(preds, probs, labels, img_keys, img_origs):
             confidence += prob.prod().item()
             # Follow ICDAR 2019 definition of N.E.D.

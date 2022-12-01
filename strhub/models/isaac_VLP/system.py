@@ -422,7 +422,6 @@ class Isaac_VLP(CrossEntropySystem):
         vis_dec, lan_dec, pos_dec, vis_dec_2, lan_dec_2, pos_dec_2, agg = self.decode(vis, tgt_in, pos, dummy_token, attn_mask, padding_mask)
         logits_dec = self.head(pos_dec)
         loss_dec = F.cross_entropy(logits_dec.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
-        # loss_dec = F.cross_entropy(logits_dec.flatten(end_dim=1), tgt_out.flatten())
         
         probs_dec = logits_dec.softmax(-1)
         preds_dec, probs_dec = self.tokenizer.decode(probs_dec)
@@ -453,7 +452,6 @@ class Isaac_VLP(CrossEntropySystem):
             pd.DataFrame(logits_ref.argmax(-1).cpu().numpy()).to_csv('./logits.csv')
             
             loss_ref = F.cross_entropy(logits_ref.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
-            # loss_ref = F.cross_entropy(logits_ref.flatten(end_dim=1), tgt_out.flatten())
             loss_ref = self.ref_loss_scale * loss_ref
             loss = loss_dec + loss_ref
             
