@@ -68,7 +68,7 @@ class Isaac_VLP(CrossEntropySystem):
         self.refiner = Decoder(decoder_layer, num_layers=ref_depth, norm=nn.LayerNorm(embed_dim)) if ref_depth > 0 else None
         self.ref_loss_scale = ref_loss_scale
         self.ref_iters = ref_iters
-
+        
         self.head = nn.Linear(embed_dim, len(self.tokenizer))
         self.text_embed = TokenEmbedding(len(self.tokenizer), embed_dim)
 
@@ -94,7 +94,6 @@ class Isaac_VLP(CrossEntropySystem):
         self.results_dec = []
         self.results_ref = []
         self.labels = []
-        
         
     
     def get_attn_mask(self, img_size, patch_size, refine_layer:bool=False):
@@ -134,7 +133,6 @@ class Isaac_VLP(CrossEntropySystem):
             mask = base + triu + tril
             mask = torch.zeros((h, w)).masked_fill(mask.type(torch.bool), float('-inf'))
             return mask
-            
         
         # query : V
         QK_V = self.QK[0]
@@ -332,7 +330,6 @@ class Isaac_VLP(CrossEntropySystem):
         max_len = L_L - 1
         logits = self.forward(images, max_len)[0]
         loss = F.cross_entropy(logits.flatten(end_dim=1), targets.flatten(), ignore_index=self.pad_id)
-        # loss = F.cross_entropy(logits.flatten(end_dim=1), targets.flatten())
         loss_numel = (targets != self.pad_id).sum()
         return logits, loss, loss_numel
     
@@ -373,7 +370,7 @@ class Isaac_VLP(CrossEntropySystem):
                 if testing and (lan_ind == self.eos_id).any(dim=-1).all():
                     break
         logits_dec = torch.cat(logits_dec, dim=1)
-        logits = logits_dec
+        # logits = logits_dec
         
         # refinement
         if self.refiner is not None and self.ref_iters > 0:
@@ -389,13 +386,14 @@ class Isaac_VLP(CrossEntropySystem):
             attn_mask_refine = self.attn_mask_refine.to(self._device)
 
             vis_ref, lan_ref, pos_ref, vis_ref_2, lan_ref_2, pos_ref_2, agg = self.refine(vis_dec_2, init_pred, pos_dec, dummy_token, attn_mask_refine, padding_mask)
-            logits_ref = self.head(pos_ref_2)
+            logits_ref = self.head(pos_ref)
             logits = logits_ref
             
         if return_intermediate_logits:
             return logits, logits_dec, None
         
-        return logits, None
+        # return logits, None
+        return logits_ref, None
 
     def training_step(self, batch, batch_idx) -> STEP_OUTPUT:
         images, labels = batch
