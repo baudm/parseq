@@ -13,9 +13,11 @@
             "justMyCode": true,
             "args": [
                 "model=isaac_VLP",
-                "model.ref_depth=1",
-                "model.batch_size=192",
-                "trainer.gpus=2"
+                "model.dec_depth=1",
+                "model.ref_depth=2",
+                "model.batch_size=128",
+                "trainer.gpus=[0, 2, 3]",
+                "ckpt_path='./outputs/isaac_VLP/2022-12-01_22-33-33/checkpoints/epoch=13-step=111292-val_accuracy=92.7977-val_NED=97.4264.ckpt'",
             ]
         }
     ]
