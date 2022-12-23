@@ -40,7 +40,7 @@ A single Transformer can realize different models by merely varying its attentio
 | <img src="demo_images/coco-1166773.jpg" alt="Chevron" width="128"/>        | Chevro**l**          | Chevro\_          | Chevro\_          | Chevr\_\_         | Chevr\_\_         |
 | <img src="demo_images/cute-184.jpg" alt="SALMON" height="128"/>            | SALMON               | SALMON            | SALMON            | SALMON            | SA\_MON           |
 | <img src="demo_images/ic13_word_256.png" alt="Verbandstoffe" width="128"/> | Verbandst**e**ffe    | Verbandst**e**ffe | Verbandst**ell**e | Verbandst**e**ffe | Verbands**le**ffe |
-| <img src="demo_images/ic15_word_26.png" alt="Kappa" width="128"/>          | Kappa                | Kappa             | Ka**s**pa         | Kappa             | Ka**ad**a         |
+| <img src="demo_images/ic15_word_26.png" alt="Kappa" width="128"/>          | Kappa                | Kappa             | Ka**s**pa         | Ka**o**pa             | Ka**ad**a         |
 | <img src="demo_images/uber-27491.jpg" alt="3rdAve" height="128"/>          | 3rdAve               | 3=-Ave            | 3rdAve            | 3rdAve            | **Coke**          |
 
 **NOTE:** _Bold letters and underscores indicate wrong and missing character predictions, respectively._
