@@ -80,9 +80,8 @@ class DecoderLayer(nn.Module):
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1, activation='gelu',
                  layer_norm_eps=1e-5):
         super().__init__()
-        # self.self_attn = MultiheadAttention([256, 26, 26], d_model, nhead, dropout=dropout, batch_first=True)
-        self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
-        # self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
+        # self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
+        self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
         
         self.ff_v = FeedForwardLayer(d_model, dim_feedforward, dropout, activation)
         self.ff_l = FeedForwardLayer(d_model, dim_feedforward, dropout, activation)
@@ -118,22 +117,14 @@ class DecoderLayer(nn.Module):
         L_L = lan_tokens.shape[1]
         L_P = pos_tokens.shape[1]
         mask_PV = attn_mask[-L_P-1:-1, :L_V]
-        # mask_PV[:, :1] = float('-inf')
-        # mask_PV[-1, :-1] = float('-inf')
-        # mask_PV[-1, :] = float('-inf') # where it goes wrong
         
-        pos_tokens_res, ca_weights = self.self_attn(self.norm_p(pos_tokens), vis_tokens, vis_tokens, attn_mask=mask_PV, dummy=False)
-        # if vis_tokens.requires_grad == True:
-        #     # print(ca_weights[0])vis_tkens
+        pos_tokens_res, ca_weights = self.self_attn(self.norm_p(pos_tokens), vis_tokens, vis_tokens, attn_mask=mask_PV)
         pos_tokens = pos_tokens + self.dropout1(pos_tokens_res)
         
         pos_tokens_res = self.ff_p(pos_tokens)
         pos_tokens = pos_tokens + pos_tokens_res
         
-        # agg = Module_Data()
-        # agg.sa_weights = sa_weights
-        agg = None
-        return vis_tokens, lan_tokens, pos_tokens, agg
+        return vis_tokens, lan_tokens, pos_tokens, None
     
 
 class FeedForwardLayer(nn.Module):
