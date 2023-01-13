@@ -370,7 +370,7 @@ class Isaac_VLP(CrossEntropySystem):
                 if testing and (lan_ind == self.eos_id).any(dim=-1).all():
                     break
         logits_dec = torch.cat(logits_dec, dim=1)
-        # logits = logits_dec
+        logits = logits_dec
         
         # refinement
         if self.refiner is not None and self.ref_iters > 0:
@@ -392,8 +392,7 @@ class Isaac_VLP(CrossEntropySystem):
         if return_intermediate_logits:
             return logits, logits_dec, None
         
-        # return logits, None
-        return logits_ref, None
+        return logits, None
 
     def training_step(self, batch, batch_idx) -> STEP_OUTPUT:
         images, labels = batch
