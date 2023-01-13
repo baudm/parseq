@@ -1,5 +1,5 @@
 name: parseq_VSF
-_target_: strhub.models.parseq_inv.system.PARSeq_VSF
+_target_: strhub.models.parseq_VSF.system.PARSeq_VSF
 
 # Data
 patch_size: [ 4, 8 ]  # [ height, width ]
