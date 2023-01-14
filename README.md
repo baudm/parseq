@@ -91,7 +91,7 @@ print('Decoded label = {}'.format(label[0]))
 
 ## Frequently Asked Questions
 - How do I train on a new language? See Issues [#5](https://github.com/baudm/parseq/issues/5) and [#9](https://github.com/baudm/parseq/issues/9).
-- Can you export to TorchScript or ONNX? Yes, with a [caveat (Issue #12)](https://github.com/baudm/parseq/issues/12#issuecomment-1267842315).
+- Can you export to TorchScript or ONNX? Yes, see Issue [#12](https://github.com/baudm/parseq/issues/12#issuecomment-1267842315).
 - How do I test on my own dataset? See Issue [#27](https://github.com/baudm/parseq/issues/27).
 - How do I finetune and/or create a custom dataset? See Issue [#7](https://github.com/baudm/parseq/issues/7).
 - What is `val_NED`? See Issue [#10](https://github.com/baudm/parseq/issues/10).
