@@ -66,20 +66,23 @@ def print_results_table(results: List[Result], file=None):
 
 @torch.inference_mode()
 def main():
+    def str2bool(x):
+        return x.lower == 'true'
     parser = argparse.ArgumentParser()
     parser.add_argument('checkpoint', help="Model checkpoint (or 'pretrained=<model_id>')")
     parser.add_argument('--data_root', default='../data/parseq/english/lmdb')
     parser.add_argument('--batch_size', type=int, default=512)
     parser.add_argument('--num_workers', type=int, default=4)
-    parser.add_argument('--cased', action='store_true', default=False, help='Cased comparison')
-    parser.add_argument('--punctuation', action='store_true', default=False, help='Check punctuation')
-    parser.add_argument('--new', action='store_true', default=False, help='Evaluate on new benchmark datasets')
+    parser.add_argument('--cased', type=str2bool, default=False, help='Cased comparison')
+    parser.add_argument('--punctuation', type=str2bool, default=False, help='Check punctuation')
+    parser.add_argument('--new', type=str2bool, default=False, help='Evaluate on new benchmark datasets')
     parser.add_argument('--rotation', type=int, default=0, help='Angle of rotation (counter clockwise) in degrees.')
-    parser.add_argument('--device', default='cuda')
+    parser.add_argument('--gpu', type=int, default=0, help='gpu index')
     args, unknown = parser.parse_known_args()
     kwargs = parse_model_args(unknown)
 
     os.environ['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
+    torch.cuda.set_device(args.gpu)
     charset_test = string.digits + string.ascii_lowercase
     if args.cased:
         charset_test += string.ascii_uppercase
@@ -105,8 +108,8 @@ def main():
     model = instantiate(cfg.model)
     hp = model.hparams
     print(model.hparams)
-    model.load_state_dict(torch.load(args.checkpoint, map_location=args.device)['state_dict'])
-    model.eval().to(args.device)
+    model.load_state_dict(torch.load(args.checkpoint, map_location='cuda')['state_dict'])
+    model.eval().cuda()
     
     datamodule = SceneTextDataModule(args.data_root, '_unused_', hp.img_size, hp.max_label_length, hp.charset_train,
                                      hp.charset_test, args.batch_size, args.num_workers, False, rotation=args.rotation)
