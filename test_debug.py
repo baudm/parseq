@@ -17,6 +17,7 @@
 import argparse
 import string
 import sys
+import os
 from dataclasses import dataclass
 from typing import List
 from hydra.utils import instantiate
@@ -66,40 +67,49 @@ def print_results_table(results: List[Result], file=None):
 @torch.inference_mode()
 def main():
     def str2bool(x):
-        return x.lower() == 'true'
+        return x.lower == 'true'
     parser = argparse.ArgumentParser()
     parser.add_argument('checkpoint', help="Model checkpoint (or 'pretrained=<model_id>')")
     parser.add_argument('--data_root', default='../data/parseq/english/lmdb')
     parser.add_argument('--batch_size', type=int, default=512)
     parser.add_argument('--num_workers', type=int, default=4)
-    parser.add_argument('--cased', action='store_true', default=False, help='Cased comparison')
-    parser.add_argument('--punctuation', action='store_true', default=False, help='Check punctuation')
-    parser.add_argument('--new', action='store_true', default=False, help='Evaluate on new benchmark datasets')
+    parser.add_argument('--cased', type=str2bool, default=False, help='Cased comparison')
+    parser.add_argument('--punctuation', type=str2bool, default=False, help='Check punctuation')
+    parser.add_argument('--new', type=str2bool, default=False, help='Evaluate on new benchmark datasets')
     parser.add_argument('--rotation', type=int, default=0, help='Angle of rotation (counter clockwise) in degrees.')
-    parser.add_argument('--device', default='cuda')
-    
-    parser.add_argument('--save_error_images', type=str2bool, default=True, help='Save images with erroneous prediction.')
+    parser.add_argument('--gpu', type=int, default=0, help='gpu index')
     args, unknown = parser.parse_known_args()
     kwargs = parse_model_args(unknown)
 
+    os.environ['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
+    torch.cuda.set_device(args.gpu)
     charset_test = string.digits + string.ascii_lowercase
     if args.cased:
         charset_test += string.ascii_uppercase
     if args.punctuation:
         charset_test += string.punctuation
     kwargs.update({'charset_test': charset_test})
+        
     print(f'Additional keyword arguments: {kwargs}')
     # model = load_from_checkpoint(args.checkpoint, **kwargs).eval().to(args.device)
     ckpt_split = args.checkpoint.split('/')
     exp_dir = '/'.join(ckpt_split[:ckpt_split.index('checkpoints')])
     initialize(config_path=f'{exp_dir}/config', version_base='1.2')
     cfg = compose(config_name='config')
-    # for k, v in kwargs.items():
-    #     setattr(cfg.model, k, v)
-    cfg.model._target_ = cfg.model._target_.replace('system', 'system_debug')
+    if cfg.model.get('perm_num') is not None:
+        if cfg.model.perm_num == 1:
+            if kwargs.get('refine_iters') is None:
+                cfg.model.refine_iters = 0
+            if kwargs.get('perm_mirrored') is None:
+                cfg.model.perm_mirrored = False
+    for k, v in kwargs.items():
+        setattr(cfg.model, k, v)
+    
     model = instantiate(cfg.model)
-    model.load_state_dict(torch.load(args.checkpoint)['state_dict'])
-    model.eval().to(args.device)
+    hp = model.hparams
+    print(model.hparams)
+    model.load_state_dict(torch.load(args.checkpoint, map_location='cuda')['state_dict'])
+    model.eval().cuda()
     
     hp = model.hparams
     print(model.hparams)
