@@ -22,13 +22,14 @@ from dataclasses import dataclass
 from typing import List
 from hydra.utils import instantiate
 from hydra import compose, initialize
+from omegaconf import open_dict
 
 import torch
 
 from tqdm import tqdm
 
 from strhub.data.module import SceneTextDataModule
-from strhub.models.utils import load_from_checkpoint, parse_model_args
+from strhub.models.utils import parse_model_args, init_dir
 
 
 @dataclass
@@ -67,7 +68,7 @@ def print_results_table(results: List[Result], file=None):
 @torch.inference_mode()
 def main():
     def str2bool(x):
-        return x.lower == 'true'
+        return x.lower() == 'true'
     parser = argparse.ArgumentParser()
     parser.add_argument('checkpoint', help="Model checkpoint (or 'pretrained=<model_id>')")
     parser.add_argument('--data_root', default='../data/parseq/english/lmdb')
@@ -78,6 +79,7 @@ def main():
     parser.add_argument('--new', type=str2bool, default=False, help='Evaluate on new benchmark datasets')
     parser.add_argument('--rotation', type=int, default=0, help='Angle of rotation (counter clockwise) in degrees.')
     parser.add_argument('--gpu', type=int, default=0, help='gpu index')
+    parser.add_argument('--debug', type=str2bool, default=False, help='Run in debugging mode (visualization)')
     args, unknown = parser.parse_known_args()
     kwargs = parse_model_args(unknown)
 
@@ -96,6 +98,8 @@ def main():
     exp_dir = '/'.join(ckpt_split[:ckpt_split.index('checkpoints')])
     initialize(config_path=f'{exp_dir}/config', version_base='1.2')
     cfg = compose(config_name='config')
+    with open_dict(cfg):
+        cfg.model.debug = args.debug
     if cfg.model.get('perm_num') is not None:
         if cfg.model.perm_num == 1:
             if kwargs.get('refine_iters') is None:
@@ -104,7 +108,6 @@ def main():
                 cfg.model.perm_mirrored = False
     for k, v in kwargs.items():
         setattr(cfg.model, k, v)
-    
     model = instantiate(cfg.model)
     hp = model.hparams
     print(model.hparams)
@@ -112,7 +115,7 @@ def main():
     model.eval().cuda()
     
     datamodule = SceneTextDataModule(args.data_root, '_unused_', hp.img_size, hp.max_label_length, hp.charset_train,
-                                     hp.charset_test, args.batch_size, args.num_workers, False, rotation=args.rotation)
+                                     hp.charset_test, args.batch_size, args.num_workers, False, rotation=args.rotation, debug=args.debug)
 
     test_set = SceneTextDataModule.TEST_BENCHMARK_SUB + SceneTextDataModule.TEST_BENCHMARK
     if args.new:
@@ -121,24 +124,35 @@ def main():
 
     results = {}
     max_width = max(map(len, test_set))
-    for name, dataloader in datamodule.test_dataloaders(test_set).items():
+    debug_dir = f'{exp_dir}/debug'
+    for dname, dataloader in datamodule.test_dataloaders(test_set).items():
         total = 0
         correct = 0
         ned = 0
         confidence = 0
         label_length = 0
-        for imgs, labels in tqdm(iter(dataloader), desc=f'{name:>{max_width}}'):
-            res = model.test_step((imgs.to(model.device), labels), -1)['output']
-            total += res.num_samples
-            correct += res.correct
-            ned += res.ned
-            confidence += res.confidence
-            label_length += res.label_length
+        if args.debug:
+            init_dir(f'{debug_dir}/images/{dname}')
+            for imgs, labels, img_keys, img_origs in tqdm(iter(dataloader), desc=f'{dname:>{max_width}}'):
+                res = model.test_step((imgs.to(model.device), labels, img_keys, img_origs), False, debug_dir, dname)['output']
+                total += res.num_samples
+                correct += res.correct
+                ned += res.ned
+                confidence += res.confidence
+                label_length += res.label_length
+        else:
+            for imgs, labels in tqdm(iter(dataloader), desc=f'{dname:>{max_width}}'):
+                res = model.test_step((imgs.to(model.device), labels), False)['output']
+                total += res.num_samples
+                correct += res.correct
+                ned += res.ned
+                confidence += res.confidence
+                label_length += res.label_length
         accuracy = 100 * correct / total
         mean_ned = 100 * (1 - ned / total)
         mean_conf = 100 * confidence / total
         mean_label_length = label_length / total
-        results[name] = Result(name, total, accuracy, mean_ned, mean_conf, mean_label_length)
+        results[dname] = Result(dname, total, accuracy, mean_ned, mean_conf, mean_label_length)
 
     result_groups = {
         'Benchmark (Subset)': SceneTextDataModule.TEST_BENCHMARK_SUB,

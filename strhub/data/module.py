@@ -17,6 +17,7 @@ from pathlib import PurePath
 from typing import Optional, Callable, Sequence, Tuple
 
 import pytorch_lightning as pl
+import torch
 from torch.utils.data import DataLoader
 from torchvision import transforms as T
 
@@ -32,7 +33,8 @@ class SceneTextDataModule(pl.LightningDataModule):
     def __init__(self, root_dir: str, train_dir: str, img_size: Sequence[int], max_label_length: int,
                  charset_train: str, charset_test: str, batch_size: int, num_workers: int, augment: bool,
                  remove_whitespace: bool = True, normalize_unicode: bool = True,
-                 min_image_dim: int = 0, rotation: int = 0, collate_fn: Optional[Callable] = None):
+                 min_image_dim: int = 0, rotation: int = 0, collate_fn: Optional[Callable] = None,
+                 debug: bool = False):
         super().__init__()
         self.root_dir = root_dir
         self.train_dir = train_dir
@@ -50,6 +52,7 @@ class SceneTextDataModule(pl.LightningDataModule):
         self.collate_fn = collate_fn
         self._train_dataset = None
         self._val_dataset = None
+        self.debug = debug
 
     @staticmethod
     def get_transform(img_size: Tuple[int], augment: bool = False, rotation: int = 0):
@@ -65,6 +68,11 @@ class SceneTextDataModule(pl.LightningDataModule):
             T.Normalize(0.5, 0.5)
         ])
         return T.Compose(transforms)
+
+    @staticmethod
+    def collate_fn_test(insts):
+        b0, b1, b2, b3 = list(zip(*insts))
+        return torch.stack(b0), b1, b2, b3
 
     @property
     def train_dataset(self):
@@ -98,10 +106,11 @@ class SceneTextDataModule(pl.LightningDataModule):
 
     def test_dataloaders(self, subset):
         transform = self.get_transform(self.img_size, rotation=self.rotation)
+        if self.debug : self.collate_fn = self.collate_fn_test
         root = PurePath(self.root_dir, 'test')
         datasets = {s: LmdbDataset(str(root / s), self.charset_test, self.max_label_length,
                                    self.min_image_dim, self.remove_whitespace, self.normalize_unicode,
-                                   transform=transform) for s in subset}
+                                   transform=transform, debug=self.debug) for s in subset}
         return {k: DataLoader(v, batch_size=self.batch_size, num_workers=self.num_workers,
                               pin_memory=True, collate_fn=self.collate_fn)
                 for k, v in datasets.items()}

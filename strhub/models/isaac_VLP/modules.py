@@ -67,15 +67,17 @@ class Decoder(nn.Module):
         self.norm = norm
 
     def forward(self, vis, lan, pos, dummy, attn_mask:Optional[Tensor]=None, padding_mask:Optional[Tensor]=None):
+        aggs = []
         for i, dec_layer in enumerate(self.layers):
             if i + 1 == self.num_layers:
                 vis_sec, lan_sec, pos_sec = vis, lan, pos
             vis, lan, pos, agg = dec_layer(vis, lan, pos, dummy, attn_mask, padding_mask)
+            aggs.append(agg)
             
         vis = self.norm(vis)
         lan = self.norm(lan)
         pos = self.norm(pos)
-        return vis, lan, pos, vis_sec, lan_sec, pos_sec, agg
+        return vis, lan, pos, vis_sec, lan_sec, pos_sec, aggs
     
 
 class DecoderLayer(nn.Module):
@@ -99,12 +101,17 @@ class DecoderLayer(nn.Module):
         
 
     def forward(self, vis_tokens:Tensor, lan_tokens:Tensor, pos_tokens:Tensor, dummy_token:Tensor,
-                attn_mask:Optional[Tensor]=None, padding_mask:Optional[Tensor]=None):
+                attn_mask:Optional[Tensor]=None, padding_mask:Optional[Tensor]=None, debug=False):
         """
         Vision-Langauge-Position Transformer decoder.
         
         Dummy token is added to handle the softmax gradient error when all keys are masked.
         """
+        if debug:
+            agg = Module_Data()
+        else:
+            agg = None
+        
         L_V = vis_tokens.shape[1]
         L_L = lan_tokens.shape[1]
         L_P = pos_tokens.shape[1]
@@ -121,7 +128,9 @@ class DecoderLayer(nn.Module):
         tokens = tokens + self.dropout2(tokens_res)
         vis_tokens, lan_tokens, pos_tokens, _ = torch.split(tokens, [L_V, L_L, L_P, 1], dim=1)
         
-        return vis_tokens, lan_tokens, pos_tokens, None
+        if debug : agg.sa_weights = sa_weights
+        
+        return vis_tokens, lan_tokens, pos_tokens, agg
     
 
 class FeedForwardLayer(nn.Module):

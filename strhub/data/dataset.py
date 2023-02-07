@@ -56,7 +56,8 @@ class LmdbDataset(Dataset):
 
     def __init__(self, root: str, charset: str, max_label_len: int, min_image_dim: int = 0,
                  remove_whitespace: bool = True, normalize_unicode: bool = True,
-                 unlabelled: bool = False, transform: Optional[Callable] = None):
+                 unlabelled: bool = False, transform: Optional[Callable] = None,
+                 debug: bool = False):
         self._env = None
         self.root = root
         self.unlabelled = unlabelled
@@ -65,6 +66,7 @@ class LmdbDataset(Dataset):
         self.filtered_index_list = []
         self.num_samples = self._preprocess_labels(charset, remove_whitespace, normalize_unicode,
                                                    max_label_len, min_image_dim)
+        self.debug = debug
 
     def __del__(self):
         if self._env is not None:
@@ -130,8 +132,12 @@ class LmdbDataset(Dataset):
             imgbuf = txn.get(img_key)
         buf = io.BytesIO(imgbuf)
         img = Image.open(buf).convert('RGB')
+        if self.debug: img_orig = img.copy()
 
         if self.transform is not None:
             img = self.transform(img)
-
-        return img, label
+        
+        if self.debug:
+            return img, label, img_key.decode(), img_orig
+        else:
+            return img, label
