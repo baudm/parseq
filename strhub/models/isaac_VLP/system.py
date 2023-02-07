@@ -32,8 +32,12 @@ from timm.models.helpers import named_apply
 
 from strhub.models.base import CrossEntropySystem
 from strhub.models.utils import init_weights
-from strhub.models.loss import cross_entropy
 from .modules import DecoderLayer, Decoder, Encoder, TokenEmbedding
+
+@dataclass
+class System_Data:
+    sa_weights_dec: Tensor = None
+    sa_weights_ref: Tensor = None
 
 class Isaac_VLP(CrossEntropySystem):
 
@@ -86,15 +90,7 @@ class Isaac_VLP(CrossEntropySystem):
         self.attn_mask_refine = self.get_attn_mask(img_size, patch_size, refine_layer=True)
         self.visualize_attn_mask(self.attn_mask)
         self.visualize_attn_mask(self.attn_mask_refine, refine_layer=True)
-        self.dummy_token = torch.zeros((1, 1, embed_dim))
-        
-        # debug
-        self.preds_dec = []
-        self.preds_ref = []
-        self.results_dec = []
-        self.results_ref = []
-        self.labels = []
-        
+        self.dummy_token = torch.zeros((1, 1, embed_dim))        
     
     def get_attn_mask(self, img_size, patch_size, refine_layer:bool=False):
         """Generates attention mask for the multi-modal transformer layers.
@@ -333,13 +329,18 @@ class Isaac_VLP(CrossEntropySystem):
         loss_numel = (targets != self.pad_id).sum()
         return logits, loss, loss_numel
     
-    def forward(self, images:Tensor, max_length: Optional[int] = None, return_intermediate_logits: Optional[bool] = False) -> Tensor:
+    def forward(self, images:Tensor, max_length: Optional[int] = None, return_intermediate_logits: Optional[bool] = False, debug: bool = False) -> Tensor:
         """
         Forward-pass for val & test.
         
         Args:
             max_length: Max sequence length in batch, for efficient decoding in validation.
         """
+        if debug :
+            agg_system = System_Data()
+        else:
+            agg_system = None
+            
         testing = max_length is None
         max_length = self.max_label_length if max_length is None else min(max_length, self.max_label_length)
         bs = images.shape[0]
@@ -358,11 +359,14 @@ class Isaac_VLP(CrossEntropySystem):
         
         # inital text prediction
         logits_dec = []
+        agg_dec_ts = []
         for i in range(num_steps):
             j = i + 1 # next token index
-            vis_dec, lan_dec, pos_dec, vis_dec_2, lan_dec_2, pos_dec_2, agg = self.decode(vis, lan_ind, pos, dummy_token, attn_mask=attn_mask)
+            vis_dec, lan_dec, pos_dec, vis_dec_2, lan_dec_2, pos_dec_2, agg_dec_t = self.decode(vis, lan_ind, pos, dummy_token, attn_mask=attn_mask)
+            agg_dec_ts.append(agg_dec_t)
             p_i = self.head(pos_dec[:, i:j])
             logits_dec.append(p_i)
+            max_time_step = i
             if j < num_steps:
                 # greedy decode. add the next token index to the target input
                 lan_ind[:, j] = p_i.squeeze().argmax(-1)
@@ -371,6 +375,15 @@ class Isaac_VLP(CrossEntropySystem):
                     break
         logits_dec = torch.cat(logits_dec, dim=1)
         logits = logits_dec
+        
+        if debug:
+            DEC_IDX = 0
+            sa_weights = []
+            for t in range(max_time_step + 1):
+                _sa_weights = agg_dec_ts[t][DEC_IDX].sa_weights[0]
+                sa_weights.append(_sa_weights)
+            sa_weights = torch.stack(sa_weights)
+            agg_system.sa_weights_dec = sa_weights
         
         # refinement
         if self.refiner is not None and self.ref_iters > 0:
@@ -385,14 +398,19 @@ class Isaac_VLP(CrossEntropySystem):
             
             attn_mask_refine = self.attn_mask_refine.to(self._device)
 
-            vis_ref, lan_ref, pos_ref, vis_ref_2, lan_ref_2, pos_ref_2, agg = self.refine(vis_dec_2, init_pred, pos_dec, dummy_token, attn_mask_refine, padding_mask)
+            vis_ref, lan_ref, pos_ref, vis_ref_2, lan_ref_2, pos_ref_2, agg_ref = self.refine(vis_dec_2, init_pred, pos_dec, dummy_token, attn_mask_refine, padding_mask)
             logits_ref = self.head(pos_ref)
             logits = logits_ref
             
-        if return_intermediate_logits:
-            return logits, logits_dec, None
+            if debug:
+                REF_IDX = 0
+                sa_weights = agg_ref[REF_IDX].sa_weights[0].unsqueeze(0)
+                agg_system.sa_weights_ref = sa_weights
         
-        return logits, None
+        if return_intermediate_logits:
+            return logits, logits_dec, agg_system
+        
+        return logits, agg_system
 
     def training_step(self, batch, batch_idx) -> STEP_OUTPUT:
         images, labels = batch
@@ -420,15 +438,6 @@ class Isaac_VLP(CrossEntropySystem):
         logits_dec = self.head(pos_dec)
         loss_dec = F.cross_entropy(logits_dec.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
         
-        probs_dec = logits_dec.softmax(-1)
-        preds_dec, probs_dec = self.tokenizer.decode(probs_dec)
-        results_dec = [(a == b) for (a, b) in zip(labels, preds_dec)]
-        self.preds_dec.extend(preds_dec)
-        self.results_dec.extend(results_dec)
-        if len(self.results_dec) > 10000:
-            train_acc_dec = sum(self.results_dec) / len(self.results_dec) * 100
-            self.log('train_acc_dec', train_acc_dec)
-            self.preds_dec, self.results_dec = [], []
         
         ## refinement stage.
         bos = torch.full((bs, 1), self.bos_id).to(self._device)
@@ -466,8 +475,6 @@ class Isaac_VLP(CrossEntropySystem):
             loss_ref = 0
             loss = loss_dec
         
-        
-        self.labels = []
         self.log('loss', loss)
         self.log('loss_ref', loss_ref)
         self.log('loss_dec', loss_dec)

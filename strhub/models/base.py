@@ -103,7 +103,7 @@ class BaseSystem(pl.LightningModule, ABC):
         else:
             images, labels = batch
             img_keys = [None] * len(images)
-            img_origs = [None] * len(img_origs)
+            img_origs = [None] * len(images)
 
         correct = 0
         total = 0
