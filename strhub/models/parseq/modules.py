@@ -86,7 +86,7 @@ class DecoderLayer(nn.Module):
         if debug : agg.main_pt_1 = tgt
         tgt2, sa_weights = self.self_attn(tgt_norm, tgt_kv, tgt_kv, attn_mask=tgt_mask,
                                           key_padding_mask=tgt_key_padding_mask)
-        agg.res_pt_1 = tgt2
+        if debug : agg.res_pt_1 = tgt2
         if debug : agg.sa_weights = sa_weights
         tgt = tgt + self.dropout1(tgt2)
         if debug : agg.main_pt_2 = tgt

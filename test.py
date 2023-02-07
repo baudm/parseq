@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from typing import List
 from hydra.utils import instantiate
 from hydra import compose, initialize
+from omegaconf import open_dict
 
 import torch
 
@@ -97,6 +98,8 @@ def main():
     exp_dir = '/'.join(ckpt_split[:ckpt_split.index('checkpoints')])
     initialize(config_path=f'{exp_dir}/config', version_base='1.2')
     cfg = compose(config_name='config')
+    with open_dict(cfg):
+        cfg.model.debug = args.debug
     if cfg.model.get('perm_num') is not None:
         if cfg.model.perm_num == 1:
             if kwargs.get('refine_iters') is None:
@@ -105,7 +108,6 @@ def main():
                 cfg.model.perm_mirrored = False
     for k, v in kwargs.items():
         setattr(cfg.model, k, v)
-    
     model = instantiate(cfg.model)
     hp = model.hparams
     print(model.hparams)
@@ -113,7 +115,7 @@ def main():
     model.eval().cuda()
     
     datamodule = SceneTextDataModule(args.data_root, '_unused_', hp.img_size, hp.max_label_length, hp.charset_train,
-                                     hp.charset_test, args.batch_size, args.num_workers, False, rotation=args.rotation)
+                                     hp.charset_test, args.batch_size, args.num_workers, False, rotation=args.rotation, debug=args.debug)
 
     test_set = SceneTextDataModule.TEST_BENCHMARK_SUB + SceneTextDataModule.TEST_BENCHMARK
     if args.new:
@@ -132,7 +134,7 @@ def main():
         if args.debug:
             init_dir(f'{debug_dir}/images/{dname}')
             for imgs, labels, img_keys, img_origs in tqdm(iter(dataloader), desc=f'{dname:>{max_width}}'):
-                res = model.test_step((imgs.to(model.device), labels, img_keys, img_origs), -1, debug_dir, dname)['output']
+                res = model.test_step((imgs.to(model.device), labels, img_keys, img_origs), False, debug_dir, dname)['output']
                 total += res.num_samples
                 correct += res.correct
                 ned += res.ned
@@ -140,7 +142,7 @@ def main():
                 label_length += res.label_length
         else:
             for imgs, labels in tqdm(iter(dataloader), desc=f'{dname:>{max_width}}'):
-                res = model.test_step((imgs.to(model.device), labels), -1)['output']
+                res = model.test_step((imgs.to(model.device), labels), False)['output']
                 total += res.num_samples
                 correct += res.correct
                 ned += res.ned

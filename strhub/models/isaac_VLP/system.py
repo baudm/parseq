@@ -46,7 +46,8 @@ class Isaac_VLP(CrossEntropySystem):
                  img_size: Sequence[int], patch_size: Sequence[int], embed_dim: int,
                  enc_num_heads: int, enc_mlp_ratio: int, enc_depth: int,
                  dec_num_heads: int, dec_mlp_ratio: int, dec_depth: int, ref_depth: int,
-                 dropout: float, QK: List[List[str]], ref_loss_scale: int, ref_iters: int, **kwargs: Any) -> None:
+                 dropout: float, QK: List[List[str]], ref_loss_scale: int, ref_iters: int,
+                 debug: bool = False, **kwargs: Any) -> None:
         """
         Args:
             QK : Specifies allowed attention. "VV" stands for self-attention of visual tokens.
@@ -59,7 +60,8 @@ class Isaac_VLP(CrossEntropySystem):
                 
                 Language and positional tokens are always causal, including self.
         """
-        super().__init__(charset_train, charset_test, batch_size, lr, warmup_pct, weight_decay)
+        self.debug = debug
+        super().__init__(charset_train, charset_test, batch_size, lr, warmup_pct, weight_decay, self.debug)
         print('Model : Isaac_VLP')
         self.save_hyperparameters()
 

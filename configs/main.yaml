@@ -15,6 +15,7 @@ model:
   batch_size: 384
   weight_decay: 0.0
   warmup_pct: 0.075  # equivalent to 1.5 epochs of warm up
+  debug: false
 
 data:
   _target_: strhub.data.module.SceneTextDataModule

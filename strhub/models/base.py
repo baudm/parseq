@@ -134,7 +134,7 @@ class BaseSystem(pl.LightningModule, ABC):
             else:
                 if self.debug:
                     # Save error images
-                    img_orig.save(f'{debug_dir}/images/{dname}/{img_key}_{pred.replace("/", chr(0x2215))}_{gt.replace("/", chr(0x2215))}.png')
+                    img_orig.save(f'{debug_dir}/images/{dname}/{img_key}_{gt.replace("/", chr(0x2215))}_{pred.replace("/", chr(0x2215))}.png')
             total += 1
             label_length += len(pred)
         return dict(output=BatchResult(total, correct, ned, confidence, label_length, loss, loss_numel))

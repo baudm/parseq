@@ -60,8 +60,10 @@ class PARSeq(CrossEntropySystem):
                  enc_num_heads: int, enc_mlp_ratio: int, enc_depth: int,
                  dec_num_heads: int, dec_mlp_ratio: int, dec_depth: int,
                  perm_num: int, perm_forward: bool, perm_mirrored: bool,
-                 decode_ar: bool, refine_iters: int, dropout: float, **kwargs: Any) -> None:
-        super().__init__(charset_train, charset_test, batch_size, lr, warmup_pct, weight_decay)
+                 decode_ar: bool, refine_iters: int, dropout: float,
+                 debug: bool = False, **kwargs: Any) -> None:
+        self.debug = debug
+        super().__init__(charset_train, charset_test, batch_size, lr, warmup_pct, weight_decay, self.debug)
         print('Model : PARSeq')
         self.save_hyperparameters()
 
