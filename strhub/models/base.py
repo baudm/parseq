@@ -46,7 +46,7 @@ class BaseSystem(pl.LightningModule, ABC):
 
     def __init__(self, tokenizer: BaseTokenizer, charset_test: str,
                  batch_size: int, lr: float, warmup_pct: float, weight_decay: float,
-                 debug: bool) -> None:
+                 debug: bool = False) -> None:
         super().__init__()
         self.tokenizer = tokenizer
         self.charset_adapter = CharsetAdapter(charset_test)
