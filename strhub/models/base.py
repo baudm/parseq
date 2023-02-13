@@ -97,7 +97,7 @@ class BaseSystem(pl.LightningModule, ABC):
     def optimizer_zero_grad(self, epoch: int, batch_idx: int, optimizer: Optimizer, optimizer_idx: int):
         optimizer.zero_grad(set_to_none=True)
 
-    def _eval_step(self, batch, validation: bool, debug_dir, dname) -> Optional[STEP_OUTPUT]:
+    def _eval_step(self, batch, validation: bool, debug_dir='', dname='') -> Optional[STEP_OUTPUT]:
         if self.debug:
             images, labels, img_keys, img_origs = batch
         else:
