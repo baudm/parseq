@@ -66,12 +66,12 @@ class Decoder(nn.Module):
         self.num_layers = num_layers
         self.norm = norm
 
-    def forward(self, vis, lan, pos, dummy, attn_mask:Optional[Tensor]=None, padding_mask:Optional[Tensor]=None):
+    def forward(self, vis, lan, pos, dummy, attn_mask:Optional[Tensor]=None, padding_mask:Optional[Tensor]=None, debug=False):
         aggs = []
         for i, dec_layer in enumerate(self.layers):
             if i + 1 == self.num_layers:
                 vis_sec, lan_sec, pos_sec = vis, lan, pos
-            vis, lan, pos, agg = dec_layer(vis, lan, pos, dummy, attn_mask, padding_mask)
+            vis, lan, pos, agg = dec_layer(vis, lan, pos, dummy, attn_mask, padding_mask, debug=debug)
             aggs.append(agg)
             
         vis = self.norm(vis)

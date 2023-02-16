@@ -275,7 +275,7 @@ class Isaac_VLP(CrossEntropySystem):
         return self.encoder(img)
 
     def decode(self, vis:torch.Tensor, lan_ind:torch.Tensor,  pos:torch.Tensor, dummy_token:torch.Tensor,
-               attn_mask:torch.Tensor, padding_mask:Optional[Tensor]=None):
+               attn_mask:torch.Tensor, padding_mask:Optional[Tensor]=None, debug=False):
         """
         Generate language / position tokens.
         Run Decoder.
@@ -294,10 +294,10 @@ class Isaac_VLP(CrossEntropySystem):
         lan = self.dropout(torch.cat([null_ctx, lan], dim=1))
         pos = self.dropout(pos)
         dummy_token = dummy_token.expand(bs, -1, -1)
-        return self.decoder(vis, lan, pos, dummy_token, attn_mask=attn_mask, padding_mask=padding_mask)
+        return self.decoder(vis, lan, pos, dummy_token, attn_mask=attn_mask, padding_mask=padding_mask, debug=debug)
     
     def refine(self, vis:torch.Tensor, lan_ind:torch.Tensor,  pos:torch.Tensor, dummy_token:torch.Tensor,
-               attn_mask:torch.Tensor, padding_mask:Optional[Tensor]=None):
+               attn_mask:torch.Tensor, padding_mask:Optional[Tensor]=None, debug=False):
         """
         Further refines initial decoder prediction.
         Stop gradient is applied to language and positional tokens,
@@ -317,7 +317,7 @@ class Isaac_VLP(CrossEntropySystem):
         lan = self.dropout(torch.cat([null_ctx, lan], dim=1))
         pos = self.dropout(pos)
         dummy_token = dummy_token.expand(bs, -1, -1)
-        return self.refiner(vis, lan.detach(), pos.detach(), dummy_token, attn_mask=attn_mask, padding_mask=padding_mask)
+        return self.refiner(vis, lan.detach(), pos.detach(), dummy_token, attn_mask=attn_mask, padding_mask=padding_mask, debug=debug)
 
     def forward_logits_loss(self, images: Tensor, labels: List[str]) -> Tuple[Tensor, Tensor, int]:
         """Override function defined in CrossEntropySystem, because initial prediction might be longer than target."""
@@ -342,7 +342,7 @@ class Isaac_VLP(CrossEntropySystem):
             agg_system = System_Data()
         else:
             agg_system = None
-            
+        
         testing = max_length is None
         max_length = self.max_label_length if max_length is None else min(max_length, self.max_label_length)
         bs = images.shape[0]
@@ -364,7 +364,7 @@ class Isaac_VLP(CrossEntropySystem):
         agg_dec_ts = []
         for i in range(num_steps):
             j = i + 1 # next token index
-            vis_dec, lan_dec, pos_dec, vis_dec_2, lan_dec_2, pos_dec_2, agg_dec_t = self.decode(vis, lan_ind, pos, dummy_token, attn_mask=attn_mask)
+            vis_dec, lan_dec, pos_dec, vis_dec_2, lan_dec_2, pos_dec_2, agg_dec_t = self.decode(vis, lan_ind, pos, dummy_token, attn_mask=attn_mask, debug=debug)
             agg_dec_ts.append(agg_dec_t)
             p_i = self.head(pos_dec[:, i:j])
             logits_dec.append(p_i)
@@ -400,7 +400,7 @@ class Isaac_VLP(CrossEntropySystem):
             
             attn_mask_refine = self.attn_mask_refine.to(self._device)
 
-            vis_ref, lan_ref, pos_ref, vis_ref_2, lan_ref_2, pos_ref_2, agg_ref = self.refine(vis_dec_2, init_pred, pos_dec, dummy_token, attn_mask_refine, padding_mask)
+            vis_ref, lan_ref, pos_ref, vis_ref_2, lan_ref_2, pos_ref_2, agg_ref = self.refine(vis_dec_2, init_pred, pos_dec, dummy_token, attn_mask_refine, padding_mask, debug=debug)
             logits_ref = self.head(pos_ref)
             logits = logits_ref
             
