@@ -69,6 +69,7 @@ def main(config: DictConfig):
     cwd = HydraConfig.get().runtime.output_dir if config.ckpt_path is None else \
         str(Path(config.ckpt_path).parents[1].absolute())
     lr_monitor = LearningRateMonitor()
+    print(f'checkpoint directory : {cwd}')
     trainer: Trainer = hydra.utils.instantiate(config.trainer, logger=TensorBoardLogger(cwd, '', '.'),
                                                strategy=trainer_strategy, enable_model_summary=False,
                                                callbacks=[checkpoint, swa, lr_monitor])

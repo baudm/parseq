@@ -61,6 +61,8 @@ class Isaac_VLP(CrossEntropySystem):
                 Language and positional tokens are always causal, including self.
         """
         self.debug = debug
+        self.results_dec = []
+        self.results_ref = []
         super().__init__(charset_train, charset_test, batch_size, lr, warmup_pct, weight_decay, self.debug)
         print('Model : Isaac_VLP')
         self.save_hyperparameters()
@@ -270,101 +272,44 @@ class Isaac_VLP(CrossEntropySystem):
         param_names = {'text_embed.embedding.weight', 'pos_embed'}
         enc_param_names = {'encoder.' + n for n in self.encoder.no_weight_decay()}
         return param_names.union(enc_param_names)
-
-    def encode(self, img: torch.Tensor):
-        return self.encoder(img)
-
-    def decode(self, vis:torch.Tensor, lan_ind:torch.Tensor,  pos:torch.Tensor, dummy_token:torch.Tensor,
-               attn_mask:torch.Tensor, padding_mask:Optional[Tensor]=None, debug=False):
-        """
-        Generate language / position tokens.
-        Run Decoder.
-        
-        Args:
-            vis : Visual tokens. Shape: N, L_V, D
-            lan_ind : Language token indices. Shape: N, L_L
-            pos : Positional tokens. Shape: N, L_P, D
-        
-        """
-        # Add positional encoding to language tokens.
-        # <bos> stands for the null context. We only supply position information for characters after <bos>.
-        bs, L_L = lan_ind.shape
-        null_ctx = self.text_embed(lan_ind[:, :1])
-        lan = self.pos_embed[:, :L_L - 1] + self.text_embed(lan_ind[:, 1:])
-        lan = self.dropout(torch.cat([null_ctx, lan], dim=1))
-        pos = self.dropout(pos)
-        dummy_token = dummy_token.expand(bs, -1, -1)
-        return self.decoder(vis, lan, pos, dummy_token, attn_mask=attn_mask, padding_mask=padding_mask, debug=debug)
     
-    def refine(self, vis:torch.Tensor, lan_ind:torch.Tensor,  pos:torch.Tensor, dummy_token:torch.Tensor,
-               attn_mask:torch.Tensor, padding_mask:Optional[Tensor]=None, debug=False):
+    def forward(self, images:Tensor, validation: bool = False, debug: bool = False) -> Tensor:
         """
-        Further refines initial decoder prediction.
-        Stop gradient is applied to language and positional tokens,
-        to prevent information leak from future steps.
+        Forward-pass for test & val.
+        Used implicitly in forward-pass of val.
         
         Args:
-            vis : Visual tokens. Shape: N, L_V, D
-            lan_ind : Language token indices. Shape: N, L_L
-            pos : Positional tokens. Shape: N, L_P, D
-        
-        """
-        # Add positional encoding to language tokens.
-        # <bos> stands for the null context. We only supply position information for characters after <bos>.
-        bs, L_L = lan_ind.shape
-        null_ctx = self.text_embed(lan_ind[:, :1])
-        lan = self.pos_embed[:, :L_L - 1] + self.text_embed(lan_ind[:, 1:])
-        lan = self.dropout(torch.cat([null_ctx, lan], dim=1))
-        pos = self.dropout(pos)
-        dummy_token = dummy_token.expand(bs, -1, -1)
-        return self.refiner(vis, lan.detach(), pos.detach(), dummy_token, attn_mask=attn_mask, padding_mask=padding_mask, debug=debug)
-
-    def forward_logits_loss(self, images: Tensor, labels: List[str]) -> Tuple[Tensor, Tensor, int]:
-        """Override function defined in CrossEntropySystem, because initial prediction might be longer than target."""
-        targets = self.tokenizer.encode(labels, self.device)
-        targets = targets[:, 1:]  # Discard <bos>
-        L_L = self.max_label_length + 1 # +1 for <eos>
-        targets = F.pad(targets, (0, L_L - targets.shape[1]), "constant", self.pad_id)
-        max_len = L_L - 1
-        logits = self.forward(images, max_len)[0]
-        loss = F.cross_entropy(logits.flatten(end_dim=1), targets.flatten(), ignore_index=self.pad_id)
-        loss_numel = (targets != self.pad_id).sum()
-        return logits, loss, loss_numel
-    
-    def forward(self, images:Tensor, max_length: Optional[int] = None, return_intermediate_logits: Optional[bool] = False, debug: bool = False) -> Tensor:
-        """
-        Forward-pass for val & test.
-        
-        Args:
-            max_length: Max sequence length in batch, for efficient decoding in validation.
+            images : input image
+            return_intermediate_logits : In case of decoder-refiner structure, also return decoder logits.
+            validation : Is validation step.
+            debug : Is debug mode.
         """
         if debug :
             agg_system = System_Data()
         else:
             agg_system = None
         
-        testing = max_length is None
-        max_length = self.max_label_length if max_length is None else min(max_length, self.max_label_length)
+        testing = not validation
         bs = images.shape[0]
-        num_steps = max_length + 1 # +1 for eos
-        L_L = L_P = self.max_label_length + 1 # +1 for eos
+        num_steps = self.max_label_length + 1 # +1 for eos
+        L_L = L_P = num_steps = self.max_label_length + 1 # +1 for eos
         
-        # prepare tokens
+        #@ decoder
+        #* prepare tokens
         vis = self.encode(images)
         L_V = vis.shape[1]
         lan_ind = torch.full((bs, L_L), self.pad_id, dtype=torch.long, device=self._device)
         lan_ind[:, 0] = self.bos_id
         pos = self.pos_embed[:, :L_P].expand(bs, -1, -1)
-        
-        attn_mask = self.attn_mask.to(self._device)
         dummy_token = self.dummy_token.to(self._device)
-        
-        # inital text prediction
+        attn_mask = self.attn_mask.to(self._device)
+        #* decoding
         logits_dec = []
         agg_dec_ts = []
         for i in range(num_steps):
             j = i + 1 # next token index
-            vis_dec, lan_dec, pos_dec, vis_dec_2, lan_dec_2, pos_dec_2, agg_dec_t = self.decode(vis, lan_ind, pos, dummy_token, attn_mask=attn_mask, debug=debug)
+            lan = self.to_lan(lan_ind)
+            vis_dec, lan_dec, pos_dec, vis_dec_2, lan_dec_2, pos_dec_2, agg_dec_t = self.decode(vis, lan, pos, dummy_token, attn_mask=attn_mask, debug=debug)
             agg_dec_ts.append(agg_dec_t)
             p_i = self.head(pos_dec[:, i:j])
             logits_dec.append(p_i)
@@ -387,20 +332,21 @@ class Isaac_VLP(CrossEntropySystem):
             sa_weights = torch.stack(sa_weights)
             agg_system.sa_weights_dec = sa_weights
         
-        # refinement
+        #@ refiner
         if self.refiner is not None and self.ref_iters > 0:
+            #* lan tokens
             bos = torch.full((logits_dec.shape[0], 1), self.bos_id).to(self._device)
-            init_pred = logits_dec.argmax(-1)[:, :-1]
-            init_pred = torch.cat([bos, init_pred], dim=1)
-            padding_mask = F.pad(((init_pred == self.eos_id).cumsum(-1) > 0), (1, 0), "constant", 0)[:, :-1].to(torch.bool) # positions beyond the first <eos> token
-            init_pred = init_pred.masked_fill(padding_mask, self.pad_id)
-            init_pred = F.pad(init_pred, (0, L_L - init_pred.shape[1]), "constant", self.pad_id)
-            padding_mask = (init_pred == self.pad_id)
+            init_pred_ind = logits_dec.argmax(-1)[:, :-1]
+            init_pred_ind = torch.cat([bos, init_pred_ind], dim=1)
+            init_pred_ind = F.pad(init_pred_ind, (0, L_L - init_pred_ind.shape[1]), "constant", self.pad_id)
+            padding_mask = F.pad(((init_pred_ind == self.eos_id).cumsum(-1) > 0), (1, 0), "constant", 0)[:, :-1].to(torch.bool) # positions beyond the first <eos> token
+            init_pred_ind = init_pred_ind.masked_fill(padding_mask, self.pad_id)
             padding_mask = F.pad(padding_mask, (L_V, L_P + 1), "constant", 0) # +1 for dummy token
-            
+            init_pred_lan = self.to_lan(init_pred_ind)
+            #* attention mask
             attn_mask_refine = self.attn_mask_refine.to(self._device)
-
-            vis_ref, lan_ref, pos_ref, vis_ref_2, lan_ref_2, pos_ref_2, agg_ref = self.refine(vis_dec_2, init_pred, pos_dec, dummy_token, attn_mask_refine, padding_mask, debug=debug)
+            #* refine
+            vis_ref, lan_ref, pos_ref, vis_ref_2, lan_ref_2, pos_ref_2, agg_ref = self.refine(vis_dec_2, init_pred_lan, pos_dec, dummy_token, attn_mask_refine, padding_mask, debug=debug)
             logits_ref = self.head(pos_ref)
             logits = logits_ref
             
@@ -409,70 +355,132 @@ class Isaac_VLP(CrossEntropySystem):
                 sa_weights = agg_ref[REF_IDX].sa_weights[0].unsqueeze(0)
                 agg_system.sa_weights_ref = sa_weights
         
-        if return_intermediate_logits:
-            return logits, logits_dec, agg_system
+        return logits, logits_dec, agg_system
+    
+    def forward_logits_loss(self, images: Tensor, labels: List[str]) -> Tuple[Tensor, Tensor, int]:
+        """
+        Forward-pass for val.
+        Override function defined in CrossEntropySystem, because initial prediction might be longer than target."""
+        logits, logits_inter, _ = self.forward(images, validation=True)
+        tokens = self.tokenizer.encode(labels, self.device)
+        tgt_out = tokens[:, 1:]  # Discard <bos>
+        L_L = self.max_label_length + 1 # +1 for <eos>
+        tgt_out = F.pad(tgt_out, (0, L_L - tgt_out.shape[1]), "constant", self.pad_id)
+        loss = F.cross_entropy(logits.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
+        loss_inter = F.cross_entropy(logits_inter.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
+        loss_numel = (tgt_out != self.pad_id).sum()
+        return logits, loss, logits_inter, loss_inter, loss_numel
+
+    def encode(self, img: torch.Tensor):
+        return self.encoder(img)
+    
+    def to_lan(self, tgt_in):
+        bs, L_L = tgt_in.shape
+        null_ctx = self.text_embed(tgt_in[:, :1]) # tgt_in stats with [B]. No positional encoding added to [B]
+        lan = torch.cat([null_ctx, self.text_embed(tgt_in[:, 1:]) + self.pos_embed[:, :L_L - 1]], dim=1)
+        return lan
+
+    def decode(self, vis:torch.Tensor, lan:torch.Tensor,  pos:torch.Tensor, dummy_token:torch.Tensor,
+               attn_mask:torch.Tensor, padding_mask:Optional[Tensor]=None, debug=False):
+        """
+        Used in forward-pass of train.
+        Run Decoder.
         
-        return logits, agg_system
+        Args:
+            vis : Visual tokens. Shape: N, L_V, D
+            lan : Language tokens. Shape: N, L_L, D
+            pos : Positional tokens. Shape: N, L_P, D
+        
+        """
+        lan = self.dropout(lan)
+        pos = self.dropout(pos)
+        dummy_token = dummy_token.expand(pos.shape[0], -1, -1)
+        return self.decoder(vis, lan, pos, dummy_token, attn_mask=attn_mask, padding_mask=padding_mask, debug=debug)
+    
+    def refine(self, vis:torch.Tensor, lan:torch.Tensor,  pos:torch.Tensor, dummy_token:torch.Tensor,
+               attn_mask:torch.Tensor, padding_mask:Optional[Tensor]=None, debug=False):
+        """
+        Used in forward-pass of train.
+        Further refines initial decoder prediction.
+        Stop gradient is applied to language and positional tokens,
+        to prevent information leak from future steps.
+        
+        Args:
+            vis : Visual tokens. Shape: N, L_V, D
+            lan : Language tokens. Shape: N, L_L, D
+            pos : Positional tokens. Shape: N, L_P, D
+        
+        """
+        lan = self.dropout(lan)
+        pos = self.dropout(pos)
+        dummy_token = dummy_token.expand(pos.shape[0], -1, -1)
+        return self.refiner(vis, lan.detach(), pos.detach(), dummy_token, attn_mask=attn_mask, padding_mask=padding_mask, debug=debug)
 
     def training_step(self, batch, batch_idx) -> STEP_OUTPUT:
         images, labels = batch
-        self.labels.extend(labels)
-        
         bs = images.shape[0]
+        
+        #* vis tokens
         vis = self.encode(images)
         L_V = vis.shape[1]
         
-        ## decoding stage.
-        tgt = self.tokenizer.encode(labels, self._device)
+        #@ decoding stage.
+        #* lan tokens
+        tokens = self.tokenizer.encode(labels, self._device)
         L_L = L_P = self.max_label_length + 1 # +1 for <eos>
-        tgt = F.pad(tgt, (0, L_L + 1 - tgt.shape[1]), "constant", self.pad_id) # +1 for <bos>
-        tgt_in = tgt[:, :-1]
-        tgt_out = tgt[:, 1:]
+        tokens = F.pad(tokens, (0, L_L + 1 - tokens.shape[1]), "constant", self.pad_id) # +1 for <bos>
+        tgt_in = tokens[:, :-1]
+        tgt_out = tokens[:, 1:]
         padding_mask = (tgt_in == self.pad_id) | (tgt_in == self.eos_id)
         padding_mask = F.pad(padding_mask, (L_V, L_P + 1), "constant", 0) # +1 for dummy token
-        
+        lan = self.to_lan(tgt_in)
+        #* pos tokens
         pos = self.pos_embed[:, :L_P].expand(bs, -1, -1)
-        
-        attn_mask = self.attn_mask.to(self._device)
+        #* dummy token
         dummy_token = self.dummy_token.to(self._device)
-        
-        vis_dec, lan_dec, pos_dec, vis_dec_2, lan_dec_2, pos_dec_2, agg = self.decode(vis, tgt_in, pos, dummy_token, attn_mask, padding_mask)
+        #* attention mask
+        attn_mask = self.attn_mask.to(self._device)
+        #* decoding
+        vis_dec, lan_dec, pos_dec, vis_dec_2, lan_dec_2, pos_dec_2, agg = self.decode(vis, lan, pos, dummy_token, attn_mask, padding_mask)
         logits_dec = self.head(pos_dec)
         loss_dec = F.cross_entropy(logits_dec.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
+        probs_dec = logits_dec.softmax(-1)
+        preds_dec, probs_dec = self.tokenizer.decode(probs_dec)
+        results_dec = [(a == b) for (a, b) in zip(labels, preds_dec)]
+        self.results_dec.extend(results_dec)
+        if len(self.results_dec) > 10000:
+            train_acc_dec = sum(self.results_dec) / len(self.results_dec) * 100
+            self.log('train_acc_dec', train_acc_dec)
+            self.results_dec = []
         
-        
-        ## refinement stage.
-        bos = torch.full((bs, 1), self.bos_id).to(self._device)
-        init_pred = logits_dec.argmax(-1)[:, :-1]
-        init_pred = torch.cat([bos, init_pred], dim=1)
-        padding_mask = F.pad(((init_pred == self.eos_id).cumsum(-1) > 0), (1, 0), "constant", 0)[:, :-1].to(torch.bool) # positions beyond the first <eos> token
-        init_pred = init_pred.masked_fill(padding_mask, self.pad_id)
-        padding_mask = (init_pred == self.pad_id)
-        padding_mask = F.pad(padding_mask, (L_V, L_P + 1), "constant", 0) # +1 for dummy token
-        
-        attn_mask_refine = self.attn_mask_refine.to(self._device)
+        #@ refinement stage.
         if self.refiner is not None:
-            vis_ref, lan_ref, pos_ref, vis_ref_2, lan_ref_2, pos_ref_2, agg = self.refine(vis_dec_2, init_pred, pos_dec, dummy_token, attn_mask_refine, padding_mask)
+            #* lan tokens
+            bos = torch.full((bs, 1), self.bos_id).to(self._device)
+            init_pred_ind = logits_dec.argmax(-1)[:, :-1]
+            init_pred_ind = torch.cat([bos, init_pred_ind], dim=1)
+            padding_mask = F.pad(((init_pred_ind == self.eos_id).cumsum(-1) > 0), (1, 0), "constant", 0)[:, :-1].to(torch.bool) # positions beyond the first <eos> token
+            init_pred_ind = init_pred_ind.masked_fill(padding_mask, self.pad_id)
+            padding_mask = F.pad(padding_mask, (L_V, L_P + 1), "constant", 0) # +1 for dummy token
+            init_pred_lan = self.to_lan(init_pred_ind)
+            #* attention mask
+            attn_mask_refine = self.attn_mask_refine.to(self._device)
+            #* refiner
+            vis_ref, lan_ref, pos_ref, vis_ref_2, lan_ref_2, pos_ref_2, agg = self.refine(vis_dec_2, init_pred_lan, pos_dec, dummy_token, attn_mask_refine, padding_mask)
+            #- loss
             logits_ref = self.head(pos_ref)
-            
-            pd.DataFrame(tgt_out.cpu().numpy()).to_csv('./tgt_out.csv')
-            pd.DataFrame(init_pred.cpu().numpy()).to_csv('./init_pred.csv')
-            pd.DataFrame(logits_ref.argmax(-1).cpu().numpy()).to_csv('./logits.csv')
-            
             loss_ref = F.cross_entropy(logits_ref.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
             loss_ref = self.ref_loss_scale * loss_ref
             loss = loss_dec + loss_ref
-            
+            #- accuracy
             probs_ref = logits_ref.softmax(-1)
             preds_ref, probs_ref = self.tokenizer.decode(probs_ref)
             results_ref = [(a == b) for (a, b) in zip(labels, preds_ref)]
-            self.preds_ref.extend(preds_ref)
             self.results_ref.extend(results_ref)
-            
             if len(self.results_ref) > 10000:
                 train_acc_ref = sum(self.results_ref) / len(self.results_ref) * 100
                 self.log('train_acc_ref', train_acc_ref)
-                self.preds_ref, self.results_ref = [], []
+                self.results_ref = []
         else:
             loss_ref = 0
             loss = loss_dec

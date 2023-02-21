@@ -225,7 +225,7 @@ class PARSeq(CrossEntropySystem):
             agg.memory = memory
             agg.content = _agg.content
 
-        return logits, agg
+        return logits, logits, agg
 
     def gen_tgt_perms(self, tgt):
         """Generate shared permutations for the whole batch.

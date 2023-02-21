@@ -21,8 +21,8 @@ from typing import Optional, Tuple, List
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
-from nltk import edit_distance
 from pytorch_lightning.utilities.types import EPOCH_OUTPUT, STEP_OUTPUT
+from nltk import edit_distance
 from timm.optim import create_optimizer_v2
 from torch import Tensor
 from torch.optim import Optimizer
@@ -105,29 +105,20 @@ class BaseSystem(pl.LightningModule, ABC):
             img_keys = [None] * len(images)
             img_origs = [None] * len(images)
 
-        correct = 0
-        total = 0
-        ned = 0
-        confidence = 0
-        label_length = 0
+        total, correct, ned, confidence, label_length = 0, 0, 0, 0, 0
+        correct_inter, ned_inter, confidence_inter = 0, 0, 0
         if validation:
-            logits, loss, loss_numel = self.forward_logits_loss(images, labels)
+            logits, loss, logits_inter, loss_inter, loss_numel = self.forward_logits_loss(images, labels)
         else:
-            # At test-time, we shouldn't specify a max_label_length because the test-time charset used
-            # might be different from the train-time charset. max_label_length in eval_logits_loss() is computed
-            # based on the transformed label, which could be wrong if the actual gt label contains characters existing
-            # in the train-time charset but not in the test-time charset. For example, "aishahaleyes.blogspot.com"
-            # is exactly 25 characters, but if processed by CharsetAdapter for the 36-char set, it becomes 23 characters
-            # long only, which sets max_label_length = 23. This will cause the model prediction to be truncated.
-            logits, agg = self.forward(images)
-            loss = loss_numel = None  # Only used for validation; not needed at test-time.
+            logits, logits_inter, agg = self.forward(images)
+            loss = loss_inter = loss_numel = None
 
         probs = logits.softmax(-1)
         preds, probs = self.tokenizer.decode(probs)
         preds = [self.charset_adapter(pred) for pred in preds]
+        
         for pred, prob, gt, img_key, img_orig in zip(preds, probs, labels, img_keys, img_origs):
             confidence += prob.prod().item()
-            # Follow ICDAR 2019 definition of N.E.D.
             ned += edit_distance(pred, gt) / max(len(pred), len(gt))
             if pred == gt:
                 correct += 1
@@ -137,37 +128,63 @@ class BaseSystem(pl.LightningModule, ABC):
                     img_orig.save(f'{debug_dir}/images/{dname}/{img_key}_{gt.replace("/", chr(0x2215))}_{pred.replace("/", chr(0x2215))}.png')
             total += 1
             label_length += len(pred)
-        return dict(output=BatchResult(total, correct, ned, confidence, label_length, loss, loss_numel))
+            
+        probs_inter = logits_inter.softmax(-1)
+        preds_inter, probs_inter = self.tokenizer.decode(probs_inter)
+        preds_inter = [self.charset_adapter(pred_inter) for pred_inter in preds_inter]
+        
+        for pred_inter, prob_inter, gt, img_key, img_orig in zip(preds_inter, probs_inter, labels, img_keys, img_origs):
+            confidence_inter += prob_inter.prod().item()
+            ned_inter += edit_distance(pred_inter, gt) / max(len(pred_inter), len(gt))
+            if pred_inter == gt:
+                correct_inter += 1
+            else:
+                if self.debug:
+                    pass
+        
+        result = dict(output=BatchResult(total, correct, ned, confidence, label_length, loss, loss_numel),
+                    output_inter=BatchResult(total, correct_inter, ned_inter, confidence_inter, label_length, loss_inter, loss_numel),
+                    preds = preds, preds_inter=preds_inter)
+        
+        return result
 
     @staticmethod
     def _aggregate_results(outputs: EPOCH_OUTPUT) -> Tuple[float, float, float]:
         if not outputs:
             return 0., 0., 0.
-        total_loss = 0
-        total_loss_numel = 0
-        total_n_correct = 0
-        total_norm_ED = 0
         total_size = 0
+        total_size_inter = 0
+        total_loss_numel = 0
+        total_loss_numel_inter = 0
+        total_loss = 0
+        total_loss_inter = 0
+        total_n_correct = 0
+        total_n_correct_inter = 0
         for result in outputs:
-            result = result['output']
-            total_loss += result.loss_numel * result.loss
-            total_loss_numel += result.loss_numel
-            total_n_correct += result.correct
-            total_norm_ED += result.ned
-            total_size += result.num_samples
+            total_size += result['output'].num_samples
+            total_loss_numel += result['output'].loss_numel
+            total_loss += result['output'].loss_numel * result['output'].loss
+            total_n_correct += result['output'].correct
         acc = total_n_correct / total_size
-        ned = (1 - total_norm_ED / total_size)
         loss = total_loss / total_loss_numel
-        return acc, ned, loss
+        for result in outputs:
+            total_size_inter += result['output_inter'].num_samples
+            total_loss_numel_inter += result['output_inter'].loss_numel
+            total_loss_inter += result['output_inter'].loss_numel * result['output_inter'].loss
+            total_n_correct_inter += result['output_inter'].correct
+        acc_inter = total_n_correct_inter / total_size_inter
+        loss_inter = total_loss_inter / total_loss_numel_inter
+        return acc, loss, acc_inter, loss_inter
 
     def validation_step(self, batch, batch_idx) -> Optional[STEP_OUTPUT]:
-        return self._eval_step(batch, True)
+        return self._eval_step(batch, True)[0]
 
     def validation_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
-        acc, ned, loss = self._aggregate_results(outputs)
+        acc, loss, acc_inter, loss_inter = self._aggregate_results(outputs)
         self.log('val_accuracy', 100 * acc, sync_dist=True)
-        self.log('val_NED', 100 * ned, sync_dist=True)
         self.log('val_loss', loss, sync_dist=True)
+        self.log('val_accuracy_inter', 100 * acc_inter, sync_dist=True)
+        self.log('val_loss_inter', loss_inter, sync_dist=True)
         self.log('hp_metric', acc, sync_dist=True)
 
     def test_step(self, batch, batch_idx, debug_dir='', dname='') -> Optional[STEP_OUTPUT]:
@@ -193,4 +210,4 @@ class CrossEntropySystem(BaseSystem):
         logits, _ = self.forward(images, max_len)
         loss = F.cross_entropy(logits.flatten(end_dim=1), targets.flatten(), ignore_index=self.pad_id)
         loss_numel = (targets != self.pad_id).sum()
-        return logits, loss, loss_numel
+        return logits, loss, logits, loss, loss_numel

@@ -122,6 +122,7 @@ def main():
     test_set = sorted(set(test_set))
 
     results = {}
+    pred_gts = {}
     max_width = max(map(len, test_set))
     debug_dir = f'{exp_dir}/debug'
     for dname, dataloader in datamodule.test_dataloaders(test_set).items():
@@ -130,10 +131,17 @@ def main():
         ned = 0
         confidence = 0
         label_length = 0
+        preds = []
+        preds_inter = []
+        gts = []
         if args.debug:
             init_dir(f'{debug_dir}/images/{dname}')
             for imgs, labels, img_keys, img_origs in tqdm(iter(dataloader), desc=f'{dname:>{max_width}}'):
-                res = model.test_step((imgs.to(model.device), labels, img_keys, img_origs), False, debug_dir, dname)['output']
+                result = model.test_step((imgs.to(model.device), labels, img_keys, img_origs), False, debug_dir, dname)
+                preds.extend(result['preds'])
+                preds_inter.extend(result['preds_inter'])
+                res = result['output']
+                gts.extend(labels)
                 total += res.num_samples
                 correct += res.correct
                 ned += res.ned
@@ -142,6 +150,8 @@ def main():
         else:
             for imgs, labels in tqdm(iter(dataloader), desc=f'{dname:>{max_width}}'):
                 res = model.test_step((imgs.to(model.device), labels), False)['output']
+                preds.extend(res.preds)
+                gts.extend(labels)
                 total += res.num_samples
                 correct += res.correct
                 ned += res.ned
@@ -152,6 +162,14 @@ def main():
         mean_conf = 100 * confidence / total
         mean_label_length = label_length / total
         results[dname] = Result(dname, total, accuracy, mean_ned, mean_conf, mean_label_length)
+        if args.debug:
+            init_dir(f'{debug_dir}/texts/{dname}')
+            with open(f'{debug_dir}/texts/{dname}/results.txt', 'w') as f:
+                f.write(f'{"pred_inter":30s}{"pred":30s}{"gt":30s}{"status"}\n')
+                f.write(f'{"----------":30s}{"----":30s}{"--":30s}{"------"}\n')
+                for pred_inter, pred, gt in zip(preds_inter, preds, gts):
+                    status = 'x' if pred != gt else ' '
+                    f.write(f'{pred_inter:30s}{pred:30s}{gt:30s}{status}\n')
 
     result_groups = {
         'Benchmark (Subset)': SceneTextDataModule.TEST_BENCHMARK_SUB,
@@ -167,6 +185,13 @@ def main():
         else:
             log_tag += '.' + str(k) + '=' + str(v)
             
+    with open(args.checkpoint + log_tag + '.table.txt', 'w') as f:
+        for out in [f, sys.stdout]:
+            for group, subset in result_groups.items():
+                print(f'{group} set:', file=out)
+                print_results_table([results[s] for s in subset], out)
+                print('\n', file=out)
+                
     with open(args.checkpoint + log_tag + '.log.txt', 'w') as f:
         for out in [f, sys.stdout]:
             for group, subset in result_groups.items():
