@@ -177,7 +177,7 @@ class BaseSystem(pl.LightningModule, ABC):
         return acc, loss, acc_inter, loss_inter
 
     def validation_step(self, batch, batch_idx) -> Optional[STEP_OUTPUT]:
-        return self._eval_step(batch, True)[0]
+        return self._eval_step(batch, True)
 
     def validation_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
         acc, loss, acc_inter, loss_inter = self._aggregate_results(outputs)
