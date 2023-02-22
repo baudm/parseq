@@ -191,13 +191,7 @@ def main():
                 print(f'{group} set:', file=out)
                 print_results_table([results[s] for s in subset], out)
                 print('\n', file=out)
-                
-    with open(args.checkpoint + log_tag + '.log.txt', 'w') as f:
-        for out in [f, sys.stdout]:
-            for group, subset in result_groups.items():
-                print(f'{group} set:', file=out)
-                print_results_table([results[s] for s in subset], out)
-                print('\n', file=out)
+
 
 
 if __name__ == '__main__':

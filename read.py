@@ -81,7 +81,8 @@ def main():
         image.save(image_save_path)
         image_t = img_transform(image).unsqueeze(0).cuda()
 
-        logits, agg = model(image_t, debug=args.debug)
+        logits, logits_inter, agg = model(image_t, debug=args.debug)
+        import ipdb; ipdb.set_trace(context=11) # #FF0000
         p = logits.softmax(-1)
         pred, p_seq = model.tokenizer.decode(p)
         '''
@@ -89,7 +90,7 @@ def main():
         '''
         
         ## prediction
-        # visualize_char_probs(pred, p, model, image_save_path)
+        visualize_char_probs(pred, p, model, image_save_path)
         
         ## embeddings
         # visualize_head_self_sim(model, image_save_path)
@@ -106,7 +107,7 @@ def main():
         
         ## attention
         # visualize_self_attn(pred, agg.sa_weights, image_save_path)
-        visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='VLP', K='VLP', tag=f'_dec')
+        # visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='VLP', K='VLP', tag=f'_dec')
         # visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='P', K='V', tag=f'_dec')
         # visualize_self_attn_VLP(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='VLP', K='VLP', tag=f'_ref')
         # visualize_self_attn_VLP(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='P', K='L', tag=f'_ref')

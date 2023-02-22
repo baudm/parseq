@@ -335,12 +335,17 @@ class Isaac_VLP(CrossEntropySystem):
         #@ refiner
         if self.refiner is not None and self.ref_iters > 0:
             #* lan tokens
-            bos = torch.full((logits_dec.shape[0], 1), self.bos_id).to(self._device)
+            # remove eos token
             init_pred_ind = logits_dec.argmax(-1)[:, :-1]
+            # prepend bos token
+            bos = torch.full((logits_dec.shape[0], 1), self.bos_id).to(self._device)
             init_pred_ind = torch.cat([bos, init_pred_ind], dim=1)
-            init_pred_ind = F.pad(init_pred_ind, (0, L_L - init_pred_ind.shape[1]), "constant", self.pad_id)
-            padding_mask = F.pad(((init_pred_ind == self.eos_id).cumsum(-1) > 0), (1, 0), "constant", 0)[:, :-1].to(torch.bool) # positions beyond the first <eos> token
-            init_pred_ind = init_pred_ind.masked_fill(padding_mask, self.pad_id)
+            #- convert eos token to pad / pad up to input size
+            # convert eos position and beyond to pad
+            pad_positions = ((init_pred_ind == self.eos_id).cumsum(-1) > 0).to(torch.bool)
+            init_pred_ind = init_pred_ind.masked_fill(pad_positions, self.pad_id)
+            padding_mask = (init_pred_ind == self.pad_id)
+            # pad up to input size
             padding_mask = F.pad(padding_mask, (L_V, L_P + 1), "constant", 0) # +1 for dummy token
             init_pred_lan = self.to_lan(init_pred_ind)
             #* attention mask
@@ -431,6 +436,7 @@ class Isaac_VLP(CrossEntropySystem):
         tokens = F.pad(tokens, (0, L_L + 1 - tokens.shape[1]), "constant", self.pad_id) # +1 for <bos>
         tgt_in = tokens[:, :-1]
         tgt_out = tokens[:, 1:]
+        # padding mask : pad + eos posiitons
         padding_mask = (tgt_in == self.pad_id) | (tgt_in == self.eos_id)
         padding_mask = F.pad(padding_mask, (L_V, L_P + 1), "constant", 0) # +1 for dummy token
         lan = self.to_lan(tgt_in)
@@ -457,10 +463,16 @@ class Isaac_VLP(CrossEntropySystem):
         if self.refiner is not None:
             #* lan tokens
             bos = torch.full((bs, 1), self.bos_id).to(self._device)
+            # remove eos token
             init_pred_ind = logits_dec.argmax(-1)[:, :-1]
+            # prepend bos token
             init_pred_ind = torch.cat([bos, init_pred_ind], dim=1)
-            padding_mask = F.pad(((init_pred_ind == self.eos_id).cumsum(-1) > 0), (1, 0), "constant", 0)[:, :-1].to(torch.bool) # positions beyond the first <eos> token
-            init_pred_ind = init_pred_ind.masked_fill(padding_mask, self.pad_id)
+            #- convert eos token to pad / pad up to input size
+            # convert eos position and beyond to pad
+            pad_positions = ((init_pred_ind == self.eos_id).cumsum(-1) > 0).to(torch.bool)
+            init_pred_ind = init_pred_ind.masked_fill(pad_positions, self.pad_id)
+            padding_mask = (init_pred_ind == self.pad_id)
+            # pad up to input size
             padding_mask = F.pad(padding_mask, (L_V, L_P + 1), "constant", 0) # +1 for dummy token
             init_pred_lan = self.to_lan(init_pred_ind)
             #* attention mask
