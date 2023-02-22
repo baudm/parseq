@@ -150,8 +150,6 @@ def main():
         else:
             for imgs, labels in tqdm(iter(dataloader), desc=f'{dname:>{max_width}}'):
                 res = model.test_step((imgs.to(model.device), labels), False)['output']
-                preds.extend(res.preds)
-                gts.extend(labels)
                 total += res.num_samples
                 correct += res.correct
                 ned += res.ned
