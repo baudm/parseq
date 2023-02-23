@@ -344,6 +344,7 @@ class Isaac_VLP(CrossEntropySystem):
             # convert eos position and beyond to pad
             pad_positions = ((init_pred_ind == self.eos_id).cumsum(-1) > 0).to(torch.bool)
             init_pred_ind = init_pred_ind.masked_fill(pad_positions, self.pad_id)
+            init_pred_ind = F.pad(init_pred_ind, (0, L_L - init_pred_ind.shape[1]), "constant", self.pad_id)
             padding_mask = (init_pred_ind == self.pad_id)
             # pad up to input size
             padding_mask = F.pad(padding_mask, (L_V, L_P + 1), "constant", 0) # +1 for dummy token
@@ -471,6 +472,7 @@ class Isaac_VLP(CrossEntropySystem):
             # convert eos position and beyond to pad
             pad_positions = ((init_pred_ind == self.eos_id).cumsum(-1) > 0).to(torch.bool)
             init_pred_ind = init_pred_ind.masked_fill(pad_positions, self.pad_id)
+            init_pred_ind = F.pad(init_pred_ind, (0, L_L - init_pred_ind.shape[1]), "constant", self.pad_id)
             padding_mask = (init_pred_ind == self.pad_id)
             # pad up to input size
             padding_mask = F.pad(padding_mask, (L_V, L_P + 1), "constant", 0) # +1 for dummy token
