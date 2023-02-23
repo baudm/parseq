@@ -149,7 +149,7 @@ class BaseSystem(pl.LightningModule, ABC):
         return result
 
     @staticmethod
-    def _aggregate_results(outputs: EPOCH_OUTPUT) -> Tuple[float, float, float]:
+    def _aggregate_results(outputs: EPOCH_OUTPUT) -> Tuple[float, float, float, float]:
         if not outputs:
             return 0., 0., 0.
         total_size = 0
