@@ -309,7 +309,10 @@ class Isaac_VLP(CrossEntropySystem):
         for i in range(num_steps):
             j = i + 1 # next token index
             lan = self.to_lan(lan_ind)
-            vis_dec, lan_dec, pos_dec, vis_dec_2, lan_dec_2, pos_dec_2, agg_dec_t = self.decode(vis, lan, pos, dummy_token, attn_mask=attn_mask, debug=debug)
+            # padding mask : pad + eos posiitons
+            padding_mask = (lan_ind == self.pad_id) | (lan_ind == self.eos_id)
+            padding_mask = F.pad(padding_mask, (L_V, L_P + 1), "constant", 0) # +1 for dummy token
+            vis_dec, lan_dec, pos_dec, vis_dec_2, lan_dec_2, pos_dec_2, agg_dec_t = self.decode(vis, lan, pos, dummy_token, attn_mask, padding_mask, debug=debug)
             agg_dec_ts.append(agg_dec_t)
             logits_dec_i = self.head(pos_dec[:, i:j])
             logits_dec.append(logits_dec_i)
