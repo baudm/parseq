@@ -110,6 +110,9 @@ class BaseSystem(pl.LightningModule, ABC):
         if validation:
             logits, loss, logits_inter, loss_inter, loss_numel = self.forward_logits_loss(images, labels)
         else:
+            # if 'traditional' in labels:
+            #     print(labels.index('traditional'))
+            #     import ipdb; ipdb.set_trace(context=11) # #FF0000
             logits, logits_inter, agg = self.forward(images)
             loss = loss_inter = loss_numel = None
 

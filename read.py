@@ -89,7 +89,7 @@ def main():
         '''
         
         ## prediction
-        visualize_char_probs(pred, p, model, image_save_path)
+        # visualize_char_probs(pred, p, model, image_save_path)
         
         ## embeddings
         # visualize_head_self_sim(model, image_save_path)
@@ -108,7 +108,7 @@ def main():
         # visualize_self_attn(pred, agg.sa_weights, image_save_path)
         # visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='VLP', K='VLP', tag=f'_dec')
         # visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='P', K='V', tag=f'_dec')
-        # visualize_self_attn_VLP(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='VLP', K='VLP', tag=f'_ref')
+        visualize_self_attn_VLP(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='VLP', K='VLP', tag=f'_ref')
         # visualize_self_attn_VLP(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='P', K='L', tag=f'_ref')
         # visualize_cross_attn(agg.ca_weights, hparams, image, image_save_path)
         # visualize_sim_with_memory(agg.res_pt_2, agg.memory, image, image_save_path)

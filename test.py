@@ -163,11 +163,12 @@ def main():
         if args.debug:
             init_dir(f'{debug_dir}/texts/{dname}')
             with open(f'{debug_dir}/texts/{dname}/results.txt', 'w') as f:
-                f.write(f'{"pred_inter":30s}{"pred":30s}{"gt":30s}{"status"}\n')
-                f.write(f'{"----------":30s}{"----":30s}{"--":30s}{"------"}\n')
+                f.write(f'{"pred_inter":26s}{"pred":26s}{"gt":26s}{"refined":10s}{"correct":10s}\n')
+                f.write(f'{"----------":26s}{"----":26s}{"--":26s}{"------":10s}{"------":10s}\n')
                 for pred_inter, pred, gt in zip(preds_inter, preds, gts):
-                    status = 'x' if pred != gt else ' '
-                    f.write(f'{pred_inter:30s}{pred:30s}{gt:30s}{status}\n')
+                    refined = 'o' if pred != pred_inter else ''
+                    correct = 'x' if pred != gt else ' '
+                    f.write(f'{pred_inter:26s}{pred:26s}{gt:26s}{refined:10s}{correct:10s}\n')
 
     result_groups = {
         'Benchmark (Subset)': SceneTextDataModule.TEST_BENCHMARK_SUB,

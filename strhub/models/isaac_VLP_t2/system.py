@@ -349,7 +349,8 @@ class Isaac_VLP(CrossEntropySystem):
             padding_mask_L = (init_pred_ind == self.pad_id)
             padding_mask_P = padding_mask_L # pos tokens need same pdding mask, since pos tokens after decoding length have random values
             padding_mask_LP = torch.cat([padding_mask_L, padding_mask_P], 1)
-            padding_mask_VLP = F.pad(padding_mask_LP, (L_V, 1), "constant", 0) # +1 for dummy token
+            padding_mask_VLP = F.pad(padding_mask_LP, (L_V, 0), "constant", 1)
+            padding_mask_VLP = F.pad(padding_mask_VLP, (0, 1), "constant", 0) # +1 for dummy token
             init_pred_lan = self.to_lan(init_pred_ind)
             #* attention mask
             attn_mask_refine = self.attn_mask_refine.to(self._device)
@@ -478,7 +479,9 @@ class Isaac_VLP(CrossEntropySystem):
             padding_mask_L = (init_pred_ind == self.pad_id)
             padding_mask_P = padding_mask_L # pos tokens need same pdding mask, since pos tokens after decoding length have random values
             padding_mask_LP = torch.cat([padding_mask_L, padding_mask_P], 1)
-            padding_mask_VLP = F.pad(padding_mask_LP, (L_V, 1), "constant", 0) # +1 for dummy token
+            padding_mask_VLP = F.pad(padding_mask_LP, (L_V, 0), "constant", 1)
+            padding_mask_VLP = F.pad(padding_mask_VLP, (0, 1), "constant", 0) # +1 for dummy token
+            
             init_pred_lan = self.to_lan(init_pred_ind)
             #* attention mask
             attn_mask_refine = self.attn_mask_refine.to(self._device)

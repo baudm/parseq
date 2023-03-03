@@ -11,7 +11,7 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "args": "outputs/isaac_VLP/2023-02-22_18-07-03/checkpoints/last.ckpt --debug True --batch_size 1"
+            "args": "outputs/isaac_VLP/2023-02-23_20-55-37/checkpoints/last.ckpt --debug True --batch_size 1"
         }
     ]
 }
