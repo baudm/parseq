@@ -1,6 +1,0 @@
-# @package _global_
-defaults:
-  - override /model: crnn
-
-data:
-  num_workers: 5

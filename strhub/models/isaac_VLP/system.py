@@ -81,12 +81,14 @@ class Isaac_VLP(CrossEntropySystem):
         self.text_embed = TokenEmbedding(len(self.tokenizer), embed_dim)
 
         # +1 for <eos>
-        self.pos_embed = nn.Parameter(torch.Tensor(1, max_label_length + 1, embed_dim))
+        self.pos_embed_L = nn.Parameter(torch.Tensor(1, max_label_length + 1, embed_dim))
+        self.pos_embed_P = nn.Parameter(torch.Tensor(1, max_label_length + 1, embed_dim))
         self.dropout = nn.Dropout(p=dropout)
         
         # Encoder has its own init.
         named_apply(partial(init_weights, exclude=['encoder']), self)
-        nn.init.trunc_normal_(self.pos_embed, std=.02)
+        nn.init.trunc_normal_(self.pos_embed_L, std=.02)
+        nn.init.trunc_normal_(self.pos_embed_P, std=.02)
         
         # attn_mask
         self.QK = QK
@@ -95,6 +97,12 @@ class Isaac_VLP(CrossEntropySystem):
         self.visualize_attn_mask(self.attn_mask)
         self.visualize_attn_mask(self.attn_mask_refine, refine_layer=True)
         self.dummy_token = torch.zeros((1, 1, embed_dim))
+        
+    @torch.jit.ignore
+    def no_weight_decay(self):
+        param_names = {'text_embed.embedding.weight', 'pos_embed_L', 'pos_embed_P'}
+        enc_param_names = {'encoder.' + n for n in self.encoder.no_weight_decay()}
+        return param_names.union(enc_param_names)
     
     def get_attn_mask(self, img_size, patch_size, refine_layer:bool=False):
         """Generates attention mask for the multi-modal transformer layers.
@@ -266,12 +274,6 @@ class Isaac_VLP(CrossEntropySystem):
         sa.set_xticklabels(sa.get_xmajorticklabels(), fontsize=tick_size, rotation=0)
         sa.set_yticklabels(sa.get_ymajorticklabels(), fontsize=tick_size, rotation=0)
         plt.savefig(save_path); plt.clf()
-
-    @torch.jit.ignore
-    def no_weight_decay(self):
-        param_names = {'text_embed.embedding.weight', 'pos_embed'}
-        enc_param_names = {'encoder.' + n for n in self.encoder.no_weight_decay()}
-        return param_names.union(enc_param_names)
     
     def forward(self, images:Tensor, validation: bool = False, debug: bool = False) -> Tensor:
         """
@@ -300,7 +302,7 @@ class Isaac_VLP(CrossEntropySystem):
         L_V = vis.shape[1]
         lan_ind = torch.full((bs, L_L), self.pad_id, dtype=torch.long, device=self._device)
         lan_ind[:, 0] = self.bos_id
-        pos = self.pos_embed[:, :L_P].expand(bs, -1, -1)
+        pos = self.pos_embed_P[:, :L_P].expand(bs, -1, -1)
         dummy_token = self.dummy_token.to(self._device)
         attn_mask = self.attn_mask.to(self._device)
         #* decoding
@@ -309,10 +311,7 @@ class Isaac_VLP(CrossEntropySystem):
         for i in range(num_steps):
             j = i + 1 # next token index
             lan = self.to_lan(lan_ind)
-            # padding mask : pad + eos posiitons
-            padding_mask = (lan_ind == self.pad_id) | (lan_ind == self.eos_id)
-            padding_mask = F.pad(padding_mask, (L_V, L_P + 1), "constant", 0) # +1 for dummy token
-            vis_dec, lan_dec, pos_dec, vis_dec_2, lan_dec_2, pos_dec_2, agg_dec_t = self.decode(vis, lan, pos, dummy_token, attn_mask, padding_mask, debug=debug)
+            vis_dec, lan_dec, pos_dec, vis_dec_2, lan_dec_2, pos_dec_2, agg_dec_t = self.decode(vis, lan, pos, dummy_token, attn_mask=attn_mask, debug=debug)
             agg_dec_ts.append(agg_dec_t)
             logits_dec_i = self.head(pos_dec[:, i:j])
             logits_dec.append(logits_dec_i)
@@ -388,7 +387,7 @@ class Isaac_VLP(CrossEntropySystem):
     def to_lan(self, tgt_in):
         bs, L_L = tgt_in.shape
         null_ctx = self.text_embed(tgt_in[:, :1]) # tgt_in stats with [B]. No positional encoding added to [B]
-        lan = torch.cat([null_ctx, self.text_embed(tgt_in[:, 1:]) + self.pos_embed[:, :L_L - 1]], dim=1)
+        lan = torch.cat([null_ctx, self.text_embed(tgt_in[:, 1:]) + self.pos_embed_L[:, :L_L - 1]], dim=1)
         return lan
 
     def decode(self, vis:torch.Tensor, lan:torch.Tensor,  pos:torch.Tensor, dummy_token:torch.Tensor,
@@ -447,7 +446,7 @@ class Isaac_VLP(CrossEntropySystem):
         padding_mask = F.pad(padding_mask, (L_V, L_P + 1), "constant", 0) # +1 for dummy token
         lan = self.to_lan(tgt_in)
         #* pos tokens
-        pos = self.pos_embed[:, :L_P].expand(bs, -1, -1)
+        pos = self.pos_embed_P[:, :L_P].expand(bs, -1, -1)
         #* dummy token
         dummy_token = self.dummy_token.to(self._device)
         #* attention mask

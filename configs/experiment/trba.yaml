@@ -1,6 +1,0 @@
-# @package _global_
-defaults:
-  - override /model: trba
-
-data:
-  num_workers: 3

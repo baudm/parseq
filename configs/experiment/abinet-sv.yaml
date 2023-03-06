@@ -1,8 +1,0 @@
-# @package _global_
-defaults:
-  - override /model: abinet
-
-model:
-  name: abinet-sv
-  v_num_layers: 2
-  v_attention: attention
