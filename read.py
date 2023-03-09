@@ -93,8 +93,9 @@ def main():
         
         ## embeddings
         # visualize_head_self_sim(model, image_save_path)
-        # visualize_pe_self_sim(pred, model, image_save_path)
-        # visualize_text_embed_sim_with_head(model, image_save_path)
+        # visualize_pos_embed_self_sim(pred, model, image_save_path)
+        # visualize_char_embed_self_sim(pred, model, image_save_path)
+        # visualize_char_embed_sim_with_head(model, image_save_path)
         # visualize_tsne(model, image_save_path)
         
         ## forward pass
@@ -107,9 +108,14 @@ def main():
         ## attention
         # visualize_self_attn(pred, agg.sa_weights, image_save_path)
         # visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='VLP', K='VLP', tag=f'_dec')
+        # visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='P', K='V', tag=f'_dec')
         # visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='P', K='L', tag=f'_dec')
+        # visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='P', K='P', tag=f'_dec')
+        # visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='L', K='L', tag=f'_dec')
         visualize_self_attn_VLP(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='VLP', K='VLP', tag=f'_ref')
+        # visualize_self_attn_VLP(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='P', K='V', tag=f'_ref')
         # visualize_self_attn_VLP(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='P', K='L', tag=f'_ref')
+        # visualize_self_attn_VLP(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='P', K='P', tag=f'_ref')
         # visualize_cross_attn(agg.ca_weights, hparams, image, image_save_path)
         # visualize_sim_with_memory(agg.res_pt_2, agg.memory, image, image_save_path)
         
@@ -258,12 +264,14 @@ def visualize_self_attn_VLP(pred, sa_weights, hparams, image, image_save_path, t
                 sa_weights_t = sa_weights_t.view(*vis_size)
                 save_blended_heatmap(sa_weights_t, image, save_path)
         elif 'ref' in tag:
-            t = len(pred)
-            save_path = f'{filename_path}_sa{tag}{ext}'
-            sa_weights_t = sa_weights[0][row_ind, :][:, col_ind]
-            sa_weights_t = sa_weights_t[t]
-            sa_weights_t = sa_weights_t.view(*vis_size)
-            save_blended_heatmap(sa_weights_t, image, save_path)
+            for t, sa_weights_t in enumerate(sa_weights[0][row_ind, :][:, col_ind]):
+                if t > len(pred): continue
+                tag_t = f'{tag}_{t:02d}'
+                save_path = f'{filename_path}_sa{tag_t}{ext}'
+                sa_weights_t = sa_weights_t.view(*vis_size)
+                save_blended_heatmap(sa_weights_t, image, save_path)
+            
+            
         else:
             raise NotImplementedError
     elif Q + K in ['VV']:
@@ -359,12 +367,12 @@ def visualize_char_probs(pred, p, model, image_save_path):
     save_path = f'{filename_path}_p{ext}'
     save_heatmap(p, rows, cols, '', save_path, 1.0, figsize=(30, len(rows)), annot=True, annot_size=5, tick_size=15, labelsize=15, linewidths=1)
 
-def visualize_similarity(target, source, rows, cols, image_save_path, sim_scale=1.0, annot=False, tag=''):
+def visualize_similarity(target, source, rows, cols, image_save_path, sim_scale=1.0, annot=False, tag='', figsize=(15,15)):
     filename_path, ext = os.path.splitext(image_save_path)
     target = normalize(target)
     source = normalize(source)
     similarity_mtx = target @  source.T
-    save_heatmap(similarity_mtx, rows, cols, '', f'{filename_path}_sim{tag}{ext}', sim_scale, annot=annot, annot_size=10, tick_size=10, labelsize=10)
+    save_heatmap(similarity_mtx, rows, cols, '', f'{filename_path}_sim{tag}{ext}', sim_scale, annot=annot, annot_size=10, tick_size=10, labelsize=10, figsize=figsize)
  
 
 def visualize_head_self_sim(model, image_save_path):
@@ -390,12 +398,19 @@ def visualize_sim_with_head(attr, agg, pred, model, image_save_path, sim_scale=1
     visualize_similarity(target, head, rows, cols, image_save_path, sim_scale=sim_scale, tag='_' + attr)
 
 
-def visualize_pe_self_sim(pred, model, image_save_path, sim_scale=1.0):
+def visualize_pos_embed_self_sim(pred, model, image_save_path, sim_scale=1.0):
     pred = list(pred[0]) + ['[E]']
-    # pos_queries = model.pos_queries.detach().cpu().numpy()[0][:len(pred), :]
-    pos_queries = model.pos_embed.detach().cpu().numpy()[0][:len(pred), :]
+    emb = model.pos_embed_P.detach().cpu().numpy()[0][:len(pred), :]
     rows = cols = list(range(1, len(pred) + 1))
-    visualize_similarity(pos_queries, pos_queries, rows, cols, image_save_path, sim_scale, annot=True)
+    visualize_similarity(emb, emb, rows, cols, image_save_path, sim_scale, annot=True)
+    
+    
+def visualize_char_embed_self_sim(pred, model, image_save_path, sim_scale=1.0):
+    emb = model.text_embed.embedding.weight.detach().cpu().numpy()
+    charset_train = model.hparams.charset_train
+    rows = cols = ['[E]'] + list(charset_train) + ['[B]', '[P]']
+    visualize_similarity(emb, emb, rows, cols, image_save_path, sim_scale, annot=False, figsize=(30,30))
+    
     
 def visualize_sim_with_pe(target, pred, model, image_save_path, sim_scale=1.0):
     rows = pred = list(pred[0]) + ['[E]']
@@ -405,7 +420,7 @@ def visualize_sim_with_pe(target, pred, model, image_save_path, sim_scale=1.0):
     visualize_similarity(pos_queries, pos_queries, rows, cols, image_save_path, sim_scale, annot=True)
     
     
-def visualize_text_embed_sim_with_head(model, image_save_path): 
+def visualize_char_embed_sim_with_head(model, image_save_path): 
     text_embed = model.text_embed.embedding.weight.detach().cpu().numpy() # [charset_size, embed_dim]
     head = model.head.weight.detach().cpu().numpy()
     charset_train = model.hparams.charset_train

@@ -361,7 +361,7 @@ class Isaac_VLP(CrossEntropySystem):
             logits = logits_ref
             
             if debug:
-                REF_IDX = 0
+                REF_IDX = 1
                 sa_weights = agg_ref[REF_IDX].sa_weights[0].unsqueeze(0)
                 agg_system.sa_weights_ref = sa_weights
                 
@@ -424,7 +424,8 @@ class Isaac_VLP(CrossEntropySystem):
         lan = self.dropout(lan)
         pos = self.dropout(pos)
         dummy_token = dummy_token.expand(pos.shape[0], -1, -1)
-        return self.refiner(vis, lan.detach(), pos.detach(), dummy_token, attn_mask=attn_mask, padding_mask=padding_mask, debug=debug)
+        # vis is 
+        return self.refiner(vis, lan.detach(), pos, dummy_token, attn_mask=attn_mask, padding_mask=padding_mask, debug=debug)
 
     def training_step(self, batch, batch_idx) -> STEP_OUTPUT:
         images, labels = batch
