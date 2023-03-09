@@ -112,6 +112,7 @@ def main():
         # visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='P', K='L', tag=f'_dec')
         # visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='P', K='P', tag=f'_dec')
         # visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='L', K='L', tag=f'_dec')
+        import ipdb; ipdb.set_trace(context=11) # #FF0000
         visualize_self_attn_VLP(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='VLP', K='VLP', tag=f'_ref')
         # visualize_self_attn_VLP(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='P', K='V', tag=f'_ref')
         # visualize_self_attn_VLP(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='P', K='L', tag=f'_ref')

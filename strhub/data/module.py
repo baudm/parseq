@@ -29,6 +29,9 @@ class SceneTextDataModule(pl.LightningDataModule):
     TEST_BENCHMARK = ('IIIT5k', 'SVT', 'IC13_1015', 'IC15_2077', 'SVTP', 'CUTE80')
     TEST_NEW = ('ArT', 'COCOv1.4', 'Uber')
     TEST_ALL = tuple(set(TEST_BENCHMARK_SUB + TEST_BENCHMARK + TEST_NEW))
+    TEST_VAL = ('IC13', 'IC15', 'IIIT5k', 'SVT')
+    # TEST_TRAIN = ('ArT', 'COCOv1.4', 'LSVT', 'MLT19', 'OpenVINO', 'RCTW17', 'ReCTS', 'TextOCR', 'Uber')
+    TEST_TRAIN = ('TRAIN')
 
     def __init__(self, root_dir: str, train_dir: str, img_size: Sequence[int], max_label_length: int,
                  charset_train: str, charset_test: str, batch_size: int, num_workers: int, augment: bool,
@@ -76,6 +79,7 @@ class SceneTextDataModule(pl.LightningDataModule):
 
     @property
     def train_dataset(self):
+        # uses charset_train
         if self._train_dataset is None:
             transform = self.get_transform(self.img_size, self.augment)
             root = PurePath(self.root_dir, 'train', self.train_dir)
@@ -86,6 +90,7 @@ class SceneTextDataModule(pl.LightningDataModule):
 
     @property
     def val_dataset(self):
+        # uses charset_test
         if self._val_dataset is None:
             transform = self.get_transform(self.img_size)
             root = PurePath(self.root_dir, 'val')
@@ -104,13 +109,31 @@ class SceneTextDataModule(pl.LightningDataModule):
                           num_workers=self.num_workers, persistent_workers=self.num_workers > 0,
                           pin_memory=True, collate_fn=self.collate_fn)
 
+    # def test_dataloaders(self, subset):
+    #     transform = self.get_transform(self.img_size, rotation=self.rotation)
+    #     if self.debug : self.collate_fn = self.collate_fn_test
+    #     root = PurePath(self.root_dir, 'test')
+    #     datasets = {s: LmdbDataset(str(root / s), self.charset_test, self.max_label_length,
+    #                                self.min_image_dim, self.remove_whitespace, self.normalize_unicode,
+    #                                transform=transform, debug=self.debug) for s in subset}
+    #     return {k: DataLoader(v, batch_size=self.batch_size, num_workers=self.num_workers,
+    #                           pin_memory=True, collate_fn=self.collate_fn)
+    #             for k, v in datasets.items()}
+
+    # #00FFFF : temporary
     def test_dataloaders(self, subset):
+        # uses charset_test
         transform = self.get_transform(self.img_size, rotation=self.rotation)
         if self.debug : self.collate_fn = self.collate_fn_test
-        root = PurePath(self.root_dir, 'test')
-        datasets = {s: LmdbDataset(str(root / s), self.charset_test, self.max_label_length,
-                                   self.min_image_dim, self.remove_whitespace, self.normalize_unicode,
-                                   transform=transform, debug=self.debug) for s in subset}
-        return {k: DataLoader(v, batch_size=self.batch_size, num_workers=self.num_workers,
-                              pin_memory=True, collate_fn=self.collate_fn)
-                for k, v in datasets.items()}
+        root = PurePath(self.root_dir, 'train', 'real')
+        # datasets = {s: LmdbDataset(str(root / s), self.charset_test, self.max_label_length,
+        #                            self.min_image_dim, self.remove_whitespace, self.normalize_unicode,
+        #                            transform=transform, debug=self.debug) for s in subset}
+        datasets = build_tree_dataset(root, self.charset_test, self.max_label_length,
+                                      self.min_image_dim, self.remove_whitespace, self.normalize_unicode,
+                                      transform=transform)
+        # return {k: DataLoader(v, batch_size=self.batch_size, num_workers=self.num_workers,
+        #                       pin_memory=True, collate_fn=self.collate_fn)
+        #         for k, v in datasets.items()}
+        return {'TRAIN' : DataLoader(datasets, batch_size=self.batch_size, num_workers=self.num_workers,
+                              pin_memory=True, collate_fn=self.collate_fn)}
