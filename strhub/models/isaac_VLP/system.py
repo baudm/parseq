@@ -425,7 +425,7 @@ class Isaac_VLP(CrossEntropySystem):
         pos = self.dropout(pos)
         dummy_token = dummy_token.expand(pos.shape[0], -1, -1)
         # vis is 
-        return self.refiner(vis, lan.detach(), pos.detach(), dummy_token, attn_mask=attn_mask, padding_mask=padding_mask, debug=debug)
+        return self.refiner(vis.detach(), lan.detach(), pos.detach(), dummy_token, attn_mask=attn_mask, padding_mask=padding_mask, debug=debug)
 
     def training_step(self, batch, batch_idx) -> STEP_OUTPUT:
         images, labels = batch

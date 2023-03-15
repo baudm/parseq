@@ -15,6 +15,9 @@ dec_depth: 1
 ref_depth: 0
 ref_loss_scale: 1
 ref_iters: 1
+dec_sampling : "" # identity, pd (proability distribution)
+dec_sampling_temp : 1
+ref_objective: "CLM" # identity, CLM
 QK: [['V', 'L', 'P'], ['V', 'L', 'P'], ['V', 'L', 'P']]
 
 # Training

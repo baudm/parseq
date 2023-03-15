@@ -109,31 +109,31 @@ class SceneTextDataModule(pl.LightningDataModule):
                           num_workers=self.num_workers, persistent_workers=self.num_workers > 0,
                           pin_memory=True, collate_fn=self.collate_fn)
 
-    # def test_dataloaders(self, subset):
-    #     transform = self.get_transform(self.img_size, rotation=self.rotation)
-    #     if self.debug : self.collate_fn = self.collate_fn_test
-    #     root = PurePath(self.root_dir, 'test')
-    #     datasets = {s: LmdbDataset(str(root / s), self.charset_test, self.max_label_length,
-    #                                self.min_image_dim, self.remove_whitespace, self.normalize_unicode,
-    #                                transform=transform, debug=self.debug) for s in subset}
-    #     return {k: DataLoader(v, batch_size=self.batch_size, num_workers=self.num_workers,
-    #                           pin_memory=True, collate_fn=self.collate_fn)
-    #             for k, v in datasets.items()}
-
-    # #00FFFF : temporary
     def test_dataloaders(self, subset):
-        # uses charset_test
         transform = self.get_transform(self.img_size, rotation=self.rotation)
         if self.debug : self.collate_fn = self.collate_fn_test
-        root = PurePath(self.root_dir, 'train', 'real')
-        # datasets = {s: LmdbDataset(str(root / s), self.charset_test, self.max_label_length,
-        #                            self.min_image_dim, self.remove_whitespace, self.normalize_unicode,
-        #                            transform=transform, debug=self.debug) for s in subset}
-        datasets = build_tree_dataset(root, self.charset_test, self.max_label_length,
-                                      self.min_image_dim, self.remove_whitespace, self.normalize_unicode,
-                                      transform=transform)
-        # return {k: DataLoader(v, batch_size=self.batch_size, num_workers=self.num_workers,
-        #                       pin_memory=True, collate_fn=self.collate_fn)
-        #         for k, v in datasets.items()}
-        return {'TRAIN' : DataLoader(datasets, batch_size=self.batch_size, num_workers=self.num_workers,
-                              pin_memory=True, collate_fn=self.collate_fn)}
+        root = PurePath(self.root_dir, 'test')
+        datasets = {s: LmdbDataset(str(root / s), self.charset_test, self.max_label_length,
+                                   self.min_image_dim, self.remove_whitespace, self.normalize_unicode,
+                                   transform=transform, debug=self.debug) for s in subset}
+        return {k: DataLoader(v, batch_size=self.batch_size, num_workers=self.num_workers,
+                              pin_memory=True, collate_fn=self.collate_fn)
+                for k, v in datasets.items()}
+
+    # # #00FFFF : temporary
+    # def test_dataloaders(self, subset):
+    #     # uses charset_test
+    #     transform = self.get_transform(self.img_size, rotation=self.rotation)
+    #     if self.debug : self.collate_fn = self.collate_fn_test
+    #     root = PurePath(self.root_dir, 'train', 'real')
+    #     # datasets = {s: LmdbDataset(str(root / s), self.charset_test, self.max_label_length,
+    #     #                            self.min_image_dim, self.remove_whitespace, self.normalize_unicode,
+    #     #                            transform=transform, debug=self.debug) for s in subset}
+    #     datasets = build_tree_dataset(root, self.charset_test, self.max_label_length,
+    #                                   self.min_image_dim, self.remove_whitespace, self.normalize_unicode,
+    #                                   transform=transform)
+    #     # return {k: DataLoader(v, batch_size=self.batch_size, num_workers=self.num_workers,
+    #     #                       pin_memory=True, collate_fn=self.collate_fn)
+    #     #         for k, v in datasets.items()}
+    #     return {'TRAIN' : DataLoader(datasets, batch_size=self.batch_size, num_workers=self.num_workers,
+    #                           pin_memory=True, collate_fn=self.collate_fn)}

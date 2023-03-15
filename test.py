@@ -116,14 +116,14 @@ def main():
     datamodule = SceneTextDataModule(args.data_root, '_unused_', hp.img_size, hp.max_label_length, hp.charset_train,
                                      hp.charset_test, args.batch_size, args.num_workers, False, rotation=args.rotation, debug=args.debug)
 
-    # test_set = SceneTextDataModule.TEST_BENCHMARK_SUB + SceneTextDataModule.TEST_BENCHMARK
-    # if args.new:
-    #     test_set += SceneTextDataModule.TEST_NEW
-    # test_set = sorted(set(test_set))
-    
-    # #00FFFF : temporary
-    test_set = SceneTextDataModule.TEST_TRAIN
+    test_set = SceneTextDataModule.TEST_BENCHMARK_SUB + SceneTextDataModule.TEST_BENCHMARK
+    if args.new:
+        test_set += SceneTextDataModule.TEST_NEW
     test_set = sorted(set(test_set))
+    
+    # # #00FFFF : temporary
+    # test_set = SceneTextDataModule.TEST_TRAIN
+    # test_set = sorted(set(test_set))
 
     results = {}
     pred_gts = {}
@@ -174,17 +174,17 @@ def main():
                     correct = 'x' if pred != gt else ' '
                     f.write(f'{pred_inter:26s}{pred:26s}{gt:26s}{refined:10s}{correct:10s}\n')
 
-    # result_groups = {
-    #     'Benchmark (Subset)': SceneTextDataModule.TEST_BENCHMARK_SUB,
-    #     'Benchmark': SceneTextDataModule.TEST_BENCHMARK
-    # }
-    # if args.new:
-    #     result_groups.update({'New': SceneTextDataModule.TEST_NEW})
-    
-    # #00FFFF : temporary
     result_groups = {
-        'Train' : SceneTextDataModule.TEST_VAL
+        'Benchmark (Subset)': SceneTextDataModule.TEST_BENCHMARK_SUB,
+        'Benchmark': SceneTextDataModule.TEST_BENCHMARK
     }
+    if args.new:
+        result_groups.update({'New': SceneTextDataModule.TEST_NEW})
+    
+    # # #00FFFF : temporary
+    # result_groups = {
+    #     'Train' : SceneTextDataModule.TEST_VAL
+    # }
     
     log_tag = ''
     for k, v in kwargs.items():
