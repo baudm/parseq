@@ -125,24 +125,3 @@ class Tokenizer(BaseTokenizer):
         ids = ids[:eos_idx]
         probs = probs[:eos_idx + 1]  # but include prob. for EOS (if it exists)
         return probs, ids
-
-
-class CTCTokenizer(BaseTokenizer):
-    BLANK = '[B]'
-
-    def __init__(self, charset: str) -> None:
-        # BLANK uses index == 0 by default
-        super().__init__(charset, specials_first=(self.BLANK,))
-        self.blank_id = self._stoi[self.BLANK]
-
-    def encode(self, labels: List[str], device: Optional[torch.device] = None) -> Tensor:
-        # We use a padded representation since we don't want to use CUDNN's CTC implementation
-        batch = [torch.as_tensor(self._tok2ids(y), dtype=torch.long, device=device) for y in labels]
-        return pad_sequence(batch, batch_first=True, padding_value=self.blank_id)
-
-    def _filter(self, probs: Tensor, ids: Tensor) -> Tuple[Tensor, List[int]]:
-        # Best path decoding:
-        ids = list(zip(*groupby(ids.tolist())))[0]  # Remove duplicate tokens
-        ids = [x for x in ids if x != self.blank_id]  # Remove BLANKs
-        # `probs` is just pass-through since all positions are considered part of the path
-        return probs, ids

@@ -110,9 +110,6 @@ class BaseSystem(pl.LightningModule, ABC):
         if validation:
             logits, loss, logits_inter, loss_inter, loss_numel = self.forward_logits_loss(images, labels)
         else:
-            # if 'traditional' in labels:
-            #     print(labels.index('traditional'))
-            #     import ipdb; ipdb.set_trace(context=11) # #FF0000
             logits, logits_inter, agg = self.forward(images)
             loss = loss_inter = loss_numel = None
 
@@ -202,6 +199,8 @@ class CrossEntropySystem(BaseSystem):
         tokenizer = Tokenizer(charset_train)
         self.debug = debug
         super().__init__(tokenizer, charset_test, batch_size, lr, warmup_pct, weight_decay, self.debug)
+        # temporary #00FFFF
+        # super().__init__(tokenizer, charset_train, batch_size, lr, warmup_pct, weight_decay, self.debug)
         self.bos_id = tokenizer.bos_id
         self.eos_id = tokenizer.eos_id
         self.pad_id = tokenizer.pad_id
