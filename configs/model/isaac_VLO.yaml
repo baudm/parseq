@@ -1,5 +1,5 @@
-name: isaac_VLP
-_target_: strhub.models.isaac_VLP.system.Isaac_VLP
+name: isaac_VLO
+_target_: strhub.models.isaac_VLO.system.Isaac_VLO
 
 # Data
 patch_size: [ 4, 8 ]  # [ height, width ]

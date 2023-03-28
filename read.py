@@ -81,7 +81,7 @@ def main():
         image.save(image_save_path)
         image_t = img_transform(image).unsqueeze(0).cuda()
 
-        logits, logits_inter, agg = model(image_t, debug=args.debug)
+        logits, logits_inter, agg = model(image_t, debug=args.debug, DEC_IDX=0, REF_IDX=0)
         p = logits.softmax(-1)
         pred, p_seq = model.tokenizer.decode(p)
         '''
@@ -107,16 +107,17 @@ def main():
         
         ## attention
         # visualize_self_attn(pred, agg.sa_weights, image_save_path)
-        # visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='VLP', K='VLP', tag=f'_dec')
-        # visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='P', K='V', tag=f'_dec')
-        # visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='P', K='L', tag=f'_dec')
-        # visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='P', K='P', tag=f'_dec')
-        # visualize_self_attn_VLP(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='L', K='L', tag=f'_dec')
-        import ipdb; ipdb.set_trace(context=11) # #FF0000
-        visualize_self_attn_VLP(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='VLP', K='VLP', tag=f'_ref')
-        # visualize_self_attn_VLP(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='P', K='V', tag=f'_ref')
-        # visualize_self_attn_VLP(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='P', K='L', tag=f'_ref')
-        # visualize_self_attn_VLP(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='P', K='P', tag=f'_ref')
+        # visualize_attn_balance(pred, agg.sa_weights_dec, hparams, image_save_path, tag=f'_dec')
+        # visualize_self_attn_VLO(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='VLO', K='VLO', tag=f'_dec')
+        # visualize_self_attn_VLO(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='O', K='V', tag=f'_dec')
+        # visualize_self_attn_VLO(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='O', K='L', tag=f'_dec')
+        # visualize_self_attn_VLO(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='O', K='O', tag=f'_dec')
+        # visualize_self_attn_VLO(pred, agg.sa_weights_dec, hparams, image, image_save_path, Q='L', K='L', tag=f'_dec')
+        visualize_attn_balance(pred, agg.sa_weights_ref, hparams, image_save_path, tag=f'_ref')
+        # visualize_self_attn_VLO(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='VLO', K='VLO', tag=f'_ref')
+        # visualize_self_attn_VLO(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='O', K='V', tag=f'_ref')
+        # visualize_self_attn_VLO(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='O', K='L', tag=f'_ref')
+        # visualize_self_attn_VLO(pred, agg.sa_weights_ref, hparams, image, image_save_path, Q='O', K='O', tag=f'_ref')
         # visualize_cross_attn(agg.ca_weights, hparams, image, image_save_path)
         # visualize_sim_with_memory(agg.res_pt_2, agg.memory, image, image_save_path)
         
@@ -181,26 +182,49 @@ def save_blended_heatmap(data, image, save_path, alpha=0.7):
     blend.save(save_path)
 
 
-
-def visualize_self_attn_VLP(pred, sa_weights, hparams, image, image_save_path, tag='', Q='VLP', K='VLP', sim_scale=1.0):
+def visualize_attn_balance(pred, sa_weights, hparams, image_save_path, tag='', sim_scale=1.0):
     """
-    Self-attn visualization of multi-modal Transformer.
-    
-    Args:
-        Q : Query. e.g. 'V', 'L', 'P'
-        K : Key. e.g. 'V', 'L', 'P'
+    Visualize ratio between V, L, O tokens attention values summed.
     """
     if sa_weights is None: return
     filename_path, ext = os.path.splitext(image_save_path)
     pred = list(pred[0])
     vis_size = [a // b for (a, b) in zip(hparams.img_size, hparams.patch_size)]
     L_V = vis_size[0] * vis_size[1]
-    L_L = L_P = hparams.max_label_length + 1
-    L_T = L_V + L_L + L_P
+    L_L = L_O = hparams.max_label_length + 1
+    L_T = L_V + L_L + L_O
+    assert sa_weights.shape[-1] == L_T + 1 # +1 for dummy token
+    rows = pred + ['[E]']
+    cols = ['V attn', 'L attn', 'O attn']
+    sa_weights_last = sa_weights[-1]
+    V_attn, L_attn, O_attn, _ = sa_weights_last.split([L_V, L_L, L_O, 1], dim=-1)
+    V_attn = V_attn.sum(dim=-1, keepdim=True)
+    L_attn = L_attn.sum(dim=-1, keepdim=True)
+    O_attn = O_attn.sum(dim=-1, keepdim=True)
+    attn_balance = torch.cat([V_attn, L_attn, O_attn], dim=-1)
+    save_heatmap(attn_balance[L_V + L_L:L_V + L_L + len(rows), :], rows , cols, f'Attention balance', f'{filename_path}_attn_balance{ext}',
+                 sim_scale=sim_scale, figsize=(7.5, 15), annot=True, annot_size=20, tick_size=15)
+    
+
+def visualize_self_attn_VLO(pred, sa_weights, hparams, image, image_save_path, tag='', Q='VLO', K='VLO', sim_scale=1.0):
+    """
+    Self-attn visualization of multi-modal Transformer.
+    
+    Args:
+        Q : Query. e.g. 'V', 'L', 'O'
+        K : Key. e.g. 'V', 'L', 'O'
+    """
+    if sa_weights is None: return
+    filename_path, ext = os.path.splitext(image_save_path)
+    pred = list(pred[0])
+    vis_size = [a // b for (a, b) in zip(hparams.img_size, hparams.patch_size)]
+    L_V = vis_size[0] * vis_size[1]
+    L_L = L_O = hparams.max_label_length + 1
+    L_T = L_V + L_L + L_O
     assert sa_weights.shape[-1] == L_T + 1 # +1 for dummy token
     rows = list(range(L_T + 1))
-    for i in range(L_L + L_P):
-        rows[L_V + i] = '[P]'
+    for i in range(L_L + L_O):
+        rows[L_V + i] = '[O]'
     for i in range(len(pred) + 1):
         rows[L_V + i] = (['[B]'] + pred)[i]
     for i in range (len(pred) + 1):
@@ -208,10 +232,10 @@ def visualize_self_attn_VLP(pred, sa_weights, hparams, image, image_save_path, t
     rows[-1] = '[D]'
     rows_V = rows[:L_V]
     rows_L = rows[L_V:L_V + L_L]
-    rows_P = rows[L_V + L_L:L_V + L_L + L_P]
+    rows_O = rows[L_V + L_L:L_V + L_L + L_O]
     V_ind = list(range(L_V))
     L_ind = list(range(L_V, L_V + L_L))
-    P_ind = list(range(L_V + L_L, L_V + L_L + L_P))
+    O_ind = list(range(L_V + L_L, L_V + L_L + L_O))
     rows, cols, row_ind, col_ind = [], [], [], []
     if 'V' in Q:
         rows.extend(rows_V)
@@ -219,29 +243,29 @@ def visualize_self_attn_VLP(pred, sa_weights, hparams, image, image_save_path, t
     if 'L' in Q:
         rows.extend(rows_L)
         row_ind.extend(L_ind)
-    if 'P' in Q:
-        rows.extend(rows_P)
-        row_ind.extend(P_ind)
+    if 'O' in Q:
+        rows.extend(rows_O)
+        row_ind.extend(O_ind)
     if 'V' in K:
         cols.extend(rows_V)
         col_ind.extend(V_ind)
     if 'L' in K:
         cols.extend(rows_L)
         col_ind.extend(L_ind)
-    if 'P' in K:
-        cols.extend(rows_P)
-        col_ind.extend(P_ind)
-    if Q == K == 'VLP':
+    if 'O' in K:
+        cols.extend(rows_O)
+        col_ind.extend(O_ind)
+    if Q == K == 'VLO':
         rects = []
-        for x, y, w, h in [(0, 0, L_V, L_V), (L_V, 0, L_L, L_V), (L_V + L_L, 0, L_P, L_V),
-         (0, L_V, L_V, L_L), (L_V, L_V, L_L, L_L), (L_V + L_L, L_V, L_P, L_L),
-         (0, L_V + L_L, L_V, L_P), (L_V, L_V + L_L, L_L, L_P), (L_V + L_L, L_V + L_L, L_P, L_P)]:
+        for x, y, w, h in [(0, 0, L_V, L_V), (L_V, 0, L_L, L_V), (L_V + L_L, 0, L_O, L_V),
+         (0, L_V, L_V, L_L), (L_V, L_V, L_L, L_L), (L_V + L_L, L_V, L_O, L_L),
+         (0, L_V + L_L, L_V, L_O), (L_V, L_V + L_L, L_L, L_O), (L_V + L_L, L_V + L_L, L_O, L_O)]:
             rects.append(patches.Rectangle((x, y,), w, h, edgecolor='green', facecolor='none'))
         t = len(pred)
         for x, y, w, h in [(L_V, L_V, t + 1, t + 1), (L_V + L_L, L_V, t + 1, t + 1), (L_V, L_V + L_L, t + 1, t + 1), (L_V + L_L, L_V + L_L, t + 1, t + 1)]:
             rects.append(patches.Rectangle((x, y,), w, h, edgecolor='white', facecolor='none', linewidth=0.7))
         save_heatmap(sa_weights[-1][row_ind, :][:, col_ind], rows, cols, f'{Q}-{K}', f'{filename_path}_sa{tag}{ext}', sim_scale, rects=rects)
-    elif Q + K in ['LL', 'LP', 'PL', 'PP']:
+    elif Q + K in ['LL', 'LO', 'OL', 'OO']:
         if 'dec' in tag:
             for t, sa_weights_t in enumerate(sa_weights):
                 tag_t = f'{tag}_{t:02d}'
@@ -255,7 +279,7 @@ def visualize_self_attn_VLP(pred, sa_weights, hparams, image, image_save_path, t
             save_heatmap(sa_weights_t, rows, cols, f'{Q}-{K}', f'{filename_path}_sa{tag}{ext}', sim_scale, rects=rects, annot=True)
         else:
             raise NotImplementedError
-    elif Q + K in ['PV', 'LV']:
+    elif Q + K in ['OV', 'LV']:
         if 'dec' in tag:
             for t, sa_weights_t in enumerate(sa_weights):
                 tag_t = f'{tag}_{t:02d}'
@@ -293,7 +317,7 @@ def visualize_self_attn_VLP(pred, sa_weights, hparams, image, image_save_path, t
             attn = attn.resize(image.size, resample=Image.NEAREST)
             blend = Image.blend(image, attn, alpha=0.5)
             blend.save(save_path)
-    elif Q + K in ['VP', 'VL']:
+    elif Q + K in ['VO', 'VL']:
         raise NotImplementedError
     else:
         raise NotImplementedError
@@ -364,7 +388,7 @@ def visualize_char_probs(pred, p, model, image_save_path):
     rows = pred = list(pred[0]) + ['[E]']
     p = p[0].detach().cpu().numpy()[:len(pred), :] # probs up to [E], [seq_len + 1, len(charset_train) - 2]
     charset_train = model.hparams.charset_train
-    cols = ['[E]'] + list(charset_train) + ['[B]', '[P]']
+    cols = ['[E]'] + list(charset_train) + ['[B]', '[O]']
     save_path = f'{filename_path}_p{ext}'
     save_heatmap(p, rows, cols, '', save_path, 1.0, figsize=(30, len(rows)), annot=True, annot_size=5, tick_size=15, labelsize=15, linewidths=1)
 
@@ -379,7 +403,7 @@ def visualize_similarity(target, source, rows, cols, image_save_path, sim_scale=
 def visualize_head_self_sim(model, image_save_path):
     head = model.head.weight.detach().cpu().numpy()
     charset_train = model.hparams.charset_train
-    rows = cols = (['[E]'] + list(charset_train) + ['[B]', '[P]'])[:head.shape[0]]
+    rows = cols = (['[E]'] + list(charset_train) + ['[B]', '[O]'])[:head.shape[0]]
     visualize_similarity(head, head, rows, cols, image_save_path) 
 
 
@@ -389,7 +413,7 @@ def visualize_sim_with_head(attr, agg, pred, model, image_save_path, sim_scale=1
     if len(head) == 95:
         cols = ['[E]'] + list(charset_train)
     else:
-        cols = ['[E]'] + list(charset_train) + ['[B]', '[P]']
+        cols = ['[E]'] + list(charset_train) + ['[B]', '[O]']
     if attr == 'content':
         rows = ['[B]'] + list(pred[0])
     else:
@@ -401,7 +425,7 @@ def visualize_sim_with_head(attr, agg, pred, model, image_save_path, sim_scale=1
 
 def visualize_pos_embed_self_sim(pred, model, image_save_path, sim_scale=1.0):
     pred = list(pred[0]) + ['[E]']
-    emb = model.pos_embed_P.detach().cpu().numpy()[0][:len(pred), :]
+    emb = model.pos_embed_O.detach().cpu().numpy()[0][:len(pred), :]
     rows = cols = list(range(1, len(pred) + 1))
     visualize_similarity(emb, emb, rows, cols, image_save_path, sim_scale, annot=True)
     
@@ -409,7 +433,7 @@ def visualize_pos_embed_self_sim(pred, model, image_save_path, sim_scale=1.0):
 def visualize_char_embed_self_sim(pred, model, image_save_path, sim_scale=1.0):
     emb = model.text_embed.embedding.weight.detach().cpu().numpy()
     charset_train = model.hparams.charset_train
-    rows = cols = ['[E]'] + list(charset_train) + ['[B]', '[P]']
+    rows = cols = ['[E]'] + list(charset_train) + ['[B]', '[O]']
     visualize_similarity(emb, emb, rows, cols, image_save_path, sim_scale, annot=False, figsize=(30,30))
     
     
@@ -425,7 +449,7 @@ def visualize_char_embed_sim_with_head(model, image_save_path):
     text_embed = model.text_embed.embedding.weight.detach().cpu().numpy() # [charset_size, embed_dim]
     head = model.head.weight.detach().cpu().numpy()
     charset_train = model.hparams.charset_train
-    rows = cols = (['[E]'] + list(charset_train) + ['[B]', '[P]'])[:head.shape[0]]
+    rows = cols = (['[E]'] + list(charset_train) + ['[B]', '[O]'])[:head.shape[0]]
     visualize_similarity(text_embed, head, rows, cols, image_save_path)
             
    

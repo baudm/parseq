@@ -39,7 +39,7 @@ class System_Data:
     sa_weights_dec: Tensor = None
     sa_weights_ref: Tensor = None
 
-class Isaac_VLP(CrossEntropySystem):
+class Isaac_VLO(CrossEntropySystem):
 
     def __init__(self, charset_train: str, charset_test: str, max_label_length: int,
                  batch_size: int, lr: float, warmup_pct: float, weight_decay: float,
@@ -51,20 +51,20 @@ class Isaac_VLP(CrossEntropySystem):
         """
         Args:
             QK : Specifies allowed attention. "VV" stands for self-attention of visual tokens.
-                "PV" stands for positional tokens as query and visual tokens as key.
+                "OV" stands for ordinal tokens as query and visual tokens as key.
                 
-                QK = [query_V_list, query_L_list, query_P_list].
-                query_V_list = [key_V, key_L, key_P]
+                QK = [query_V_list, query_L_list, query_O_list].
+                query_V_list = [key_V, key_L, key_O]
                 
-                e.g. QK = [['V', 'L'], [], ['P']] means that "VV", "VL', "PP" attention is allowed.
+                e.g. QK = [['V', 'L'], [], ['O']] means that "VV", "VL', "OO" attention is allowed.
                 
-                Language and positional tokens are always causal, including self.
+                Language and ordinal tokens are always causal, including self.
         """
         self.debug = debug
         self.results_dec = []
         self.results_ref = []
         super().__init__(charset_train, charset_test, batch_size, lr, warmup_pct, weight_decay, self.debug)
-        print('Model : Isaac_VLP')
+        print('Model : Isaac_VLO')
         self.save_hyperparameters()
 
         self.max_label_length = max_label_length
@@ -110,10 +110,10 @@ class Isaac_VLP(CrossEntropySystem):
         Args:
             refine_layer: Whether or not the layer is used for refinement (as opposed to initial text prediction).
                 When False, since information leak to future time steps are not allowed,
-                - visual tokens cannot attend to language or positional tokens
-                - causal mask is applied between language and positional tokens
+                - visual tokens cannot attend to language or ordinal tokens
+                - causal mask is applied between language and ordinal tokens
                 When True, it assumes an initial text prediction (up to <eos>) is already made.
-                - full attention between visual, langauge and positional tokens is applied.
+                - full attention between visual, langauge and ordinal tokens is applied.
         """
         L_V = int(img_size[0] * img_size[1] / (patch_size[0] * patch_size[1]))
         L_L = L_P = self.max_label_length + 1 # +1 for eos
@@ -275,7 +275,7 @@ class Isaac_VLP(CrossEntropySystem):
         sa.set_yticklabels(sa.get_ymajorticklabels(), fontsize=tick_size, rotation=0)
         plt.savefig(save_path); plt.clf()
     
-    def forward(self, images:Tensor, validation: bool = False, debug: bool = False) -> Tensor:
+    def forward(self, images:Tensor, validation: bool = False, debug: bool = False, DEC_IDX=0, REF_IDX=0) -> Tensor:
         """
         Forward-pass for test & val.
         Used implicitly in forward-pass of val.
@@ -285,6 +285,8 @@ class Isaac_VLP(CrossEntropySystem):
             return_intermediate_logits : In case of decoder-refiner structure, also return decoder logits.
             validation : Is validation step.
             debug : Is debug mode.
+            DEC_IDX : Debugging target decoder index.
+            REF_IDX : Debugging target refiner index.
         """
         if debug :
             agg_system = System_Data()
@@ -326,7 +328,6 @@ class Isaac_VLP(CrossEntropySystem):
         logits = logits_dec
         
         if debug:
-            DEC_IDX = 0
             sa_weights = []
             for t in range(max_time_step + 1):
                 _sa_weights = agg_dec_ts[t][DEC_IDX].sa_weights[0]
@@ -361,7 +362,6 @@ class Isaac_VLP(CrossEntropySystem):
             logits = logits_ref
             
             if debug:
-                REF_IDX = 1
                 sa_weights = agg_ref[REF_IDX].sa_weights[0].unsqueeze(0)
                 agg_system.sa_weights_ref = sa_weights
                 
@@ -369,8 +369,12 @@ class Isaac_VLP(CrossEntropySystem):
     
     def forward_logits_loss(self, images: Tensor, labels: List[str]) -> Tuple[Tensor, Tensor, int]:
         """
-        Forward-pass for val.
-        Override function defined in CrossEntropySystem, because initial prediction might be longer than target."""
+        Forward-pass for validation.
+        Override function defined in CrossEntropySystem, because initial prediction might be longer than target.
+        Have the following properties.
+        - Teacher forcing
+        - Validation loss computation
+        """
         logits, logits_inter, _ = self.forward(images, validation=True)
         tokens = self.tokenizer.encode(labels, self.device)
         tgt_out = tokens[:, 1:]  # Discard <bos>
