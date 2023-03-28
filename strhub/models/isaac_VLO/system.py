@@ -47,6 +47,7 @@ class Isaac_VLO(CrossEntropySystem):
                  enc_num_heads: int, enc_mlp_ratio: int, enc_depth: int,
                  dec_num_heads: int, dec_mlp_ratio: int, dec_depth: int, ref_depth: int,
                  dropout: float, QK: List[List[str]], ref_loss_scale: int, ref_iters: int,
+                 dec_sampling_method: str, dec_sampling_temp : float, ref_objective: str,
                  debug: bool = False, **kwargs: Any) -> None:
         """
         Args:
@@ -65,6 +66,8 @@ class Isaac_VLO(CrossEntropySystem):
         self.results_ref = []
         super().__init__(charset_train, charset_test, batch_size, lr, warmup_pct, weight_decay, self.debug)
         print('Model : Isaac_VLO')
+        self.dec_sampling_method = dec_sampling_method
+        self.dec_sampling_temp = dec_sampling_temp
         self.save_hyperparameters()
 
         self.max_label_length = max_label_length
@@ -274,7 +277,53 @@ class Isaac_VLO(CrossEntropySystem):
         sa.set_xticklabels(sa.get_xmajorticklabels(), fontsize=tick_size, rotation=0)
         sa.set_yticklabels(sa.get_ymajorticklabels(), fontsize=tick_size, rotation=0)
         plt.savefig(save_path); plt.clf()
+
+    def encode(self, img: torch.Tensor):
+        return self.encoder(img)
     
+    def to_lan(self, tgt_in):
+        bs, L_L = tgt_in.shape
+        null_ctx = self.text_embed(tgt_in[:, :1]) # tgt_in stats with [B]. No positional encoding added to [B]
+        lan = torch.cat([null_ctx, self.text_embed(tgt_in[:, 1:]) + self.pos_embed_L[:, :L_L - 1]], dim=1)
+        return lan
+
+    def decode(self, vis:torch.Tensor, lan:torch.Tensor,  pos:torch.Tensor, dummy_token:torch.Tensor,
+               attn_mask:torch.Tensor, padding_mask:Optional[Tensor]=None, debug=False):
+        """
+        Used in forward-pass of train.
+        Run Decoder.
+        
+        Args:
+            vis : Visual tokens. Shape: N, L_V, D
+            lan : Language tokens. Shape: N, L_L, D
+            pos : Positional tokens. Shape: N, L_P, D
+        
+        """
+        lan = self.dropout(lan)
+        pos = self.dropout(pos)
+        dummy_token = dummy_token.expand(pos.shape[0], -1, -1)
+        return self.decoder(vis, lan, pos, dummy_token, attn_mask=attn_mask, padding_mask=padding_mask, debug=debug)
+    
+    def refine(self, vis:torch.Tensor, lan:torch.Tensor,  pos:torch.Tensor, dummy_token:torch.Tensor,
+               attn_mask:torch.Tensor, padding_mask:Optional[Tensor]=None, debug=False):
+        """
+        Used in forward-pass of train.
+        Further refines initial decoder prediction.
+        Stop gradient is applied to language and positional tokens,
+        to prevent information leak from future steps.
+        
+        Args:
+            vis : Visual tokens. Shape: N, L_V, D
+            lan : Language tokens. Shape: N, L_L, D
+            pos : Positional tokens. Shape: N, L_P, D
+        
+        """
+        lan = self.dropout(lan)
+        pos = self.dropout(pos)
+        dummy_token = dummy_token.expand(pos.shape[0], -1, -1)
+        # vis is 
+        return self.refiner(vis, lan.detach(), pos.detach(), dummy_token, attn_mask=attn_mask, padding_mask=padding_mask, debug=debug)
+ 
     def forward(self, images:Tensor, validation: bool = False, debug: bool = False, DEC_IDX=0, REF_IDX=0) -> Tensor:
         """
         Forward-pass for test & val.
@@ -337,23 +386,12 @@ class Isaac_VLO(CrossEntropySystem):
         
         #@ refiner
         if self.refiner is not None and self.ref_iters > 0:
-            #* lan tokens
-            # remove eos token
-            init_pred_ind = logits_dec.argmax(-1)[:, :-1]
-            # prepend bos token
-            bos = torch.full((logits_dec.shape[0], 1), self.bos_id).to(self._device)
-            init_pred_ind = torch.cat([bos, init_pred_ind], dim=1)
-            #- convert eos token to pad / pad up to input size
-            # convert eos position and beyond to pad
-            pad_positions = ((init_pred_ind == self.eos_id).cumsum(-1) > 0).to(torch.bool)
-            init_pred_ind = init_pred_ind.masked_fill(pad_positions, self.pad_id)
-            init_pred_ind = F.pad(init_pred_ind, (0, L_L - init_pred_ind.shape[1]), "constant", self.pad_id)
-            # pad up to input size
-            padding_mask_L = (init_pred_ind == self.pad_id)
+            init_pred_ids = self.tokenizer.sample(logits_dec, greedy=True, temp=1.0, max_label_length=self.max_label_length, device=self._device)
+            padding_mask_L = (init_pred_ids == self.eos_id) | (init_pred_ids == self.pad_id)
             padding_mask_P = padding_mask_L # pos tokens need same pdding mask, since pos tokens after decoding length have random values
             padding_mask_LP = torch.cat([padding_mask_L, padding_mask_P], 1)
             padding_mask_VLP = F.pad(padding_mask_LP, (L_V, 1), "constant", 0) # +1 for dummy token
-            init_pred_lan = self.to_lan(init_pred_ind)
+            init_pred_lan = self.to_lan(init_pred_ids)
             #* attention mask
             attn_mask_refine = self.attn_mask_refine.to(self._device)
             #* refine
@@ -385,52 +423,6 @@ class Isaac_VLO(CrossEntropySystem):
         loss_numel = (tgt_out != self.pad_id).sum()
         return logits, loss, logits_inter, loss_inter, loss_numel
 
-    def encode(self, img: torch.Tensor):
-        return self.encoder(img)
-    
-    def to_lan(self, tgt_in):
-        bs, L_L = tgt_in.shape
-        null_ctx = self.text_embed(tgt_in[:, :1]) # tgt_in stats with [B]. No positional encoding added to [B]
-        lan = torch.cat([null_ctx, self.text_embed(tgt_in[:, 1:]) + self.pos_embed_L[:, :L_L - 1]], dim=1)
-        return lan
-
-    def decode(self, vis:torch.Tensor, lan:torch.Tensor,  pos:torch.Tensor, dummy_token:torch.Tensor,
-               attn_mask:torch.Tensor, padding_mask:Optional[Tensor]=None, debug=False):
-        """
-        Used in forward-pass of train.
-        Run Decoder.
-        
-        Args:
-            vis : Visual tokens. Shape: N, L_V, D
-            lan : Language tokens. Shape: N, L_L, D
-            pos : Positional tokens. Shape: N, L_P, D
-        
-        """
-        lan = self.dropout(lan)
-        pos = self.dropout(pos)
-        dummy_token = dummy_token.expand(pos.shape[0], -1, -1)
-        return self.decoder(vis, lan, pos, dummy_token, attn_mask=attn_mask, padding_mask=padding_mask, debug=debug)
-    
-    def refine(self, vis:torch.Tensor, lan:torch.Tensor,  pos:torch.Tensor, dummy_token:torch.Tensor,
-               attn_mask:torch.Tensor, padding_mask:Optional[Tensor]=None, debug=False):
-        """
-        Used in forward-pass of train.
-        Further refines initial decoder prediction.
-        Stop gradient is applied to language and positional tokens,
-        to prevent information leak from future steps.
-        
-        Args:
-            vis : Visual tokens. Shape: N, L_V, D
-            lan : Language tokens. Shape: N, L_L, D
-            pos : Positional tokens. Shape: N, L_P, D
-        
-        """
-        lan = self.dropout(lan)
-        pos = self.dropout(pos)
-        dummy_token = dummy_token.expand(pos.shape[0], -1, -1)
-        # vis is 
-        return self.refiner(vis, lan.detach(), pos.detach(), dummy_token, attn_mask=attn_mask, padding_mask=padding_mask, debug=debug)
-
     def training_step(self, batch, batch_idx) -> STEP_OUTPUT:
         images, labels = batch
         bs = images.shape[0]
@@ -461,7 +453,7 @@ class Isaac_VLO(CrossEntropySystem):
         logits_dec = self.head(pos_dec)
         loss_dec = F.cross_entropy(logits_dec.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
         probs_dec = logits_dec.softmax(-1)
-        preds_dec, probs_dec = self.tokenizer.decode(probs_dec)
+        preds_dec, probs_dec_trunc = self.tokenizer.decode(probs_dec)
         results_dec = [(a == b) for (a, b) in zip(labels, preds_dec)]
         self.results_dec.extend(results_dec)
         if len(self.results_dec) > 10000:
@@ -471,22 +463,12 @@ class Isaac_VLO(CrossEntropySystem):
         
         #@ refinement stage.
         if self.refiner is not None:
-            #* lan tokens
-            bos = torch.full((bs, 1), self.bos_id).to(self._device)
-            # remove eos token
-            init_pred_ind = logits_dec.argmax(-1)[:, :-1]
-            # prepend bos token
-            init_pred_ind = torch.cat([bos, init_pred_ind], dim=1)
-            #- convert eos token to pad / pad up to input size
-            # convert eos position and beyond to pad
-            pad_positions = ((init_pred_ind == self.eos_id).cumsum(-1) > 0).to(torch.bool)
-            init_pred_ind = init_pred_ind.masked_fill(pad_positions, self.pad_id)
-            init_pred_ind = F.pad(init_pred_ind, (0, L_L - init_pred_ind.shape[1]), "constant", self.pad_id)
-            padding_mask_L = (init_pred_ind == self.pad_id)
+            init_pred_ids = self.tokenizer.sample(logits_dec, greedy=self.dec_sampling_method == 'identity', temp=self.dec_sampling_temp, max_label_length=self.max_label_length, device=self._device)
+            padding_mask_L = (init_pred_ids == self.eos_id) | (init_pred_ids == self.pad_id)
             padding_mask_P = padding_mask_L # pos tokens need same pdding mask, since pos tokens after decoding length have random values
             padding_mask_LP = torch.cat([padding_mask_L, padding_mask_P], 1)
             padding_mask_VLP = F.pad(padding_mask_LP, (L_V, 1), "constant", 0) # +1 for dummy token
-            init_pred_lan = self.to_lan(init_pred_ind)
+            init_pred_lan = self.to_lan(init_pred_ids)
             #* attention mask
             attn_mask_refine = self.attn_mask_refine.to(self._device)
             #* refiner
@@ -498,7 +480,7 @@ class Isaac_VLO(CrossEntropySystem):
             loss = loss_dec + loss_ref
             #- accuracy
             probs_ref = logits_ref.softmax(-1)
-            preds_ref, probs_ref = self.tokenizer.decode(probs_ref)
+            preds_ref, probs_ref_trunc = self.tokenizer.decode(probs_ref)
             results_ref = [(a == b) for (a, b) in zip(labels, preds_ref)]
             self.results_ref.extend(results_ref)
             if len(self.results_ref) > 10000:

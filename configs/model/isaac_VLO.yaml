@@ -12,11 +12,11 @@ enc_depth: 12
 dec_num_heads: 12
 dec_mlp_ratio: 4
 dec_depth: 1
-ref_depth: 0
+ref_depth: 1
 ref_loss_scale: 1
 ref_iters: 1
-dec_sampling : "" # identity, pd (proability distribution)
-dec_sampling_temp : 1
+dec_sampling_method : "pd" # identity, pd (proability distribution)
+dec_sampling_temp : 1.0
 ref_objective: "CLM" # identity, CLM
 QK: [['V', 'L', 'P'], ['V', 'L', 'P'], ['V', 'L', 'P']]
 

@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - model: parseq
+  - model: isaac_VLO
   - charset: 94_full
   - dataset: real
 

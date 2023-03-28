@@ -199,8 +199,6 @@ class CrossEntropySystem(BaseSystem):
         tokenizer = Tokenizer(charset_train)
         self.debug = debug
         super().__init__(tokenizer, charset_test, batch_size, lr, warmup_pct, weight_decay, self.debug)
-        # temporary #00FFFF
-        # super().__init__(tokenizer, charset_train, batch_size, lr, warmup_pct, weight_decay, self.debug)
         self.bos_id = tokenizer.bos_id
         self.eos_id = tokenizer.eos_id
         self.pad_id = tokenizer.pad_id
