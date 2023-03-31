@@ -11,7 +11,7 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "args": "outputs/isaac_VLP/2023-03-03_15-49-15/checkpoints/last.ckpt"
+            "args": "data.train_dir=debug"
         }
     ]
 }

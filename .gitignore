@@ -8,6 +8,8 @@ config/
 train_ddp*
 attn*
 *.csv
+.vscode/
+.github/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

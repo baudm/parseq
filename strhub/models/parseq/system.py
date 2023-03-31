@@ -114,7 +114,7 @@ class PARSeq(CrossEntropySystem):
             tgt_query = self.pos_queries[:, :L].expand(N, -1, -1)
         tgt_query = self.dropout(tgt_query)
         # tgt_query : pos
-        # tgt_emb : pos_meb + tok_emb : content
+        # tgt_emb : pos_emb + tok_emb : content
         # memory : memory
         # tgt_query_mask : query_mask
         # tgt_mask : content_mask
