@@ -18,6 +18,7 @@ ref_iters: 1
 dec_sampling_method : "pd" # identity, pd (proability distribution)
 dec_sampling_temp : 1.0
 ref_objective: "CLM" # identity, CLM
+ref_vis_masking_prob : 0
 QK: [['V', 'L', 'P'], ['V', 'L', 'P'], ['V', 'L', 'P']]
 
 # Training

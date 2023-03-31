@@ -51,6 +51,7 @@ class Isaac_VLO(CrossEntropySystem):
                  dec_num_heads: int, dec_mlp_ratio: int, dec_depth: int, ref_depth: int,
                  dropout: float, QK: List[List[str]], ref_loss_scale: int, ref_iters: int,
                  dec_sampling_method: str, dec_sampling_temp : float, ref_objective: str,
+                 ref_vis_masking_prob: float,
                  debug: bool = False, **kwargs: Any) -> None:
         """
         Args:
@@ -71,6 +72,7 @@ class Isaac_VLO(CrossEntropySystem):
         print('Model : Isaac_VLO')
         self.dec_sampling_method = dec_sampling_method
         self.dec_sampling_temp = dec_sampling_temp
+        self.ref_vis_masking_prob = ref_vis_masking_prob
         self.save_hyperparameters()
 
         self.max_label_length = max_label_length
@@ -83,9 +85,12 @@ class Isaac_VLO(CrossEntropySystem):
         self.ref_loss_scale = ref_loss_scale
         self.ref_iters = ref_iters
         
-        self.head = nn.Linear(embed_dim, len(self.tokenizer))
         self.char_embed_dec = TokenEmbedding(len(self.tokenizer), embed_dim)
         self.char_embed_ref = GradientDisentangledTokenEmbedding(len(self.tokenizer), embed_dim, self.char_embed_dec)
+        self.head_dec = nn.Linear(embed_dim, len(self.tokenizer))
+        self.head_dec.weight = self.char_embed_dec.embedding.weight
+        self.head_ref = nn.Linear(embed_dim, len(self.tokenizer))
+        self.head_ref.weight = self.char_embed_ref.embedding.weight
 
         # +1 for <eos>
         self.pos_embed_dec_L = nn.Parameter(torch.Tensor(1, max_label_length + 1, embed_dim))
@@ -386,7 +391,7 @@ class Isaac_VLO(CrossEntropySystem):
             lan_dec_in = self.to_lan(lan_ids, 'decoder')
             vis_dec_out, lan_dec_out, ord_dec_out, agg_dec_t = self.decode(vis, lan_dec_in, ord_dec_in, dummy_token, attn_mask=attn_mask, debug=debug)
             agg_dec_ts.append(agg_dec_t)
-            logits_dec_i = self.head(ord_dec_out[:, i:j])
+            logits_dec_i = self.head_dec(ord_dec_out[:, i:j])
             logits_dec.append(logits_dec_i)
             max_time_step = i
             if j < num_steps:
@@ -416,7 +421,7 @@ class Isaac_VLO(CrossEntropySystem):
             attn_mask_refine = self.attn_mask_refine.to(self._device)
             #* refine
             vis_ref_out, lan_ref_out, ord_ref_out, agg_ref = self.refine(vis, lan_ref_in, ord_dec_in, dummy_token, attn_mask_refine, padding_mask_VLO, debug=debug)
-            logits_ref = self.head(ord_ref_out)
+            logits_ref = self.head_ref(ord_ref_out)
             logits = logits_ref
             
             if debug:
@@ -477,7 +482,7 @@ class Isaac_VLO(CrossEntropySystem):
         attn_mask = self.attn_mask.to(self._device)
         #* decoding
         vis_dec_out, lan_dec_out, ord_dec_out, agg_dec = self.decode(vis, lan_dec_in, ord_dec_in, dummy_token, attn_mask, padding_mask)
-        logits_dec = self.head(ord_dec_out)
+        logits_dec = self.head_dec(ord_dec_out)
         loss_dec = F.cross_entropy(logits_dec.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
         probs_dec = logits_dec.softmax(-1)
         preds_dec, probs_dec_trunc = self.tokenizer.decode(probs_dec)
@@ -494,6 +499,9 @@ class Isaac_VLO(CrossEntropySystem):
             ids_sampled = self.tokenizer.sample(logits_dec, greedy=self.dec_sampling_method == 'identity', temp=self.dec_sampling_temp, max_label_length=self.max_label_length, device=self._device)
             padding_mask_L = (ids_sampled == self.eos_id) | (ids_sampled == self.pad_id)
             padding_mask_VLO = F.pad(padding_mask_L, (L_V, L_O + 1), "constant", 0) # +1 for dummy token
+            #- mask visual tokens with probability
+            if torch.rand(1).item() < self.ref_vis_masking_prob:
+                padding_mask_VLO[:, :L_V] = 1
             lan_ref_in = self.to_lan(ids_sampled, 'refiner')
             #* ord tokens
             ord_ref_in = self.pos_embed_dec_O[:, :L_O].expand(bs, -1, -1)
@@ -502,7 +510,7 @@ class Isaac_VLO(CrossEntropySystem):
             #* refiner
             vis_ref_out, lan_ref_out, ord_ref_out, agg_ref = self.refine(vis, lan_ref_in, ord_ref_in, dummy_token, attn_mask_refine, padding_mask_VLO)
             #- loss
-            logits_ref = self.head(ord_ref_out)
+            logits_ref = self.head_ref(ord_ref_out)
             loss_ref = F.cross_entropy(logits_ref.flatten(end_dim=1), tgt_out.flatten(), ignore_index=self.pad_id)
             loss_ref = self.ref_loss_scale * loss_ref
             loss = loss_dec + loss_ref
