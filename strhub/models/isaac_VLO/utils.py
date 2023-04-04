@@ -1,5 +1,5 @@
 import torch
-
+import torch.nn.functional as F
 
 class AttentionMask:
     def __init__(self, max_label_length, QK, hparams):
