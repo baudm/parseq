@@ -1,5 +1,7 @@
-torch>=1.10.2
-torchvision>=0.11.3
+##torch 2 breaks everything, and not gonna make your cpu faster
+torch==1.13 ##https://pytorch.org/docs/versions.html
+torchvision
+
 pytorch-lightning~=1.6.5
 timm~=0.6.5
 nltk~=3.7.0
