@@ -1,0 +1,7 @@
+-c ${CONSTRAINTS}
+lmdb
+pillow
+imgaug
+hydra-core~=1.2.0
+ray[tune]~=1.13.0
+ax-platform

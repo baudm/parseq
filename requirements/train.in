@@ -1,0 +1,5 @@
+-c ${CONSTRAINTS}
+lmdb
+pillow
+imgaug
+hydra-core~=1.2.0

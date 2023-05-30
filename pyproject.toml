@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "strhub"
+version = "1.1.0"
+description = "Scene Text Recognition Model Hub: A collection of deep learning models for Scene Text Recognition"
+authors = [
+  {name = "Darwin Bautista", email = "baudm@users.noreply.github.com"},
+]
+readme = "README.md"
+requires-python = ">=3.8"
+dynamic = ["optional-dependencies"]
+
+[project.urls]
+Homepage = "https://github.com/baudm/parseq"
+
+[tool.setuptools]
+license-files = ["NOTICE", "LICENSE", "strhub/models/*/LICENSE"]
+
+[tool.setuptools.dynamic]
+optional-dependencies.train = { file = ["requirements/train.txt"] }
+optional-dependencies.test = { file = ["requirements/test.txt"] }
+optional-dependencies.bench = { file = ["requirements/bench.txt"] }
+optional-dependencies.tune = { file = ["requirements/tune.txt"] }
