@@ -1,3 +1,4 @@
 -c ${CONSTRAINTS}
-hydra-core~=1.2.0
-fvcore
+
+hydra-core >=1.2.0
+fvcore >=0.1.5.post20220512

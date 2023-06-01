@@ -3,7 +3,7 @@ defaults:
   - _self_
 
 trainer:
-  gpus: 1  # tuning with DDP is not yet supported.
+  devices: 1  # tuning with DDP is not yet supported.
 
 tune:
   num_samples: 10

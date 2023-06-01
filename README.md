@@ -61,8 +61,8 @@ Requires Python 3.8 or newer and PyTorch 1.13. Originally developed on Python 3.
 platform=cpu
 # Generate requirements files for specified PyTorch platform
 make torch-${platform}
-# Install the project and core + train dependencies. Options: [train,test,bench,tune]
-pip install -r requirements/core.${platform}.txt -e .[train]
+# Install the project and core + train + test dependencies. Subsets: [train,test,bench,tune]
+pip install -r requirements/core.${platform}.txt -e .[train,test]
  ```
 #### Updating dependency version pins
 ```bash

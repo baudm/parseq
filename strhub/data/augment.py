@@ -105,7 +105,7 @@ def rand_augment_transform(magnitude=5, num_layers=3):
         'translate_x_pct': 0.10,
         'translate_y_pct': 0.30
     }
-    ra_ops = auto_augment.rand_augment_ops(magnitude, hparams, transforms=_RAND_TRANSFORMS)
+    ra_ops = auto_augment.rand_augment_ops(magnitude, hparams=hparams, transforms=_RAND_TRANSFORMS)
     # Supply weights to disable replacement in random selection (i.e. avoid applying the same op twice)
     choice_weights = [1. / len(ra_ops) for _ in range(len(ra_ops))]
     return auto_augment.RandAugment(ra_ops, num_layers, choice_weights)
