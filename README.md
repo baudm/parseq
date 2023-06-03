@@ -26,10 +26,11 @@ Scene Text Recognition (STR) models use language context to be more robust again
 Our main insight is that with an ensemble of autoregressive (AR) models, we could unify the current STR decoding methods (context-aware AR and context-free non-AR) and the bidirectional (cloze) refinement model:
 <div align="center"><img src=".github/contexts-example.png" alt="Unified STR model" width="75%"/></div>
 
-A single Transformer can realize different models by merely varying its attention masks. This characteristic coupled with Permutation Language Modeling allows for a _unified_ STR model capable of context-free and context-aware inference, as well as iterative prediction refinement using bidirectional context **without** requiring a standalone language model. PARSeq can be considered an ensemble of AR models with shared architecture and weights:
+A single Transformer can realize different models by merely varying its attention mask. With the correct decoder parameterization, it can be trained with Permutation Language Modeling to enable inference for arbitrary output positions given arbitrary subsets of the input context. This *arbitrary decoding* characteristic results in a _unified_ STR model&mdash;PARSeq&mdash;capable of context-free and context-aware inference, as well as iterative prediction refinement using bidirectional context **without** requiring a standalone language model. PARSeq can be considered an ensemble of AR models with shared architecture and weights:
 
 ![System](.github/system.png)
-
+**NOTE:** _LayerNorm and Dropout layers are omitted. `[B]`, `[E]`, and `[P]` stand for beginning-of-sequence (BOS), end-of-sequence (EOS), and padding tokens, respectively. `T` = 25 results in 26 distinct position tokens. The position tokens both serve as query vectors and position embeddings for the input context. For `[B]`, no position embedding is added. Attention
+masks are generated from the given permutations and are used only for the context-position attention. L<sub>ce</sub> pertains to the cross-entropy loss._
 
 ### Sample Results
 <div align="center">
@@ -55,7 +56,7 @@ released under the BSD and MIT licenses, respectively (see corresponding `LICENS
 An [interactive Gradio demo](https://huggingface.co/spaces/baudm/PARSeq-OCR) hosted at Hugging Face is available. The pretrained weights released here are used for the demo.
 
 ### Installation
-Requires Python 3.8 or newer and PyTorch 1.13. Originally developed on Python 3.9 and PyTorch 1.10.
+Requires Python >= 3.8 and PyTorch >= 1.10 (until 1.13). The default requirements files will install the latest versions of the dependencies (as of June 1, 2023).
 ```bash
 # Use specific platform build. Other PyTorch 1.13 options: cu116, cu117, rocm5.2
 platform=cpu
@@ -143,7 +144,7 @@ The base model configurations are in `configs/model/`, while variations are stor
 
 ### Change `pytorch_lightning.Trainer` parameters
 ```bash
-./train.py trainer.max_epochs=20 trainer.gpus=2 +trainer.accelerator=gpu
+./train.py trainer.max_epochs=20 trainer.accelerator=gpu trainer.devices=2
 ```
 Note that you can pass any [Trainer parameter](https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html),
 you just need to prefix it with `+` if it is not originally specified in `configs/main.yaml`.
