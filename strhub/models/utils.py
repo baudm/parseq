@@ -57,7 +57,7 @@ def _get_model_class(key):
     elif 'vitstr' in key:
         from .vitstr.system import ViTSTR as ModelClass
     else:
-        raise InvalidModelError("Unable to find model class for '{}'".format(key))
+        raise InvalidModelError(f"Unable to find model class for '{key}'")
     return ModelClass
 
 
@@ -65,7 +65,7 @@ def get_pretrained_weights(experiment):
     try:
         url = _WEIGHTS_URL[experiment]
     except KeyError:
-        raise InvalidModelError("No pretrained weights found for '{}'".format(experiment)) from None
+        raise InvalidModelError(f"No pretrained weights found for '{experiment}'") from None
     return torch.hub.load_state_dict_from_url(url=url, map_location='cpu', check_hash=True)
 
 
@@ -73,7 +73,7 @@ def create_model(experiment: str, pretrained: bool = False, **kwargs):
     try:
         config = _get_config(experiment, **kwargs)
     except FileNotFoundError:
-        raise InvalidModelError("No configuration found for '{}'".format(experiment)) from None
+        raise InvalidModelError(f"No configuration found for '{experiment}'") from None
     ModelClass = _get_model_class(experiment)
     model = ModelClass(**config)
     if pretrained:
