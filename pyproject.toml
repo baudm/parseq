@@ -17,6 +17,7 @@ dynamic = ["optional-dependencies"]
 Homepage = "https://github.com/baudm/parseq"
 
 [tool.setuptools]
+packages = ["strhub"]
 license-files = ["NOTICE", "LICENSE", "strhub/models/*/LICENSE"]
 
 [tool.setuptools.dynamic]
