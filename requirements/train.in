@@ -4,3 +4,4 @@ lmdb >=1.3.0
 Pillow >=9.2.0
 imgaug >=0.4.0
 hydra-core >=1.2.0
+tensorboardx >=2.6.0
