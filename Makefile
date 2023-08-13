@@ -1,7 +1,7 @@
 # Reference: https://dida.do/blog/managing-layered-requirements-with-pip-tools
 
 REQUIREMENTS_TXT := $(addsuffix .txt, $(basename $(wildcard requirements/*.in)))
-PIP_COMPILE := pip-compile --quiet --no-header --allow-unsafe --resolver=backtracking
+PIP_COMPILE := pip-compile --quiet --no-header --allow-unsafe --resolver=backtracking --strip-extras
 
 .DEFAULT_GOAL := help
 .PHONY: reqs clean-reqs help
