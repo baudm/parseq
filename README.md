@@ -76,7 +76,7 @@ Download the [datasets](Datasets.md) from the following links:
 2. [LMDB archives](https://drive.google.com/drive/folders/1D9z_YJVa6f-O0juni-yG5jcwnhvYw-qC) for TextOCR and OpenVINO.
 
 ### Pretrained Models via Torch Hub
-Available models are: `abinet`, `crnn`, `trba`, `vitstr`, `parseq_tiny`, and `parseq`.
+Available models are: `abinet`, `crnn`, `trba`, `vitstr`, `parseq_tiny`, `parseq_patch16_224`, and `parseq`.
 ```python
 import torch
 from PIL import Image
