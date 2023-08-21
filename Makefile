@@ -7,7 +7,7 @@ PIP_COMPILE := pip-compile --quiet --no-header --allow-unsafe --resolver=backtra
 .PHONY: reqs clean-reqs help
 
 requirements/constraints.txt: requirements/*.in
-	CONSTRAINTS=/dev/null $(PIP_COMPILE) --strip-extras --output-file $@ $^ --extra-index-url https://download.pytorch.org/whl/cpu
+	CONSTRAINTS=/dev/null $(PIP_COMPILE) --output-file $@ $^ --extra-index-url https://download.pytorch.org/whl/cpu
 
 requirements/%.txt: requirements/%.in requirements/constraints.txt
 	CONSTRAINTS=constraints.txt $(PIP_COMPILE) --no-annotate --output-file $@ $<

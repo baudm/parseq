@@ -56,7 +56,7 @@ released under the BSD and MIT licenses, respectively (see corresponding `LICENS
 An [interactive Gradio demo](https://huggingface.co/spaces/baudm/PARSeq-OCR) hosted at Hugging Face is available. The pretrained weights released here are used for the demo.
 
 ### Installation
-Requires Python >= 3.8 and PyTorch >= 1.10 (until 1.13). The default requirements files will install the latest versions of the dependencies (as of June 1, 2023).
+Requires Python >= 3.9 and PyTorch >= 1.10 (until 1.13). The default requirements files will install the latest versions of the dependencies (as of August 21, 2023).
 ```bash
 # Use specific platform build. Other PyTorch 1.13 options: cu116, cu117, rocm5.2
 platform=cpu
