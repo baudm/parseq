@@ -6,6 +6,15 @@
 [![In Proc. ECCV 2022](http://img.shields.io/badge/ECCV-2022-6790ac)](https://www.ecva.net/papers/eccv_2022/papers_ECCV/html/556_ECCV_2022_paper.php)
 [![Gradio demo](https://img.shields.io/badge/%F0%9F%A4%97%20demo-Gradio-ff7c00)](https://huggingface.co/spaces/baudm/PARSeq-OCR)
 
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/scene-text-recognition-with-permuted/scene-text-recognition-on-coco-text)](https://paperswithcode.com/sota/scene-text-recognition-on-coco-text?p=scene-text-recognition-with-permuted)
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/scene-text-recognition-with-permuted/scene-text-recognition-on-ic19-art)](https://paperswithcode.com/sota/scene-text-recognition-on-ic19-art?p=scene-text-recognition-with-permuted)
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/scene-text-recognition-with-permuted/scene-text-recognition-on-icdar2013)](https://paperswithcode.com/sota/scene-text-recognition-on-icdar2013?p=scene-text-recognition-with-permuted)
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/scene-text-recognition-with-permuted/scene-text-recognition-on-iiit5k)](https://paperswithcode.com/sota/scene-text-recognition-on-iiit5k?p=scene-text-recognition-with-permuted)
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/scene-text-recognition-with-permuted/scene-text-recognition-on-cute80)](https://paperswithcode.com/sota/scene-text-recognition-on-cute80?p=scene-text-recognition-with-permuted)
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/scene-text-recognition-with-permuted/scene-text-recognition-on-icdar2015)](https://paperswithcode.com/sota/scene-text-recognition-on-icdar2015?p=scene-text-recognition-with-permuted)
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/scene-text-recognition-with-permuted/scene-text-recognition-on-svt)](https://paperswithcode.com/sota/scene-text-recognition-on-svt?p=scene-text-recognition-with-permuted)
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/scene-text-recognition-with-permuted/scene-text-recognition-on-svtp)](https://paperswithcode.com/sota/scene-text-recognition-on-svtp?p=scene-text-recognition-with-permuted)
+
 [**Darwin Bautista**](https://github.com/baudm) and [**Rowel Atienza**](https://github.com/roatienza)
 
 Electrical and Electronics Engineering Institute<br/>
