@@ -1,3 +1,9 @@
+## News
+- **2024-01-16**: Featured in the [NVIDIA Developer Blog](https://developer.nvidia.com/blog/robust-scene-text-detection-and-recognition-introduction/)
+- **2023-06-15**: [Added](https://github.com/mindee/doctr/pull/1205) to [docTR](https://github.com/mindee/doctr) (deep learning-based library for OCR)
+- **2022-07-15**: Initial public release
+- **2022-07-04**: Accepted at ECCV 2022
+
 <div align="center">
 
 # Scene Text Recognition with<br/>Permuted Autoregressive Sequence Models
