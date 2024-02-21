@@ -14,22 +14,18 @@
 # limitations under the License.
 
 import math
-from functools import partial
 from itertools import permutations
 from typing import Sequence, Any, Optional
 
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
 from pytorch_lightning.utilities.types import STEP_OUTPUT
-from timm.models.helpers import named_apply
 
 from strhub.models.base import CrossEntropySystem
-from strhub.models.utils import init_weights
-from .modules import DecoderLayer, Decoder, Encoder, TokenEmbedding
+from .model import PARSeq as Model
 
 
 class PARSeq(CrossEntropySystem):
@@ -44,14 +40,11 @@ class PARSeq(CrossEntropySystem):
         super().__init__(charset_train, charset_test, batch_size, lr, warmup_pct, weight_decay)
         self.save_hyperparameters()
 
-        self.max_label_length = max_label_length
-        self.decode_ar = decode_ar
-        self.refine_iters = refine_iters
-
-        self.encoder = Encoder(img_size, patch_size, embed_dim=embed_dim, depth=enc_depth, num_heads=enc_num_heads,
-                               mlp_ratio=enc_mlp_ratio)
-        decoder_layer = DecoderLayer(embed_dim, dec_num_heads, embed_dim * dec_mlp_ratio, dropout)
-        self.decoder = Decoder(decoder_layer, num_layers=dec_depth, norm=nn.LayerNorm(embed_dim))
+        self.model = Model(len(self.tokenizer), max_label_length,
+                           img_size, patch_size, embed_dim,
+                           enc_num_heads, enc_mlp_ratio, enc_depth,
+                           dec_num_heads, dec_mlp_ratio, dec_depth,
+                           decode_ar, refine_iters, dropout)
 
         # Perm/attn mask stuff
         self.rng = np.random.default_rng()
@@ -59,97 +52,8 @@ class PARSeq(CrossEntropySystem):
         self.perm_forward = perm_forward
         self.perm_mirrored = perm_mirrored
 
-        # We don't predict <bos> nor <pad>
-        self.head = nn.Linear(embed_dim, len(self.tokenizer) - 2)
-        self.text_embed = TokenEmbedding(len(self.tokenizer), embed_dim)
-
-        # +1 for <eos>
-        self.pos_queries = nn.Parameter(torch.Tensor(1, max_label_length + 1, embed_dim))
-        self.dropout = nn.Dropout(p=dropout)
-        # Encoder has its own init.
-        named_apply(partial(init_weights, exclude=['encoder']), self)
-        nn.init.trunc_normal_(self.pos_queries, std=.02)
-
-    @torch.jit.ignore
-    def no_weight_decay(self):
-        param_names = {'text_embed.embedding.weight', 'pos_queries'}
-        enc_param_names = {'encoder.' + n for n in self.encoder.no_weight_decay()}
-        return param_names.union(enc_param_names)
-
-    def encode(self, img: torch.Tensor):
-        return self.encoder(img)
-
-    def decode(self, tgt: torch.Tensor, memory: torch.Tensor, tgt_mask: Optional[Tensor] = None,
-               tgt_padding_mask: Optional[Tensor] = None, tgt_query: Optional[Tensor] = None,
-               tgt_query_mask: Optional[Tensor] = None):
-        N, L = tgt.shape
-        # <bos> stands for the null context. We only supply position information for characters after <bos>.
-        null_ctx = self.text_embed(tgt[:, :1])
-        tgt_emb = self.pos_queries[:, :L - 1] + self.text_embed(tgt[:, 1:])
-        tgt_emb = self.dropout(torch.cat([null_ctx, tgt_emb], dim=1))
-        if tgt_query is None:
-            tgt_query = self.pos_queries[:, :L].expand(N, -1, -1)
-        tgt_query = self.dropout(tgt_query)
-        return self.decoder(tgt_query, tgt_emb, memory, tgt_query_mask, tgt_mask, tgt_padding_mask)
-
     def forward(self, images: Tensor, max_length: Optional[int] = None) -> Tensor:
-        testing = max_length is None
-        max_length = self.max_label_length if max_length is None else min(max_length, self.max_label_length)
-        bs = images.shape[0]
-        # +1 for <eos> at end of sequence.
-        num_steps = max_length + 1
-        memory = self.encode(images)
-
-        # Query positions up to `num_steps`
-        pos_queries = self.pos_queries[:, :num_steps].expand(bs, -1, -1)
-
-        # Special case for the forward permutation. Faster than using `generate_attn_masks()`
-        tgt_mask = query_mask = torch.triu(torch.full((num_steps, num_steps), float('-inf'), device=self._device), 1)
-
-        if self.decode_ar:
-            tgt_in = torch.full((bs, num_steps), self.pad_id, dtype=torch.long, device=self._device)
-            tgt_in[:, 0] = self.bos_id
-
-            logits = []
-            for i in range(num_steps):
-                j = i + 1  # next token index
-                # Efficient decoding:
-                # Input the context up to the ith token. We use only one query (at position = i) at a time.
-                # This works because of the lookahead masking effect of the canonical (forward) AR context.
-                # Past tokens have no access to future tokens, hence are fixed once computed.
-                tgt_out = self.decode(tgt_in[:, :j], memory, tgt_mask[:j, :j], tgt_query=pos_queries[:, i:j],
-                                      tgt_query_mask=query_mask[i:j, :j])
-                # the next token probability is in the output's ith token position
-                p_i = self.head(tgt_out)
-                logits.append(p_i)
-                if j < num_steps:
-                    # greedy decode. add the next token index to the target input
-                    tgt_in[:, j] = p_i.squeeze().argmax(-1)
-                    # Efficient batch decoding: If all output words have at least one EOS token, end decoding.
-                    if testing and (tgt_in == self.eos_id).any(dim=-1).all():
-                        break
-
-            logits = torch.cat(logits, dim=1)
-        else:
-            # No prior context, so input is just <bos>. We query all positions.
-            tgt_in = torch.full((bs, 1), self.bos_id, dtype=torch.long, device=self._device)
-            tgt_out = self.decode(tgt_in, memory, tgt_query=pos_queries)
-            logits = self.head(tgt_out)
-
-        if self.refine_iters:
-            # For iterative refinement, we always use a 'cloze' mask.
-            # We can derive it from the AR forward mask by unmasking the token context to the right.
-            query_mask[torch.triu(torch.ones(num_steps, num_steps, dtype=torch.bool, device=self._device), 2)] = 0
-            bos = torch.full((bs, 1), self.bos_id, dtype=torch.long, device=self._device)
-            for i in range(self.refine_iters):
-                # Prior context is the previous output.
-                tgt_in = torch.cat([bos, logits[:, :-1].argmax(-1)], dim=1)
-                tgt_padding_mask = ((tgt_in == self.eos_id).int().cumsum(-1) > 0)  # mask tokens beyond the first EOS token.
-                tgt_out = self.decode(tgt_in, memory, tgt_mask, tgt_padding_mask,
-                                      tgt_query=pos_queries, tgt_query_mask=query_mask[:, :tgt_in.shape[1]])
-                logits = self.head(tgt_out)
-
-        return logits
+        return self.model.forward(self.tokenizer, images, max_length)
 
     def gen_tgt_perms(self, tgt):
         """Generate shared permutations for the whole batch.
@@ -230,7 +134,7 @@ class PARSeq(CrossEntropySystem):
         tgt = self.tokenizer.encode(labels, self._device)
 
         # Encode the source sequence (i.e. the image codes)
-        memory = self.encode(images)
+        memory = self.model.encode(images)
 
         # Prepare the target sequences (input and output)
         tgt_perms = self.gen_tgt_perms(tgt)
@@ -244,8 +148,8 @@ class PARSeq(CrossEntropySystem):
         n = (tgt_out != self.pad_id).sum().item()
         for i, perm in enumerate(tgt_perms):
             tgt_mask, query_mask = self.generate_attn_masks(perm)
-            out = self.decode(tgt_in, memory, tgt_mask, tgt_padding_mask, tgt_query_mask=query_mask)
-            logits = self.head(out).flatten(end_dim=1)
+            out = self.model.decode(tgt_in, memory, tgt_mask, tgt_padding_mask, tgt_query_mask=query_mask)
+            logits = self.model.head(out).flatten(end_dim=1)
             loss += n * F.cross_entropy(logits, tgt_out.flatten(), ignore_index=self.pad_id)
             loss_numel += n
             # After the second iteration (i.e. done with canonical and reverse orderings),

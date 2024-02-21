@@ -78,7 +78,8 @@ def create_model(experiment: str, pretrained: bool = False, **kwargs):
     ModelClass = _get_model_class(experiment)
     model = ModelClass(**config)
     if pretrained:
-        model.load_state_dict(get_pretrained_weights(experiment))
+        m = model.model if 'parseq' in experiment else model
+        m.load_state_dict(get_pretrained_weights(experiment))
     return model
 
 
