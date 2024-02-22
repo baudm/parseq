@@ -21,6 +21,7 @@ packages = ["strhub"]
 license-files = ["NOTICE", "LICENSE", "strhub/models/*/LICENSE"]
 
 [tool.setuptools.dynamic]
+optional-dependencies.dev = { file = ["requirements/dev.txt"] }
 optional-dependencies.train = { file = ["requirements/train.txt"] }
 optional-dependencies.test = { file = ["requirements/test.txt"] }
 optional-dependencies.bench = { file = ["requirements/bench.txt"] }

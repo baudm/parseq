@@ -24,12 +24,11 @@ import hydra
 import numpy as np
 from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig, open_dict
-from ray import tune
+from ray import air, train, tune
 from ray.tune import CLIReporter
 from ray.tune.integration.pytorch_lightning import TuneReportCheckpointCallback
-from ray.tune.ray_trial_executor import RayTrialExecutor
 from ray.tune.schedulers import MedianStoppingRule
-from ray.tune.suggest.ax import AxSearch
+from ray.tune.search.ax import AxSearch
 
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -103,7 +102,7 @@ class TuneReportCheckpointPruneCallback(TuneReportCheckpointCallback):
         self._report._handle(trainer, pl_module)
 
 
-def train(hparams, config, checkpoint_dir=None):
+def trainable(hparams, config):
     with open_dict(config):
         config.model.lr = hparams['lr']
         # config.model.weight_decay = hparams['wd']
@@ -116,7 +115,11 @@ def train(hparams, config, checkpoint_dir=None):
         'NED': 'val_NED',
         'accuracy': 'val_accuracy',
     })
-    ckpt_path = None if checkpoint_dir is None else os.path.join(checkpoint_dir, 'checkpoint')
+    if checkpoint := train.get_checkpoint():
+        with checkpoint.as_directory() as checkpoint_dir:
+            ckpt_path = os.path.join(checkpoint_dir, 'checkpoint.pt')
+    else:
+        ckpt_path = None
     trainer: Trainer = hydra.utils.instantiate(
         config.trainer,
         enable_progress_bar=False,
@@ -163,27 +166,35 @@ def main(config: DictConfig):
 
     out_dir = Path(HydraConfig.get().runtime.output_dir if config.tune.resume_dir is None else config.tune.resume_dir)
 
-    analysis = tune.run(
-        tune.with_parameters(train, config=config),
-        name=out_dir.name,
-        metric='NED',
-        mode='max',
-        stop=MetricTracker('NED', max_t),
-        config=hparams,
-        resources_per_trial={
-            'cpu': 1,
-            'gpu': config.tune.gpus_per_trial,
-        },
-        num_samples=config.tune.num_samples,
-        local_dir=str(out_dir.parent.absolute()),
-        search_alg=search_alg,
-        scheduler=scheduler,
-        progress_reporter=reporter,
-        resume=config.tune.resume_dir is not None,
-        trial_executor=RayTrialExecutor(result_buffer_length=0),  # disable result buffering
-    )
+    resources_per_trial = {
+        'cpu': 1,
+        'gpu': config.tune.gpus_per_trial,
+    }
 
-    print('Best hyperparameters found were: ', analysis.best_config)
+    wrapped_trainable = tune.with_parameters(tune.with_resources(trainable, resources_per_trial), config=config)
+    if config.tune.resume_dir is None:
+        tuner = tune.Tuner(
+            wrapped_trainable,
+            param_space=hparams,
+            tune_config=tune.TuneConfig(
+                mode='max',
+                metric='NED',
+                search_alg=search_alg,
+                scheduler=scheduler,
+                num_samples=config.tune.num_samples,
+            ),
+            run_config=air.RunConfig(
+                name=out_dir.name,
+                stop=MetricTracker('NED', max_t),
+                progress_reporter=reporter,
+                local_dir=str(out_dir.parent.absolute()),
+            ),
+        )
+    else:
+        tuner = tune.Tuner.restore(config.tune.resume_dir, wrapped_trainable)
+    result = tuner.fit()
+
+    print('Best hyperparameters found were: ', result.get_best_result())
 
 
 if __name__ == '__main__':

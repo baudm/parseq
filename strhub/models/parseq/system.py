@@ -160,9 +160,9 @@ class PARSeq(CrossEntropySystem):
         for i in range(sz):
             query_idx = perm[i]
             masked_keys = perm[i + 1 :]
-            mask[query_idx, masked_keys] = float('-inf')
+            mask[query_idx, masked_keys] = True
         content_mask = mask[:-1, :-1].clone()
-        mask[torch.eye(sz, dtype=torch.bool, device=self._device)] = float('-inf')  # mask "self"
+        mask[torch.eye(sz, dtype=torch.bool, device=self._device)] = True  # mask "self"
         query_mask = mask[1:, :-1]
         return content_mask, query_mask
 

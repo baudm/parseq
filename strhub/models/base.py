@@ -27,7 +27,7 @@ from torch.optim import Optimizer
 from torch.optim.lr_scheduler import OneCycleLR
 
 import pytorch_lightning as pl
-from pytorch_lightning.utilities.types import EPOCH_OUTPUT, STEP_OUTPUT
+from pytorch_lightning.utilities.types import STEP_OUTPUT
 from timm.optim import create_optimizer_v2
 
 from strhub.data.utils import BaseTokenizer, CharsetAdapter, CTCTokenizer, Tokenizer
@@ -42,6 +42,9 @@ class BatchResult:
     label_length: int
     loss: Tensor
     loss_numel: int
+
+
+EPOCH_OUTPUT = list[dict[str, BatchResult]]
 
 
 class BaseSystem(pl.LightningModule, ABC):
@@ -62,6 +65,7 @@ class BaseSystem(pl.LightningModule, ABC):
         self.lr = lr
         self.warmup_pct = warmup_pct
         self.weight_decay = weight_decay
+        self.outputs: EPOCH_OUTPUT = []
 
     @abstractmethod
     def forward(self, images: Tensor, max_length: Optional[int] = None) -> Tensor:
@@ -160,10 +164,13 @@ class BaseSystem(pl.LightningModule, ABC):
         return acc, ned, loss
 
     def validation_step(self, batch, batch_idx) -> Optional[STEP_OUTPUT]:
-        return self._eval_step(batch, True)
+        result = self._eval_step(batch, True)
+        self.outputs.append(result)
+        return result
 
-    def validation_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
-        acc, ned, loss = self._aggregate_results(outputs)
+    def on_validation_epoch_end(self) -> None:
+        acc, ned, loss = self._aggregate_results(self.outputs)
+        self.outputs.clear()
         self.log('val_accuracy', 100 * acc, sync_dist=True)
         self.log('val_NED', 100 * ned, sync_dist=True)
         self.log('val_loss', loss, sync_dist=True)

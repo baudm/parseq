@@ -1,6 +1,6 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
 
-aiohttp==3.8.5
+aiohttp==3.9.3
     # via fsspec
 aiosignal==1.3.1
     # via
@@ -10,78 +10,80 @@ antlr4-python3-runtime==4.9.3
     # via
     #   hydra-core
     #   omegaconf
-asttokens==2.2.1
+asttokens==2.4.1
     # via stack-data
 async-timeout==4.0.3
     # via aiohttp
-attrs==23.1.0
+attrs==23.2.0
     # via
     #   aiohttp
     #   jsonschema
-    #   ray
     #   referencing
-ax-platform==0.3.4
+ax-platform==0.3.6
     # via -r requirements/tune.in
-backcall==0.2.0
-    # via ipython
-botorch==0.9.2
+botorch==0.9.5
     # via ax-platform
-certifi==2023.7.22
+certifi==2024.2.2
     # via requests
-charset-normalizer==3.2.0
-    # via
-    #   aiohttp
-    #   requests
-click==8.0.4
+cfgv==3.4.0
+    # via pre-commit
+charset-normalizer==3.3.2
+    # via requests
+click==8.1.7
     # via
     #   nltk
     #   ray
-comm==0.1.4
+comm==0.2.1
     # via ipywidgets
-contourpy==1.1.0
+contourpy==1.2.0
     # via matplotlib
-cycler==0.11.0
+cycler==0.12.1
     # via matplotlib
 decorator==5.1.1
     # via ipython
-distlib==0.3.7
+distlib==0.3.8
     # via virtualenv
-executing==1.2.0
+exceptiongroup==1.2.0
+    # via ipython
+executing==2.0.1
     # via stack-data
-filelock==3.12.2
+filelock==3.13.1
     # via
     #   huggingface-hub
     #   ray
+    #   torch
     #   virtualenv
-fonttools==4.42.1
+fonttools==4.49.0
     # via matplotlib
-frozenlist==1.4.0
+frozenlist==1.4.1
     # via
     #   aiohttp
     #   aiosignal
     #   ray
-fsspec==2023.6.0
+fsspec==2024.2.0
     # via
     #   huggingface-hub
     #   pytorch-lightning
+    #   ray
+    #   torch
 fvcore==0.1.5.post20221221
     # via -r requirements/bench.in
 gpytorch==1.11
     # via botorch
-grpcio==1.43.0
-    # via ray
-huggingface-hub==0.16.4
+huggingface-hub==0.20.3
     # via timm
 hydra-core==1.3.2
     # via
     #   -r requirements/bench.in
     #   -r requirements/train.in
     #   -r requirements/tune.in
-idna==3.4
+identify==2.5.35
+    # via pre-commit
+idna==3.6
     # via
     #   requests
     #   yarl
-imageio==2.31.1
+imageio==2.34.0
     # via
     #   imgaug
     #   scikit-image
@@ -89,35 +91,37 @@ imgaug==0.4.0
     # via
     #   -r requirements/train.in
     #   -r requirements/tune.in
-importlib-resources==6.0.1
+importlib-resources==6.1.1
     # via matplotlib
 iopath==0.1.10
     # via fvcore
-ipython==8.14.0
+ipython==8.18.1
     # via ipywidgets
-ipywidgets==8.1.0
+ipywidgets==8.1.2
     # via ax-platform
-jaxtyping==0.2.21
+jaxtyping==0.2.25
     # via linear-operator
-jedi==0.19.0
+jedi==0.19.1
     # via ipython
-jinja2==3.1.2
-    # via ax-platform
+jinja2==3.1.3
+    # via
+    #   ax-platform
+    #   torch
 joblib==1.3.2
     # via
     #   nltk
     #   scikit-learn
-jsonschema==4.19.0
+jsonschema==4.21.1
     # via ray
-jsonschema-specifications==2023.7.1
+jsonschema-specifications==2023.12.1
     # via jsonschema
-jupyterlab-widgets==3.0.8
+jupyterlab-widgets==3.0.10
     # via ipywidgets
-kiwisolver==1.4.4
+kiwisolver==1.4.5
     # via matplotlib
 lazy-loader==0.3
     # via scikit-image
-lightning-utilities==0.9.0
+lightning-utilities==0.10.1
     # via
     #   pytorch-lightning
     #   torchmetrics
@@ -130,25 +134,33 @@ lmdb==1.4.1
     #   -r requirements/test.in
     #   -r requirements/train.in
     #   -r requirements/tune.in
-markupsafe==2.1.3
+markupsafe==2.1.5
     # via jinja2
-matplotlib==3.7.2
+matplotlib==3.8.3
     # via imgaug
 matplotlib-inline==0.1.6
     # via ipython
-msgpack==1.0.5
+mpmath==1.3.0
+    # via sympy
+msgpack==1.0.7
     # via ray
-multidict==6.0.4
+multidict==6.0.5
     # via
     #   aiohttp
     #   yarl
 multipledispatch==1.0.0
     # via botorch
-networkx==3.1
-    # via scikit-image
+mypy-extensions==1.0.0
+    # via typing-inspect
+networkx==3.2.1
+    # via
+    #   scikit-image
+    #   torch
 nltk==3.8.1
     # via -r requirements/core.in
-numpy==1.25.2
+nodeenv==1.8.0
+    # via pre-commit
+numpy==1.26.4
     # via
     #   contourpy
     #   fvcore
@@ -159,10 +171,9 @@ numpy==1.25.2
     #   opencv-python
     #   opt-einsum
     #   pandas
+    #   pyarrow
     #   pyro-ppl
     #   pytorch-lightning
-    #   pywavelets
-    #   ray
     #   scikit-image
     #   scikit-learn
     #   scipy
@@ -173,11 +184,11 @@ numpy==1.25.2
     #   torchvision
 omegaconf==2.3.0
     # via hydra-core
-opencv-python==4.8.0.76
+opencv-python==4.9.0.80
     # via imgaug
 opt-einsum==3.3.0
     # via pyro-ppl
-packaging==23.1
+packaging==23.2
     # via
     #   huggingface-hub
     #   hydra-core
@@ -185,20 +196,19 @@ packaging==23.1
     #   matplotlib
     #   plotly
     #   pytorch-lightning
+    #   ray
     #   scikit-image
     #   tensorboardx
     #   torchmetrics
-pandas==2.0.3
+pandas==2.2.0
     # via
     #   ax-platform
     #   ray
 parso==0.8.3
     # via jedi
-pexpect==4.8.0
+pexpect==4.9.0
     # via ipython
-pickleshare==0.7.5
-    # via ipython
-pillow==10.0.0
+pillow==10.2.0
     # via
     #   -r requirements/test.in
     #   -r requirements/train.in
@@ -209,15 +219,17 @@ pillow==10.0.0
     #   matplotlib
     #   scikit-image
     #   torchvision
-platformdirs==3.10.0
+platformdirs==4.2.0
     # via virtualenv
-plotly==5.16.1
+plotly==5.19.0
     # via ax-platform
-portalocker==2.7.0
+portalocker==2.8.2
     # via iopath
-prompt-toolkit==3.0.39
+pre-commit==3.6.2
+    # via -r requirements/dev.in
+prompt-toolkit==3.0.43
     # via ipython
-protobuf==3.20.3
+protobuf==4.25.3
     # via
     #   ray
     #   tensorboardx
@@ -225,61 +237,62 @@ ptyprocess==0.7.0
     # via pexpect
 pure-eval==0.2.2
     # via stack-data
-pygments==2.16.1
+pyarrow==15.0.0
+    # via ray
+pygments==2.17.2
     # via ipython
-pyparsing==3.0.9
+pyparsing==3.1.1
     # via matplotlib
+pyre-extensions==0.0.30
+    # via ax-platform
 pyro-api==0.1.2
     # via pyro-ppl
-pyro-ppl==1.8.6
+pyro-ppl==1.9.0
     # via botorch
 python-dateutil==2.8.2
     # via
     #   matplotlib
     #   pandas
-pytorch-lightning==1.9.5
+pytorch-lightning==2.2.0.post0
     # via -r requirements/core.in
-pytz==2023.3
+pytz==2024.1
     # via pandas
-pywavelets==1.4.1
-    # via scikit-image
 pyyaml==6.0.1
     # via
     #   -r requirements/core.in
     #   fvcore
     #   huggingface-hub
     #   omegaconf
+    #   pre-commit
     #   pytorch-lightning
     #   ray
     #   timm
     #   yacs
-ray==1.13.0
+ray==2.9.2
     # via -r requirements/tune.in
-referencing==0.30.2
+referencing==0.33.0
     # via
     #   jsonschema
     #   jsonschema-specifications
-regex==2023.8.8
+regex==2023.12.25
     # via nltk
 requests==2.31.0
     # via
-    #   fsspec
     #   huggingface-hub
     #   ray
-    #   torchvision
-rpds-py==0.9.2
+rpds-py==0.18.0
     # via
     #   jsonschema
     #   referencing
-safetensors==0.3.2
+safetensors==0.4.2
     # via timm
-scikit-image==0.21.0
+scikit-image==0.22.0
     # via imgaug
-scikit-learn==1.3.0
+scikit-learn==1.4.1.post1
     # via
     #   ax-platform
     #   gpytorch
-scipy==1.11.2
+scipy==1.12.0
     # via
     #   ax-platform
     #   botorch
@@ -287,35 +300,34 @@ scipy==1.11.2
     #   linear-operator
     #   scikit-image
     #   scikit-learn
-shapely==2.0.1
+shapely==2.0.3
     # via imgaug
 six==1.16.0
     # via
     #   asttokens
-    #   grpcio
     #   imgaug
     #   python-dateutil
-stack-data==0.6.2
+stack-data==0.6.3
     # via ipython
+sympy==1.12
+    # via torch
 tabulate==0.9.0
-    # via
-    #   fvcore
-    #   ray
+    # via fvcore
 tenacity==8.2.3
     # via plotly
 tensorboardx==2.6.2.2
     # via
     #   -r requirements/train.in
     #   ray
-termcolor==2.3.0
+termcolor==2.4.0
     # via fvcore
-threadpoolctl==3.2.0
+threadpoolctl==3.3.0
     # via scikit-learn
-tifffile==2023.8.12
+tifffile==2024.2.12
     # via scikit-image
-timm==0.9.5
+timm==0.9.16
     # via -r requirements/core.in
-torch==1.13.1+cpu
+torch==2.2.1+cpu
     # via
     #   -r requirements/core.in
     #   botorch
@@ -325,13 +337,13 @@ torch==1.13.1+cpu
     #   timm
     #   torchmetrics
     #   torchvision
-torchmetrics==1.0.3
+torchmetrics==1.3.1
     # via pytorch-lightning
-torchvision==0.14.1+cpu
+torchvision==0.17.1+cpu
     # via
     #   -r requirements/core.in
     #   timm
-tqdm==4.66.1
+tqdm==4.66.2
     # via
     #   -r requirements/test.in
     #   fvcore
@@ -340,7 +352,7 @@ tqdm==4.66.1
     #   nltk
     #   pyro-ppl
     #   pytorch-lightning
-traitlets==5.9.0
+traitlets==5.14.1
     # via
     #   comm
     #   ipython
@@ -351,29 +363,38 @@ typeguard==2.13.3
     #   ax-platform
     #   jaxtyping
     #   linear-operator
-typing-extensions==4.7.1
+typing-extensions==4.9.0
     # via
     #   huggingface-hub
     #   iopath
     #   ipython
     #   jaxtyping
     #   lightning-utilities
+    #   pyre-extensions
     #   pytorch-lightning
     #   torch
-    #   torchvision
-tzdata==2023.3
+    #   typing-inspect
+typing-inspect==0.9.0
+    # via pyre-extensions
+tzdata==2024.1
     # via pandas
-urllib3==2.0.4
+urllib3==2.2.1
     # via requests
-virtualenv==20.24.3
-    # via ray
-wcwidth==0.2.6
+virtualenv==20.25.1
+    # via pre-commit
+wcwidth==0.2.13
     # via prompt-toolkit
-widgetsnbextension==4.0.8
+widgetsnbextension==4.0.10
     # via ipywidgets
 yacs==0.1.8
     # via fvcore
-yarl==1.9.2
+yarl==1.9.4
     # via aiohttp
-zipp==3.16.2
+zipp==3.17.0
     # via importlib-resources
+
+# The following packages are considered to be unsafe in a requirements file:
+setuptools==69.1.0
+    # via
+    #   lightning-utilities
+    #   nodeenv

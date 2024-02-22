@@ -1,4 +1,5 @@
 ## News
+- **2024-02-22**: Updated for PyTorch 2.0 and Lightning 2.0
 - **2024-01-16**: Featured in the [NVIDIA Developer Blog](https://developer.nvidia.com/blog/robust-scene-text-detection-and-recognition-introduction/)
 - **2023-06-15**: [Added](https://github.com/mindee/doctr/pull/1205) to [docTR](https://github.com/mindee/doctr) (deep learning-based library for OCR)
 - **2022-07-15**: Initial public release
@@ -71,13 +72,13 @@ released under the BSD and MIT licenses, respectively (see corresponding `LICENS
 An [interactive Gradio demo](https://huggingface.co/spaces/baudm/PARSeq-OCR) hosted at Hugging Face is available. The pretrained weights released here are used for the demo.
 
 ### Installation
-Requires Python >= 3.9 and PyTorch >= 1.10 (until 1.13). The default requirements files will install the latest versions of the dependencies (as of August 21, 2023).
+Requires Python >= 3.9 and PyTorch >= 2.0. The default requirements files will install the latest versions of the dependencies (as of February 22, 2024).
 ```bash
-# Use specific platform build. Other PyTorch 1.13 options: cu116, cu117, rocm5.2
+# Use specific platform build. Other PyTorch 2.0 options: cu118, cu121, rocm5.7
 platform=cpu
 # Generate requirements files for specified PyTorch platform
 make torch-${platform}
-# Install the project and core + train + test dependencies. Subsets: [train,test,bench,tune]
+# Install the project and core + train + test dependencies. Subsets: [dev,train,test,bench,tune]
 pip install -r requirements/core.${platform}.txt -e .[train,test]
  ```
 #### Updating dependency version pins

@@ -1,8 +1,8 @@
 -c ${CONSTRAINTS}
 
-torch >=1.10.0, <2.0.0
-torchvision >=0.11.0, <0.15.0
+torch >=2.0.0
+torchvision >=0.15.0
 timm >=0.6.5
-pytorch-lightning >=1.7.0, <2.0.0  # TODO: refactor code to separate model from training code.
+pytorch-lightning >=2.0.0  # TODO: refactor code to separate model from training code.
 nltk >=3.7.0  # TODO: refactor/reorganize code. This is a train/test dependency.
 PyYAML >=6.0.0  # TODO: can we move this to train/test?

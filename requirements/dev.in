@@ -1,5 +1,3 @@
 -c ${CONSTRAINTS}
 
-lmdb
-Pillow
-tqdm
+pre-commit

@@ -50,7 +50,7 @@ def get_swa_lr_factor(warmup_pct, swa_epoch_start, div_factor=25, final_div_fact
 
 @hydra.main(config_path='configs', config_name='main', version_base='1.2')
 def main(config: DictConfig):
-    trainer_strategy = None
+    trainer_strategy = 'auto'
     with open_dict(config):
         # Resolve absolute path to data.root_dir
         config.data.root_dir = hydra.utils.to_absolute_path(config.data.root_dir)
@@ -61,9 +61,7 @@ def main(config: DictConfig):
             # Use mixed-precision training
             config.trainer.precision = 16
         if gpu and devices > 1:
-            # Use DDP
-            config.trainer.strategy = 'ddp'
-            # DDP optimizations
+            # Use DDP with optimizations
             trainer_strategy = DDPStrategy(find_unused_parameters=False, gradient_as_bucket_view=True)
             # Scale steps-based config
             config.trainer.val_check_interval //= devices

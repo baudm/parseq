@@ -114,7 +114,7 @@ class PARSeq(nn.Module):
         pos_queries = self.pos_queries[:, :num_steps].expand(bs, -1, -1)
 
         # Special case for the forward permutation. Faster than using `generate_attn_masks()`
-        tgt_mask = query_mask = torch.triu(torch.full((num_steps, num_steps), float('-inf'), device=self._device), 1)
+        tgt_mask = query_mask = torch.triu(torch.full((num_steps, num_steps), True, device=self._device), 1)
 
         if self.decode_ar:
             tgt_in = torch.full((bs, num_steps), tokenizer.pad_id, dtype=torch.long, device=self._device)
