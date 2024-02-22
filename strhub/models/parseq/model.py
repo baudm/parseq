@@ -14,34 +14,48 @@
 # limitations under the License.
 
 from functools import partial
-from typing import Sequence, Optional
+from typing import Optional, Sequence
 
 import torch
 import torch.nn as nn
 from torch import Tensor
 
 from timm.models.helpers import named_apply
-from strhub.data.utils import Tokenizer
 
+from strhub.data.utils import Tokenizer
 from strhub.models.utils import init_weights
-from .modules import DecoderLayer, Decoder, Encoder, TokenEmbedding
+
+from .modules import Decoder, DecoderLayer, Encoder, TokenEmbedding
 
 
 class PARSeq(nn.Module):
 
-    def __init__(self, num_tokens: int, max_label_length: int,
-                 img_size: Sequence[int], patch_size: Sequence[int], embed_dim: int,
-                 enc_num_heads: int, enc_mlp_ratio: int, enc_depth: int,
-                 dec_num_heads: int, dec_mlp_ratio: int, dec_depth: int,
-                 decode_ar: bool, refine_iters: int, dropout: float) -> None:
+    def __init__(
+        self,
+        num_tokens: int,
+        max_label_length: int,
+        img_size: Sequence[int],
+        patch_size: Sequence[int],
+        embed_dim: int,
+        enc_num_heads: int,
+        enc_mlp_ratio: int,
+        enc_depth: int,
+        dec_num_heads: int,
+        dec_mlp_ratio: int,
+        dec_depth: int,
+        decode_ar: bool,
+        refine_iters: int,
+        dropout: float,
+    ) -> None:
         super().__init__()
 
         self.max_label_length = max_label_length
         self.decode_ar = decode_ar
         self.refine_iters = refine_iters
 
-        self.encoder = Encoder(img_size, patch_size, embed_dim=embed_dim, depth=enc_depth, num_heads=enc_num_heads,
-                               mlp_ratio=enc_mlp_ratio)
+        self.encoder = Encoder(
+            img_size, patch_size, embed_dim=embed_dim, depth=enc_depth, num_heads=enc_num_heads, mlp_ratio=enc_mlp_ratio
+        )
         decoder_layer = DecoderLayer(embed_dim, dec_num_heads, embed_dim * dec_mlp_ratio, dropout)
         self.decoder = Decoder(decoder_layer, num_layers=dec_depth, norm=nn.LayerNorm(embed_dim))
 
@@ -54,7 +68,7 @@ class PARSeq(nn.Module):
         self.dropout = nn.Dropout(p=dropout)
         # Encoder has its own init.
         named_apply(partial(init_weights, exclude=['encoder']), self)
-        nn.init.trunc_normal_(self.pos_queries, std=.02)
+        nn.init.trunc_normal_(self.pos_queries, std=0.02)
 
     @property
     def _device(self) -> torch.device:
@@ -69,13 +83,19 @@ class PARSeq(nn.Module):
     def encode(self, img: torch.Tensor):
         return self.encoder(img)
 
-    def decode(self, tgt: torch.Tensor, memory: torch.Tensor, tgt_mask: Optional[Tensor] = None,
-               tgt_padding_mask: Optional[Tensor] = None, tgt_query: Optional[Tensor] = None,
-               tgt_query_mask: Optional[Tensor] = None):
+    def decode(
+        self,
+        tgt: torch.Tensor,
+        memory: torch.Tensor,
+        tgt_mask: Optional[Tensor] = None,
+        tgt_padding_mask: Optional[Tensor] = None,
+        tgt_query: Optional[Tensor] = None,
+        tgt_query_mask: Optional[Tensor] = None,
+    ):
         N, L = tgt.shape
         # <bos> stands for the null context. We only supply position information for characters after <bos>.
         null_ctx = self.text_embed(tgt[:, :1])
-        tgt_emb = self.pos_queries[:, :L - 1] + self.text_embed(tgt[:, 1:])
+        tgt_emb = self.pos_queries[:, : L - 1] + self.text_embed(tgt[:, 1:])
         tgt_emb = self.dropout(torch.cat([null_ctx, tgt_emb], dim=1))
         if tgt_query is None:
             tgt_query = self.pos_queries[:, :L].expand(N, -1, -1)
@@ -107,8 +127,13 @@ class PARSeq(nn.Module):
                 # Input the context up to the ith token. We use only one query (at position = i) at a time.
                 # This works because of the lookahead masking effect of the canonical (forward) AR context.
                 # Past tokens have no access to future tokens, hence are fixed once computed.
-                tgt_out = self.decode(tgt_in[:, :j], memory, tgt_mask[:j, :j], tgt_query=pos_queries[:, i:j],
-                                      tgt_query_mask=query_mask[i:j, :j])
+                tgt_out = self.decode(
+                    tgt_in[:, :j],
+                    memory,
+                    tgt_mask[:j, :j],
+                    tgt_query=pos_queries[:, i:j],
+                    tgt_query_mask=query_mask[i:j, :j],
+                )
                 # the next token probability is in the output's ith token position
                 p_i = self.head(tgt_out)
                 logits.append(p_i)
@@ -134,9 +159,11 @@ class PARSeq(nn.Module):
             for i in range(self.refine_iters):
                 # Prior context is the previous output.
                 tgt_in = torch.cat([bos, logits[:, :-1].argmax(-1)], dim=1)
-                tgt_padding_mask = ((tgt_in == tokenizer.eos_id).int().cumsum(-1) > 0)  # mask tokens beyond the first EOS token.
-                tgt_out = self.decode(tgt_in, memory, tgt_mask, tgt_padding_mask,
-                                      tgt_query=pos_queries, tgt_query_mask=query_mask[:, :tgt_in.shape[1]])
+                # Mask tokens beyond the first EOS token.
+                tgt_padding_mask = (tgt_in == tokenizer.eos_id).int().cumsum(-1) > 0
+                tgt_out = self.decode(
+                    tgt_in, memory, tgt_mask, tgt_padding_mask, pos_queries, query_mask[:, : tgt_in.shape[1]]
+                )
                 logits = self.head(tgt_out)
 
         return logits

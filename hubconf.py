@@ -1,6 +1,5 @@
 from strhub.models.utils import create_model
 
-
 dependencies = ['torch', 'pytorch_lightning', 'timm']
 
 
@@ -23,6 +22,7 @@ def parseq(pretrained: bool = False, decode_ar: bool = True, refine_iters: int =
     """
     return create_model('parseq', pretrained, decode_ar=decode_ar, refine_iters=refine_iters, **kwargs)
 
+
 def parseq_patch16_224(pretrained: bool = False, decode_ar: bool = True, refine_iters: int = 1, **kwargs):
     """
     PARSeq base model (img_size=224x224, patch_size=16x16, d_model=384)
@@ -31,6 +31,7 @@ def parseq_patch16_224(pretrained: bool = False, decode_ar: bool = True, refine_
     @param refine_iters: (int) number of refinement iterations to use
     """
     return create_model('parseq-patch16-224', pretrained, decode_ar=decode_ar, refine_iters=refine_iters, **kwargs)
+
 
 def abinet(pretrained: bool = False, iter_size: int = 3, **kwargs):
     """

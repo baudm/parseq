@@ -7,17 +7,16 @@ import os.path as osp
 from functools import partial
 
 import mmcv
-from PIL import Image
 from mmocr.utils.fileio import list_to_file
+from PIL import Image
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description='Generate training and validation set of TextOCR '
-                    'by cropping box image.')
+        description='Generate training and validation set of TextOCR ' 'by cropping box image.'
+    )
     parser.add_argument('root_path', help='Root dir path of TextOCR')
-    parser.add_argument(
-        'n_proc', default=1, type=int, help='Number of processes to run')
+    parser.add_argument('n_proc', default=1, type=int, help='Number of processes to run')
     args = parser.parse_args()
     return args
 
@@ -32,8 +31,12 @@ def process_img(args, src_image_root, dst_image_root):
         text_label = html.unescape(ann['utf8_string'].strip())
 
         # Ignore empty labels
-        if not text_label or ann['class'] != 'machine printed' or ann['language'] != 'english' or \
-                ann['legibility'] != 'legible':
+        if (
+            not text_label
+            or ann['class'] != 'machine printed'
+            or ann['language'] != 'english'
+            or ann['legibility'] != 'legible'
+        ):
             continue
 
         # Some labels and images with '#' in the middle are actually good, but some aren't, so we just filter them all.
@@ -54,22 +57,15 @@ def process_img(args, src_image_root, dst_image_root):
         dst_img_path = osp.join(dst_image_root, dst_img_name)
         # Preserve JPEG quality
         dst_img.save(dst_img_path, qtables=src_img.quantization)
-        labels.append(f'{osp.basename(dst_image_root)}/{dst_img_name}'
-                      f' {text_label}')
+        labels.append(f'{osp.basename(dst_image_root)}/{dst_img_name}' f' {text_label}')
     src_img.close()
     return labels
 
 
-def convert_textocr(root_path,
-                    dst_image_path,
-                    dst_label_filename,
-                    annotation_filename,
-                    img_start_idx=0,
-                    nproc=1):
+def convert_textocr(root_path, dst_image_path, dst_label_filename, annotation_filename, img_start_idx=0, nproc=1):
     annotation_path = osp.join(root_path, annotation_filename)
     if not osp.exists(annotation_path):
-        raise Exception(
-            f'{annotation_path} not exists, please check and try again.')
+        raise Exception(f'{annotation_path} not exists, please check and try again.')
     src_image_root = root_path
 
     # outputs
@@ -80,10 +76,7 @@ def convert_textocr(root_path,
     annotation = mmcv.load(annotation_path)
     split = 'train' if 'train' in dst_label_filename else 'val'
 
-    process_img_with_path = partial(
-        process_img,
-        src_image_root=src_image_root,
-        dst_image_root=dst_image_root)
+    process_img_with_path = partial(process_img, src_image_root=src_image_root, dst_image_root=dst_image_root)
     tasks = []
     for img_idx, img_info in enumerate(annotation['imgs'].values()):
         if img_info['set'] != split:
@@ -92,8 +85,7 @@ def convert_textocr(root_path,
         anns = [annotation['anns'][str(ann_id)] for ann_id in ann_ids]
         tasks.append((img_idx + img_start_idx, img_info, anns))
 
-    labels_list = mmcv.track_parallel_progress(
-        process_img_with_path, tasks, keep_order=True, nproc=nproc)
+    labels_list = mmcv.track_parallel_progress(process_img_with_path, tasks, keep_order=True, nproc=nproc)
     final_labels = []
     for label_list in labels_list:
         final_labels += label_list
@@ -110,7 +102,8 @@ def main():
         dst_image_path='image',
         dst_label_filename='train_label.txt',
         annotation_filename='cocotext.v2.json',
-        nproc=args.n_proc)
+        nproc=args.n_proc,
+    )
     print('Processing validation set...')
     convert_textocr(
         root_path=root_path,
@@ -118,7 +111,8 @@ def main():
         dst_label_filename='val_label.txt',
         annotation_filename='cocotext.v2.json',
         img_start_idx=num_train_imgs,
-        nproc=args.n_proc)
+        nproc=args.n_proc,
+    )
     print('Finish')
 
 

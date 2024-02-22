@@ -3,8 +3,8 @@ import io
 import os
 from argparse import ArgumentParser
 
-import numpy as np
 import lmdb
+import numpy as np
 from PIL import Image
 
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""" a modified version of CRNN torch repository https://github.com/bgshih/crnn/blob/master/tool/create_dataset.py """
+"""a modified version of CRNN torch repository https://github.com/bgshih/crnn/blob/master/tool/create_dataset.py"""
 import io
 import os
 

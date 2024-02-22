@@ -6,19 +6,18 @@ from argparse import ArgumentParser
 from functools import partial
 
 import mmcv
-from PIL import Image
-
 from mmocr.utils.fileio import list_to_file
+from PIL import Image
 
 
 def parse_args():
-    parser = ArgumentParser(description='Generate training and validation set '
-                            'of OpenVINO annotations for Open '
-                            'Images by cropping box image.')
-    parser.add_argument(
-        'root_path', help='Root dir containing images and annotations')
-    parser.add_argument(
-        'n_proc', default=1, type=int, help='Number of processes to run')
+    parser = ArgumentParser(
+        description='Generate training and validation set '
+        'of OpenVINO annotations for Open '
+        'Images by cropping box image.'
+    )
+    parser.add_argument('root_path', help='Root dir containing images and annotations')
+    parser.add_argument('n_proc', default=1, type=int, help='Number of processes to run')
     args = parser.parse_args()
     return args
 
@@ -44,22 +43,15 @@ def process_img(args, src_image_root, dst_image_root):
         dst_img_path = osp.join(dst_image_root, dst_img_name)
         # Preserve JPEG quality
         dst_img.save(dst_img_path, qtables=src_img.quantization)
-        labels.append(f'{osp.basename(dst_image_root)}/{dst_img_name}'
-                      f' {text_label}')
+        labels.append(f'{osp.basename(dst_image_root)}/{dst_img_name}' f' {text_label}')
     src_img.close()
     return labels
 
 
-def convert_openimages(root_path,
-                       dst_image_path,
-                       dst_label_filename,
-                       annotation_filename,
-                       img_start_idx=0,
-                       nproc=1):
+def convert_openimages(root_path, dst_image_path, dst_label_filename, annotation_filename, img_start_idx=0, nproc=1):
     annotation_path = osp.join(root_path, annotation_filename)
     if not osp.exists(annotation_path):
-        raise Exception(
-            f'{annotation_path} not exists, please check and try again.')
+        raise Exception(f'{annotation_path} not exists, please check and try again.')
     src_image_root = root_path
 
     # outputs
@@ -69,18 +61,14 @@ def convert_openimages(root_path,
 
     annotation = mmcv.load(annotation_path)
 
-    process_img_with_path = partial(
-        process_img,
-        src_image_root=src_image_root,
-        dst_image_root=dst_image_root)
+    process_img_with_path = partial(process_img, src_image_root=src_image_root, dst_image_root=dst_image_root)
     tasks = []
     anns = {}
     for ann in annotation['annotations']:
         anns.setdefault(ann['image_id'], []).append(ann)
     for img_idx, img_info in enumerate(annotation['images']):
         tasks.append((img_idx + img_start_idx, img_info, anns[img_info['id']]))
-    labels_list = mmcv.track_parallel_progress(
-        process_img_with_path, tasks, keep_order=True, nproc=nproc)
+    labels_list = mmcv.track_parallel_progress(process_img_with_path, tasks, keep_order=True, nproc=nproc)
     final_labels = []
     for label_list in labels_list:
         final_labels += label_list
@@ -100,7 +88,8 @@ def main():
             dst_label_filename=f'train_{s}_label.txt',
             annotation_filename=f'text_spotting_openimages_v5_train_{s}.json',
             img_start_idx=num_train_imgs,
-            nproc=args.n_proc)
+            nproc=args.n_proc,
+        )
     print('Processing validation set...')
     convert_openimages(
         root_path=root_path,
@@ -108,7 +97,8 @@ def main():
         dst_label_filename='val_label.txt',
         annotation_filename='text_spotting_openimages_v5_validation.json',
         img_start_idx=num_train_imgs,
-        nproc=args.n_proc)
+        nproc=args.n_proc,
+    )
     print('Finish')
 
 

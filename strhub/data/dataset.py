@@ -21,7 +21,8 @@ from typing import Callable, Optional, Union
 
 import lmdb
 from PIL import Image
-from torch.utils.data import Dataset, ConcatDataset
+
+from torch.utils.data import ConcatDataset, Dataset
 
 from strhub.data.utils import CharsetAdapter
 
@@ -54,17 +55,26 @@ class LmdbDataset(Dataset):
     Labels are transformed according to the charset.
     """
 
-    def __init__(self, root: str, charset: str, max_label_len: int, min_image_dim: int = 0,
-                 remove_whitespace: bool = True, normalize_unicode: bool = True,
-                 unlabelled: bool = False, transform: Optional[Callable] = None):
+    def __init__(
+        self,
+        root: str,
+        charset: str,
+        max_label_len: int,
+        min_image_dim: int = 0,
+        remove_whitespace: bool = True,
+        normalize_unicode: bool = True,
+        unlabelled: bool = False,
+        transform: Optional[Callable] = None,
+    ):
         self._env = None
         self.root = root
         self.unlabelled = unlabelled
         self.transform = transform
         self.labels = []
         self.filtered_index_list = []
-        self.num_samples = self._preprocess_labels(charset, remove_whitespace, normalize_unicode,
-                                                   max_label_len, min_image_dim)
+        self.num_samples = self._preprocess_labels(
+            charset, remove_whitespace, normalize_unicode, max_label_len, min_image_dim
+        )
 
     def __del__(self):
         if self._env is not None:
@@ -72,8 +82,9 @@ class LmdbDataset(Dataset):
             self._env = None
 
     def _create_env(self):
-        return lmdb.open(self.root, max_readers=1, readonly=True, create=False,
-                         readahead=False, meminit=False, lock=False)
+        return lmdb.open(
+            self.root, max_readers=1, readonly=True, create=False, readahead=False, meminit=False, lock=False
+        )
 
     @property
     def env(self):

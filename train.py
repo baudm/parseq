@@ -16,9 +16,9 @@
 import math
 from pathlib import Path
 
-from omegaconf import DictConfig, open_dict
 import hydra
 from hydra.core.hydra_config import HydraConfig
+from omegaconf import DictConfig, open_dict
 
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint, StochasticWeightAveraging
@@ -33,7 +33,7 @@ from strhub.models.utils import get_pretrained_weights
 
 # Copied from OneCycleLR
 def _annealing_cos(start, end, pct):
-    "Cosine anneal from `start` to `end` as pct goes from 0.0 to 1.0."
+    'Cosine anneal from `start` to `end` as pct goes from 0.0 to 1.0.'
     cos_out = math.cos(math.pi * pct) + 1
     return end + (start - end) / 2.0 * cos_out
 
@@ -82,16 +82,28 @@ def main(config: DictConfig):
 
     datamodule: SceneTextDataModule = hydra.utils.instantiate(config.data)
 
-    checkpoint = ModelCheckpoint(monitor='val_accuracy', mode='max', save_top_k=3, save_last=True,
-                                 filename='{epoch}-{step}-{val_accuracy:.4f}-{val_NED:.4f}')
+    checkpoint = ModelCheckpoint(
+        monitor='val_accuracy',
+        mode='max',
+        save_top_k=3,
+        save_last=True,
+        filename='{epoch}-{step}-{val_accuracy:.4f}-{val_NED:.4f}',
+    )
     swa_epoch_start = 0.75
     swa_lr = config.model.lr * get_swa_lr_factor(config.model.warmup_pct, swa_epoch_start)
     swa = StochasticWeightAveraging(swa_lr, swa_epoch_start)
-    cwd = HydraConfig.get().runtime.output_dir if config.ckpt_path is None else \
-        str(Path(config.ckpt_path).parents[1].absolute())
-    trainer: Trainer = hydra.utils.instantiate(config.trainer, logger=TensorBoardLogger(cwd, '', '.'),
-                                               strategy=trainer_strategy, enable_model_summary=False,
-                                               callbacks=[checkpoint, swa])
+    cwd = (
+        HydraConfig.get().runtime.output_dir
+        if config.ckpt_path is None
+        else str(Path(config.ckpt_path).parents[1].absolute())
+    )
+    trainer: Trainer = hydra.utils.instantiate(
+        config.trainer,
+        logger=TensorBoardLogger(cwd, '', '.'),
+        strategy=trainer_strategy,
+        enable_model_summary=False,
+        callbacks=[checkpoint, swa],
+    )
     trainer.fit(model, datamodule=datamodule, ckpt_path=config.ckpt_path)
 
 

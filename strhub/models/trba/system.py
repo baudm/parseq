@@ -14,31 +14,51 @@
 # limitations under the License.
 
 from functools import partial
-from typing import Sequence, Any, Optional
+from typing import Any, Optional, Sequence
 
 import torch
 import torch.nn.functional as F
+from torch import Tensor
+
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 from timm.models.helpers import named_apply
-from torch import Tensor
 
 from strhub.models.base import CrossEntropySystem, CTCSystem
 from strhub.models.utils import init_weights
+
 from .model import TRBA as Model
 
 
 class TRBA(CrossEntropySystem):
 
-    def __init__(self, charset_train: str, charset_test: str, max_label_length: int,
-                 batch_size: int, lr: float, warmup_pct: float, weight_decay: float,
-                 img_size: Sequence[int], num_fiducial: int, output_channel: int, hidden_size: int,
-                 **kwargs: Any) -> None:
+    def __init__(
+        self,
+        charset_train: str,
+        charset_test: str,
+        max_label_length: int,
+        batch_size: int,
+        lr: float,
+        warmup_pct: float,
+        weight_decay: float,
+        img_size: Sequence[int],
+        num_fiducial: int,
+        output_channel: int,
+        hidden_size: int,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(charset_train, charset_test, batch_size, lr, warmup_pct, weight_decay)
         self.save_hyperparameters()
         self.max_label_length = max_label_length
         img_h, img_w = img_size
-        self.model = Model(img_h, img_w, len(self.tokenizer), num_fiducial,
-                           output_channel=output_channel, hidden_size=hidden_size, use_ctc=False)
+        self.model = Model(
+            img_h,
+            img_w,
+            len(self.tokenizer),
+            num_fiducial,
+            output_channel=output_channel,
+            hidden_size=hidden_size,
+            use_ctc=False,
+        )
         named_apply(partial(init_weights, exclude=['Transformation.LocalizationNetwork.localization_fc2']), self.model)
 
     @torch.jit.ignore
@@ -64,16 +84,34 @@ class TRBA(CrossEntropySystem):
 
 class TRBC(CTCSystem):
 
-    def __init__(self, charset_train: str, charset_test: str, max_label_length: int,
-                 batch_size: int, lr: float, warmup_pct: float, weight_decay: float,
-                 img_size: Sequence[int], num_fiducial: int, output_channel: int, hidden_size: int,
-                 **kwargs: Any) -> None:
+    def __init__(
+        self,
+        charset_train: str,
+        charset_test: str,
+        max_label_length: int,
+        batch_size: int,
+        lr: float,
+        warmup_pct: float,
+        weight_decay: float,
+        img_size: Sequence[int],
+        num_fiducial: int,
+        output_channel: int,
+        hidden_size: int,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(charset_train, charset_test, batch_size, lr, warmup_pct, weight_decay)
         self.save_hyperparameters()
         self.max_label_length = max_label_length
         img_h, img_w = img_size
-        self.model = Model(img_h, img_w, len(self.tokenizer), num_fiducial,
-                           output_channel=output_channel, hidden_size=hidden_size, use_ctc=True)
+        self.model = Model(
+            img_h,
+            img_w,
+            len(self.tokenizer),
+            num_fiducial,
+            output_channel=output_channel,
+            hidden_size=hidden_size,
+            use_ctc=True,
+        )
         named_apply(partial(init_weights, exclude=['Transformation.LocalizationNetwork.localization_fc2']), self.model)
 
     def forward(self, images: Tensor, max_length: Optional[int] = None) -> Tensor:

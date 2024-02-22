@@ -16,9 +16,9 @@
 
 import argparse
 
-import torch
-
 from PIL import Image
+
+import torch
 
 from strhub.data.module import SceneTextDataModule
 from strhub.models.utils import load_from_checkpoint, parse_model_args

@@ -18,11 +18,10 @@ import argparse
 import string
 import sys
 from dataclasses import dataclass
-from typing import List
-
-import torch
 
 from tqdm import tqdm
+
+import torch
 
 from strhub.data.module import SceneTextDataModule
 from strhub.models.utils import load_from_checkpoint, parse_model_args
@@ -38,7 +37,7 @@ class Result:
     label_length: float
 
 
-def print_results_table(results: List[Result], file=None):
+def print_results_table(results: list[Result], file=None):
     w = max(map(len, map(getattr, results, ['dataset'] * len(results))))
     w = max(w, len('Dataset'), len('Combined'))
     print('| {:<{w}} | # samples | Accuracy | 1 - NED | Confidence | Label Length |'.format('Dataset', w=w), file=file)
@@ -50,15 +49,21 @@ def print_results_table(results: List[Result], file=None):
         c.ned += res.num_samples * res.ned
         c.confidence += res.num_samples * res.confidence
         c.label_length += res.num_samples * res.label_length
-        print(f'| {res.dataset:<{w}} | {res.num_samples:>9} | {res.accuracy:>8.2f} | {res.ned:>7.2f} '
-              f'| {res.confidence:>10.2f} | {res.label_length:>12.2f} |', file=file)
+        print(
+            f'| {res.dataset:<{w}} | {res.num_samples:>9} | {res.accuracy:>8.2f} | {res.ned:>7.2f} '
+            f'| {res.confidence:>10.2f} | {res.label_length:>12.2f} |',
+            file=file,
+        )
     c.accuracy /= c.num_samples
     c.ned /= c.num_samples
     c.confidence /= c.num_samples
     c.label_length /= c.num_samples
     print('|-{:-<{w}}-|-----------|----------|---------|------------|--------------|'.format('----', w=w), file=file)
-    print(f'| {c.dataset:<{w}} | {c.num_samples:>9} | {c.accuracy:>8.2f} | {c.ned:>7.2f} '
-          f'| {c.confidence:>10.2f} | {c.label_length:>12.2f} |', file=file)
+    print(
+        f'| {c.dataset:<{w}} | {c.num_samples:>9} | {c.accuracy:>8.2f} | {c.ned:>7.2f} '
+        f'| {c.confidence:>10.2f} | {c.label_length:>12.2f} |',
+        file=file,
+    )
 
 
 @torch.inference_mode()
@@ -86,8 +91,18 @@ def main():
 
     model = load_from_checkpoint(args.checkpoint, **kwargs).eval().to(args.device)
     hp = model.hparams
-    datamodule = SceneTextDataModule(args.data_root, '_unused_', hp.img_size, hp.max_label_length, hp.charset_train,
-                                     hp.charset_test, args.batch_size, args.num_workers, False, rotation=args.rotation)
+    datamodule = SceneTextDataModule(
+        args.data_root,
+        '_unused_',
+        hp.img_size,
+        hp.max_label_length,
+        hp.charset_train,
+        hp.charset_test,
+        args.batch_size,
+        args.num_workers,
+        False,
+        rotation=args.rotation,
+    )
 
     test_set = SceneTextDataModule.TEST_BENCHMARK_SUB + SceneTextDataModule.TEST_BENCHMARK
     if args.new:
@@ -117,7 +132,7 @@ def main():
 
     result_groups = {
         'Benchmark (Subset)': SceneTextDataModule.TEST_BENCHMARK_SUB,
-        'Benchmark': SceneTextDataModule.TEST_BENCHMARK
+        'Benchmark': SceneTextDataModule.TEST_BENCHMARK,
     }
     if args.new:
         result_groups.update({'New': SceneTextDataModule.TEST_NEW})

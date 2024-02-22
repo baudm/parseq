@@ -3,19 +3,20 @@ import argparse
 import string
 import sys
 
+from tqdm import tqdm
+
 import torch
 import torch.nn.functional as F
 from torch import Tensor
 from torch.nn.utils.rnn import pad_sequence
 
-from tqdm import tqdm
-
 from strhub.data.module import SceneTextDataModule
 from strhub.models.abinet.system import ABINet
 
 sys.path.insert(0, '.')
-from hubconf import _get_config
 from test import Result, print_results_table
+
+from hubconf import _get_config
 
 
 class ABINetLM(ABINet):
@@ -28,7 +29,9 @@ class ABINetLM(ABINet):
             lengths.append(len(label) + 1)
         targets = pad_sequence(targets, batch_first=True, padding_value=0)[1:]  # exclude dummy target
         lengths = torch.as_tensor(lengths, device=self.device)
-        targets = F.one_hot(targets, len(self.tokenizer._stoi))[..., :len(self.tokenizer._stoi) - 2].float().to(self.device)
+        targets = (
+            F.one_hot(targets, len(self.tokenizer._stoi))[..., : len(self.tokenizer._stoi) - 2].float().to(self.device)
+        )
         return targets, lengths
 
     def forward(self, labels: Tensor, max_length: int = None) -> Tensor:
@@ -37,7 +40,9 @@ class ABINetLM(ABINet):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Measure the word accuracy of ABINet LM using the ground truth as input')
+    parser = argparse.ArgumentParser(
+        description='Measure the word accuracy of ABINet LM using the ground truth as input'
+    )
     parser.add_argument('checkpoint', help='Official pretrained weights for ABINet-LV (best-train-abinet.pth)')
     parser.add_argument('--data_root', default='data')
     parser.add_argument('--batch_size', type=int, default=512)
@@ -57,8 +62,17 @@ def main():
     model = model.eval().to(args.device)
     model.freeze()  # disable autograd
     hp = model.hparams
-    datamodule = SceneTextDataModule(args.data_root, '_unused_', hp.img_size, hp.max_label_length, hp.charset_train,
-                                     hp.charset_test, args.batch_size, args.num_workers, False)
+    datamodule = SceneTextDataModule(
+        args.data_root,
+        '_unused_',
+        hp.img_size,
+        hp.max_label_length,
+        hp.charset_train,
+        hp.charset_test,
+        args.batch_size,
+        args.num_workers,
+        False,
+    )
 
     test_set = SceneTextDataModule.TEST_BENCHMARK
     if args.new:
@@ -87,7 +101,7 @@ def main():
         results[name] = Result(name, total, accuracy, mean_ned, mean_conf, mean_label_length)
 
     result_groups = {
-        'Benchmark': SceneTextDataModule.TEST_BENCHMARK
+        'Benchmark': SceneTextDataModule.TEST_BENCHMARK,
     }
     if args.new:
         result_groups.update({'New': SceneTextDataModule.TEST_NEW})

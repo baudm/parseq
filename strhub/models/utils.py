@@ -1,10 +1,10 @@
 from pathlib import PurePath
 from typing import Sequence
 
+import yaml
+
 import torch
 from torch import nn
-
-import yaml
 
 
 class InvalidModelError(RuntimeError):
@@ -27,7 +27,7 @@ def _get_config(experiment: str, **kwargs):
     root = PurePath(__file__).parents[2]
     with open(root / 'configs/main.yaml', 'r') as f:
         config = yaml.load(f, yaml.Loader)['model']
-    with open(root / f'configs/charset/94_full.yaml', 'r') as f:
+    with open(root / 'configs/charset/94_full.yaml', 'r') as f:
         config.update(yaml.load(f, yaml.Loader)['model'])
     with open(root / f'configs/experiment/{experiment}.yaml', 'r') as f:
         exp = yaml.load(f, yaml.Loader)
@@ -109,11 +109,11 @@ def init_weights(module: nn.Module, name: str = '', exclude: Sequence[str] = ())
     if any(map(name.startswith, exclude)):
         return
     if isinstance(module, nn.Linear):
-        nn.init.trunc_normal_(module.weight, std=.02)
+        nn.init.trunc_normal_(module.weight, std=0.02)
         if module.bias is not None:
             nn.init.zeros_(module.bias)
     elif isinstance(module, nn.Embedding):
-        nn.init.trunc_normal_(module.weight, std=.02)
+        nn.init.trunc_normal_(module.weight, std=0.02)
         if module.padding_idx is not None:
             module.weight.data[module.padding_idx].zero_()
     elif isinstance(module, nn.Conv2d):

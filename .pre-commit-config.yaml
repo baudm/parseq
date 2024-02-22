@@ -1,0 +1,18 @@
+exclude: '(abinet|crnn|trba|vitstr)/(?!system.py)'
+
+repos:
+-   repo: https://github.com/baudm/isort
+    rev: 5.13.2
+    hooks:
+    -   id: isort
+
+-   repo: https://github.com/google/pyink
+    rev: 23.10.0
+    hooks:
+    -   id: pyink
+
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.2.2
+    hooks:
+    -   id: ruff
+        args: [--exit-non-zero-on-fix]

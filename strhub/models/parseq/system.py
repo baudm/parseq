@@ -15,9 +15,10 @@
 
 import math
 from itertools import permutations
-from typing import Sequence, Any, Optional
+from typing import Any, Optional, Sequence
 
 import numpy as np
+
 import torch
 import torch.nn.functional as F
 from torch import Tensor
@@ -25,26 +26,57 @@ from torch import Tensor
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 
 from strhub.models.base import CrossEntropySystem
+
 from .model import PARSeq as Model
 
 
 class PARSeq(CrossEntropySystem):
 
-    def __init__(self, charset_train: str, charset_test: str, max_label_length: int,
-                 batch_size: int, lr: float, warmup_pct: float, weight_decay: float,
-                 img_size: Sequence[int], patch_size: Sequence[int], embed_dim: int,
-                 enc_num_heads: int, enc_mlp_ratio: int, enc_depth: int,
-                 dec_num_heads: int, dec_mlp_ratio: int, dec_depth: int,
-                 perm_num: int, perm_forward: bool, perm_mirrored: bool,
-                 decode_ar: bool, refine_iters: int, dropout: float, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        charset_train: str,
+        charset_test: str,
+        max_label_length: int,
+        batch_size: int,
+        lr: float,
+        warmup_pct: float,
+        weight_decay: float,
+        img_size: Sequence[int],
+        patch_size: Sequence[int],
+        embed_dim: int,
+        enc_num_heads: int,
+        enc_mlp_ratio: int,
+        enc_depth: int,
+        dec_num_heads: int,
+        dec_mlp_ratio: int,
+        dec_depth: int,
+        perm_num: int,
+        perm_forward: bool,
+        perm_mirrored: bool,
+        decode_ar: bool,
+        refine_iters: int,
+        dropout: float,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(charset_train, charset_test, batch_size, lr, warmup_pct, weight_decay)
         self.save_hyperparameters()
 
-        self.model = Model(len(self.tokenizer), max_label_length,
-                           img_size, patch_size, embed_dim,
-                           enc_num_heads, enc_mlp_ratio, enc_depth,
-                           dec_num_heads, dec_mlp_ratio, dec_depth,
-                           decode_ar, refine_iters, dropout)
+        self.model = Model(
+            len(self.tokenizer),
+            max_label_length,
+            img_size,
+            patch_size,
+            embed_dim,
+            enc_num_heads,
+            enc_mlp_ratio,
+            enc_depth,
+            dec_num_heads,
+            dec_mlp_ratio,
+            dec_depth,
+            decode_ar,
+            refine_iters,
+            dropout,
+        )
 
         # Perm/attn mask stuff
         self.rng = np.random.default_rng()
@@ -57,8 +89,8 @@ class PARSeq(CrossEntropySystem):
 
     def gen_tgt_perms(self, tgt):
         """Generate shared permutations for the whole batch.
-           This works because the same attention mask can be used for the shorter sequences
-           because of the padding mask.
+        This works because the same attention mask can be used for the shorter sequences
+        because of the padding mask.
         """
         # We don't permute the position of BOS, we permute EOS separately
         max_num_chars = tgt.shape[1] - 2
@@ -80,7 +112,10 @@ class PARSeq(CrossEntropySystem):
                 selector = [0, 3, 4, 6, 9, 10, 12, 16, 17, 18, 19, 21]
             else:
                 selector = list(range(max_perms))
-            perm_pool = torch.as_tensor(list(permutations(range(max_num_chars), max_num_chars)), device=self._device)[selector]
+            perm_pool = torch.as_tensor(
+                list(permutations(range(max_num_chars), max_num_chars)),
+                device=self._device,
+            )[selector]
             # If the forward permutation is always selected, no need to add it to the pool for sampling
             if self.perm_forward:
                 perm_pool = perm_pool[1:]
@@ -89,7 +124,9 @@ class PARSeq(CrossEntropySystem):
                 i = self.rng.choice(len(perm_pool), size=num_gen_perms - len(perms), replace=False)
                 perms = torch.cat([perms, perm_pool[i]])
         else:
-            perms.extend([torch.randperm(max_num_chars, device=self._device) for _ in range(num_gen_perms - len(perms))])
+            perms.extend(
+                [torch.randperm(max_num_chars, device=self._device) for _ in range(num_gen_perms - len(perms))]
+            )
             perms = torch.stack(perms)
         if self.perm_mirrored:
             # Add complementary pairs
@@ -122,7 +159,7 @@ class PARSeq(CrossEntropySystem):
         mask = torch.zeros((sz, sz), device=self._device)
         for i in range(sz):
             query_idx = perm[i]
-            masked_keys = perm[i + 1:]
+            masked_keys = perm[i + 1 :]
             mask[query_idx, masked_keys] = float('-inf')
         content_mask = mask[:-1, :-1].clone()
         mask[torch.eye(sz, dtype=torch.bool, device=self._device)] = float('-inf')  # mask "self"

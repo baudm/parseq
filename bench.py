@@ -16,13 +16,12 @@
 
 import os
 
+import hydra
+from fvcore.nn import ActivationCountAnalysis, FlopCountAnalysis, flop_count_table
+from omegaconf import DictConfig
+
 import torch
 from torch.utils import benchmark
-
-from fvcore.nn import FlopCountAnalysis, ActivationCountAnalysis, flop_count_table
-
-import hydra
-from omegaconf import DictConfig
 
 
 @torch.inference_mode()
@@ -41,14 +40,10 @@ def main(config: DictConfig):
 
     if config.get('range', False):
         for i in range(1, 26, 4):
-            timer = benchmark.Timer(
-                stmt='model(x, len)',
-                globals={'model': model, 'x': x, 'len': i})
+            timer = benchmark.Timer(stmt='model(x, len)', globals={'model': model, 'x': x, 'len': i})
             print(timer.blocked_autorange(min_run_time=1))
     else:
-        timer = benchmark.Timer(
-            stmt='model(x)',
-            globals={'model': model, 'x': x})
+        timer = benchmark.Timer(stmt='model(x)', globals={'model': model, 'x': x})
         flops = FlopCountAnalysis(model, x)
         acts = ActivationCountAnalysis(model, x)
         print(timer.blocked_autorange(min_run_time=1))

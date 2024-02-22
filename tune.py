@@ -20,21 +20,19 @@ import os
 import shutil
 from pathlib import Path
 
-from omegaconf import DictConfig, open_dict
 import hydra
-from hydra.core.hydra_config import HydraConfig
-
 import numpy as np
-
-from pytorch_lightning import Trainer, LightningModule
-from pytorch_lightning.loggers import TensorBoardLogger
-
+from hydra.core.hydra_config import HydraConfig
+from omegaconf import DictConfig, open_dict
 from ray import tune
 from ray.tune import CLIReporter
 from ray.tune.integration.pytorch_lightning import TuneReportCheckpointCallback
 from ray.tune.ray_trial_executor import RayTrialExecutor
 from ray.tune.schedulers import MedianStoppingRule
 from ray.tune.suggest.ax import AxSearch
+
+from pytorch_lightning import LightningModule, Trainer
+from pytorch_lightning.loggers import TensorBoardLogger
 
 from strhub.data.module import SceneTextDataModule
 from strhub.models.base import BaseSystem
@@ -58,8 +56,8 @@ class MetricTracker(tune.Stopper):
         self.buffer = 2 * (len(self.kernel) // 2) + 2
 
     @staticmethod
-    def gaussian_pdf(x, sigma=1.):
-        return np.exp(-(x / sigma)**2 / 2) / (sigma * np.sqrt(2 * np.pi))
+    def gaussian_pdf(x, sigma=1.0):
+        return np.exp(-((x / sigma) ** 2) / 2) / (sigma * np.sqrt(2 * np.pi))
 
     @staticmethod
     def moving_average(x, k):
@@ -75,7 +73,7 @@ class MetricTracker(tune.Stopper):
             return True
         history = self.trial_history.get(trial_id, [])
         # FIFO queue of metric values.
-        history = history[-(self.patience + self.buffer - 1):] + [result[self.metric]]
+        history = history[-(self.patience + self.buffer - 1) :] + [result[self.metric]]
         # Only start checking once we have enough data. At least one non-zero sample is required.
         if len(history) == self.patience + self.buffer and sum(history) > 0:
             smooth_grad = np.gradient(self.moving_average(history, self.kernel))[1:-1]  # discard edge values.
@@ -116,13 +114,16 @@ def train(hparams, config, checkpoint_dir=None):
     tune_callback = TuneReportCheckpointPruneCallback({
         'loss': 'val_loss',
         'NED': 'val_NED',
-        'accuracy': 'val_accuracy'
+        'accuracy': 'val_accuracy',
     })
     ckpt_path = None if checkpoint_dir is None else os.path.join(checkpoint_dir, 'checkpoint')
-    trainer: Trainer = hydra.utils.instantiate(config.trainer, enable_progress_bar=False, enable_checkpointing=False,
-                                               logger=TensorBoardLogger(save_dir=tune.get_trial_dir(), name='',
-                                                                        version='.'),
-                                               callbacks=[tune_callback])
+    trainer: Trainer = hydra.utils.instantiate(
+        config.trainer,
+        enable_progress_bar=False,
+        enable_checkpointing=False,
+        logger=TensorBoardLogger(save_dir=tune.get_trial_dir(), name='', version='.'),
+        callbacks=[tune_callback],
+    )
     trainer.fit(model, datamodule=datamodule, ckpt_path=ckpt_path)
 
 
@@ -158,9 +159,7 @@ def main(config: DictConfig):
     initial_points = [{'lr': np.clip(x, lr.lower, lr.upper).item()} for x in reversed(np.logspace(start, stop, num))]
     search_alg = AxSearch(points_to_evaluate=initial_points)
 
-    reporter = CLIReporter(
-        parameter_columns=['lr'],
-        metric_columns=['loss', 'accuracy', 'training_iteration'])
+    reporter = CLIReporter(parameter_columns=['lr'], metric_columns=['loss', 'accuracy', 'training_iteration'])
 
     out_dir = Path(HydraConfig.get().runtime.output_dir if config.tune.resume_dir is None else config.tune.resume_dir)
 
@@ -173,7 +172,7 @@ def main(config: DictConfig):
         config=hparams,
         resources_per_trial={
             'cpu': 1,
-            'gpu': config.tune.gpus_per_trial
+            'gpu': config.tune.gpus_per_trial,
         },
         num_samples=config.tune.num_samples,
         local_dir=str(out_dir.parent.absolute()),
@@ -181,7 +180,7 @@ def main(config: DictConfig):
         scheduler=scheduler,
         progress_reporter=reporter,
         resume=config.tune.resume_dir is not None,
-        trial_executor=RayTrialExecutor(result_buffer_length=0)  # disable result buffering
+        trial_executor=RayTrialExecutor(result_buffer_length=0),  # disable result buffering
     )
 
     print('Best hyperparameters found were: ', analysis.best_config)

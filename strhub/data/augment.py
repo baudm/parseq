@@ -17,7 +17,8 @@ from functools import partial
 
 import imgaug.augmenters as iaa
 import numpy as np
-from PIL import ImageFilter, Image
+from PIL import Image, ImageFilter
+
 from timm.data import auto_augment
 
 from strhub.data import aa_overrides
@@ -71,7 +72,7 @@ def poisson_noise(img, lam, **_):
 
 def _level_to_arg(level, _hparams, max):
     level = max * level / auto_augment._LEVEL_DENOM
-    return level,
+    return (level,)
 
 
 _RAND_TRANSFORMS = auto_augment._RAND_INCREASING_TRANSFORMS.copy()
@@ -80,19 +81,19 @@ _RAND_TRANSFORMS.extend([
     'GaussianBlur',
     # 'MotionBlur',
     # 'GaussianNoise',
-    'PoissonNoise'
+    'PoissonNoise',
 ])
 auto_augment.LEVEL_TO_ARG.update({
     'GaussianBlur': partial(_level_to_arg, max=4),
     'MotionBlur': partial(_level_to_arg, max=20),
     'GaussianNoise': partial(_level_to_arg, max=0.1 * 255),
-    'PoissonNoise': partial(_level_to_arg, max=40)
+    'PoissonNoise': partial(_level_to_arg, max=40),
 })
 auto_augment.NAME_TO_OP.update({
     'GaussianBlur': gaussian_blur,
     'MotionBlur': motion_blur,
     'GaussianNoise': gaussian_noise,
-    'PoissonNoise': poisson_noise
+    'PoissonNoise': poisson_noise,
 })
 
 
@@ -103,9 +104,9 @@ def rand_augment_transform(magnitude=5, num_layers=3):
         'shear_x_pct': 0.9,
         'shear_y_pct': 0.2,
         'translate_x_pct': 0.10,
-        'translate_y_pct': 0.30
+        'translate_y_pct': 0.30,
     }
     ra_ops = auto_augment.rand_augment_ops(magnitude, hparams=hparams, transforms=_RAND_TRANSFORMS)
     # Supply weights to disable replacement in random selection (i.e. avoid applying the same op twice)
-    choice_weights = [1. / len(ra_ops) for _ in range(len(ra_ops))]
+    choice_weights = [1.0 / len(ra_ops) for _ in range(len(ra_ops))]
     return auto_augment.RandAugment(ra_ops, num_layers, choice_weights)
