@@ -94,12 +94,12 @@ class MetricTracker(tune.Stopper):
 class TuneReportCheckpointPruneCallback(TuneReportCheckpointCallback):
 
     def _handle(self, trainer: Trainer, pl_module: LightningModule):
-        self._checkpoint._handle(trainer, pl_module)
+        super()._handle(trainer, pl_module)
         # Prune older checkpoints
-        for old in sorted(Path(tune.get_trial_dir()).glob('checkpoint_epoch=*-step=*'), key=os.path.getmtime)[:-1]:
+        trial_dir = train.get_context().get_trial_dir()
+        for old in sorted(Path(trial_dir).glob('checkpoint_epoch=*-step=*'), key=os.path.getmtime)[:-1]:
             log.info(f'Deleting old checkpoint: {old}')
             shutil.rmtree(old)
-        self._report._handle(trainer, pl_module)
 
 
 def trainable(hparams, config):
@@ -117,14 +117,14 @@ def trainable(hparams, config):
     })
     if checkpoint := train.get_checkpoint():
         with checkpoint.as_directory() as checkpoint_dir:
-            ckpt_path = os.path.join(checkpoint_dir, 'checkpoint.pt')
+            ckpt_path = os.path.join(checkpoint_dir, 'checkpoint')
     else:
         ckpt_path = None
     trainer: Trainer = hydra.utils.instantiate(
         config.trainer,
         enable_progress_bar=False,
         enable_checkpointing=False,
-        logger=TensorBoardLogger(save_dir=tune.get_trial_dir(), name='', version='.'),
+        logger=TensorBoardLogger(save_dir=train.get_context().get_trial_dir(), name='', version='.'),
         callbacks=[tune_callback],
     )
     trainer.fit(model, datamodule=datamodule, ckpt_path=ckpt_path)
@@ -192,9 +192,11 @@ def main(config: DictConfig):
         )
     else:
         tuner = tune.Tuner.restore(config.tune.resume_dir, wrapped_trainable)
-    result = tuner.fit()
+    results = tuner.fit()
+    best_result = results.get_best_result()
 
-    print('Best hyperparameters found were: ', result.get_best_result())
+    print('Best hyperparameters found were:', best_result.config)
+    print('with result:\n', best_result)
 
 
 if __name__ == '__main__':

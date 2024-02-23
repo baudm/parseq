@@ -20,6 +20,8 @@ import hydra
 from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig, open_dict
 
+import torch
+
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint, StochasticWeightAveraging
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -59,7 +61,7 @@ def main(config: DictConfig):
         devices = config.trainer.get('devices', 0)
         if gpu:
             # Use mixed-precision training
-            config.trainer.precision = 16
+            config.trainer.precision = 'bf16-mixed' if torch.get_autocast_gpu_dtype() is torch.bfloat16 else '16-mixed'
         if gpu and devices > 1:
             # Use DDP with optimizations
             trainer_strategy = DDPStrategy(find_unused_parameters=False, gradient_as_bucket_view=True)

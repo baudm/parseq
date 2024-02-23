@@ -1,8 +1,7 @@
 import torch.nn as nn
-from torch.nn import TransformerDecoder
 
 from .model import Model
-from .transformer import PositionalEncoding, TransformerDecoderLayer
+from .transformer import PositionalEncoding, TransformerDecoderLayer, TransformerDecoder
 
 
 class BCNLanguage(Model):

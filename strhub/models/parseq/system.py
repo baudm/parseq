@@ -156,7 +156,7 @@ class PARSeq(CrossEntropySystem):
         :return: lookahead attention masks
         """
         sz = perm.shape[0]
-        mask = torch.zeros((sz, sz), device=self._device)
+        mask = torch.zeros((sz, sz), dtype=torch.bool, device=self._device)
         for i in range(sz):
             query_idx = perm[i]
             masked_keys = perm[i + 1 :]

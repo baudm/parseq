@@ -27,5 +27,5 @@ class Model(nn.Module):
     @staticmethod
     def _get_location_mask(sz, device=None):
         mask = torch.eye(sz, device=device)
-        mask = mask.float().masked_fill(mask == 1, True)
+        mask = mask.float().masked_fill(mask == 1, float('-inf'))
         return mask

@@ -106,7 +106,7 @@ class BaseSystem(pl.LightningModule, ABC):
         )
         return {'optimizer': optim, 'lr_scheduler': {'scheduler': sched, 'interval': 'step'}}
 
-    def optimizer_zero_grad(self, epoch: int, batch_idx: int, optimizer: Optimizer, optimizer_idx: int):
+    def optimizer_zero_grad(self, epoch: int, batch_idx: int, optimizer: Optimizer) -> None:
         optimizer.zero_grad(set_to_none=True)
 
     def _eval_step(self, batch, validation: bool) -> Optional[STEP_OUTPUT]:
