@@ -129,7 +129,7 @@ The training script can train any supported model. You can override any configur
 
 ### Finetune using pretrained weights
 ```bash
-./train.py pretrained=parseq-tiny  # Not all experiments have pretrained weights
+./train.py +experiment=parseq-tiny pretrained=parseq-tiny  # Not all experiments have pretrained weights
 ```
 
 ### Train a model variant/preconfigured experiment

@@ -77,7 +77,8 @@ def main(config: DictConfig):
     model: BaseSystem = hydra.utils.instantiate(config.model)
     # If specified, use pretrained weights to initialize the model
     if config.pretrained is not None:
-        model.load_state_dict(get_pretrained_weights(config.pretrained))
+        m = model.model if config.model._target_.endswith('PARSeq') else model
+        m.load_state_dict(get_pretrained_weights(config.pretrained))
     print(summarize(model, max_depth=2))
 
     datamodule: SceneTextDataModule = hydra.utils.instantiate(config.data)
