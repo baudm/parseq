@@ -146,4 +146,4 @@ cython_debug/
 
 # IDE
 .idea/
-dataset/*
+datasets/*
