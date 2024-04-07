@@ -1,6 +1,7 @@
 ## News
 - **2024-02-22**: Updated for PyTorch 2.0 and Lightning 2.0
 - **2024-01-16**: Featured in the [NVIDIA Developer Blog](https://developer.nvidia.com/blog/robust-scene-text-detection-and-recognition-introduction/)
+- **2023-11-18**: [Interview with Deci AI at ECCV 2022](https://deeplearningdaily.substack.com/p/exclusive-interview-with-a-researcher) published
 - **2023-06-15**: [Added](https://github.com/mindee/doctr/pull/1205) to [docTR](https://github.com/mindee/doctr) (deep learning-based library for OCR)
 - **2022-07-14**: Initial public release (ranked #1 overall for STR on [Papers With Code](https://paperswithcode.com/paper/scene-text-recognition-with-permuted) at the time of release)
 - **2022-07-04**: Accepted at ECCV 2022
