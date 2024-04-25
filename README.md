@@ -14,6 +14,7 @@
 [![arXiv preprint](http://img.shields.io/badge/arXiv-2207.06966-b31b1b)](https://arxiv.org/abs/2207.06966)
 [![In Proc. ECCV 2022](http://img.shields.io/badge/ECCV-2022-6790ac)](https://www.ecva.net/papers/eccv_2022/papers_ECCV/html/556_ECCV_2022_paper.php)
 [![Gradio demo](https://img.shields.io/badge/%F0%9F%A4%97%20demo-Gradio-ff7c00)](https://huggingface.co/spaces/baudm/PARSeq-OCR)
+[![Pretrained weights](https://img.shields.io/badge/%F0%9F%A4%97%20weights-Hugging%20Face-ffd21e)](https://huggingface.co/baudm)
 
 [![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/scene-text-recognition-with-permuted/scene-text-recognition-on-coco-text)](https://paperswithcode.com/sota/scene-text-recognition-on-coco-text?p=scene-text-recognition-with-permuted)
 [![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/scene-text-recognition-with-permuted/scene-text-recognition-on-ic19-art)](https://paperswithcode.com/sota/scene-text-recognition-on-ic19-art?p=scene-text-recognition-with-permuted)
