@@ -161,8 +161,9 @@ class PARSeq(nn.Module):
                 tgt_in = torch.cat([bos, logits[:, :-1].argmax(-1)], dim=1)
                 # Mask tokens beyond the first EOS token.
                 tgt_padding_mask = (tgt_in == tokenizer.eos_id).int().cumsum(-1) > 0
+                tgt_in_len = tgt_in.shape[1]
                 tgt_out = self.decode(
-                    tgt_in, memory, tgt_mask, tgt_padding_mask, pos_queries, query_mask[:, : tgt_in.shape[1]]
+                    tgt_in, memory, tgt_mask[:tgt_in_len, :tgt_in_len], tgt_padding_mask, pos_queries, query_mask[:, :tgt_in_len]
                 )
                 logits = self.head(tgt_out)
 
